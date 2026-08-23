@@ -1,0 +1,909 @@
+openapi: 3.1.0
+info:
+  title: Nivalis API
+  version: 0.1.0
+  description: >-
+    Frontend-independent contract for profiles, composable Dashboard revisions,
+    Provider status, asynchronous synchronization jobs, and appearance settings.
+    The API returns data and semantic capabilities, never UI styling.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /
+tags:
+  - name: Public
+    description: Public allowlisted profile and Published Dashboard read models.
+  - name: Dashboard
+    description: Owner Draft, Published, and revision lifecycle operations.
+  - name: Widget
+    description: Widget instance configuration within a Dashboard Draft.
+  - name: Provider
+    description: Provider state and asynchronous synchronization job resources.
+  - name: Settings
+    description: Owner settings expressed as semantic preferences.
+paths:
+  /v1/public/profile:
+    get:
+      operationId: getPublicProfile
+      summary: Read the public profile
+      tags: [Public]
+      security: []
+      responses:
+        "200":
+          description: Public profile
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        default:
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /v1/public/dashboards/about:
+    get:
+      operationId: getPublicAboutDashboard
+      summary: Read the published About Me Dashboard snapshot
+      tags: [Public]
+      security: []
+      responses:
+        "200":
+          description: Published Dashboard read model
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardReadModel"
+        "304":
+          description: Snapshot has not changed
+        default:
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/draft:
+    get:
+      operationId: getAboutDashboardDraft
+      summary: Read the owner's draft Dashboard revision
+      tags: [Dashboard]
+      security:
+        - ownerSession: []
+      responses:
+        "200":
+          description: Draft Dashboard revision
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardRevision"
+        "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: replaceAboutDashboardDraft
+      summary: Save the owner's draft without publishing it
+      tags: [Dashboard]
+      security:
+        - ownerSession: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DashboardDraftUpdate"
+      responses:
+        "200":
+          description: Saved draft revision
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardRevision"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/publish:
+    post:
+      operationId: publishAboutDashboard
+      summary: Explicitly publish the current draft revision
+      tags: [Dashboard]
+      security:
+        - ownerSession: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: Newly published Dashboard revision
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardRevision"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/widgets:
+    post:
+      operationId: createAboutDashboardWidget
+      summary: Add a Widget instance to the About Me Dashboard draft
+      tags: [Widget]
+      security:
+        - ownerSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWidgetInput"
+      responses:
+        "201":
+          description: Widget instance created
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetInstance"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/widgets/{widgetId}:
+    parameters:
+      - $ref: "#/components/parameters/WidgetId"
+    patch:
+      operationId: updateWidget
+      summary: Update the semantic configuration of a Widget instance
+      tags: [Widget]
+      security:
+        - ownerSession: []
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/UpdateWidgetInput"
+      responses:
+        "200":
+          description: Updated Widget instance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetInstance"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteWidget
+      summary: Remove a Widget instance from the Dashboard draft
+      tags: [Widget]
+      security:
+        - ownerSession: []
+      responses:
+        "204":
+          description: Widget instance removed
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/status:
+    get:
+      operationId: listProviderStatus
+      summary: List configured Provider synchronization states
+      tags: [Provider]
+      security:
+        - ownerSession: []
+      responses:
+        "200":
+          description: Provider states
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [providers]
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProviderStatus"
+        "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/{provider}/sync:
+    post:
+      operationId: enqueueProviderSync
+      summary: Enqueue an asynchronous Provider synchronization job
+      tags: [Provider]
+      security:
+        - ownerSession: []
+      parameters:
+        - $ref: "#/components/parameters/Provider"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Synchronization job accepted
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncJob"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/sync-jobs/{jobId}:
+    get:
+      operationId: getSyncJob
+      summary: Read an asynchronous synchronization job
+      tags: [Provider]
+      security:
+        - ownerSession: []
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Synchronization job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncJob"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/settings/appearance:
+    get:
+      operationId: getAppearanceSettings
+      summary: Read the owner's semantic appearance preferences
+      tags: [Settings]
+      security:
+        - ownerSession: []
+      responses:
+        "200":
+          description: Appearance preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppearanceSettings"
+        "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: replaceAppearanceSettings
+      summary: Replace the owner's semantic appearance preferences
+      tags: [Settings]
+      security:
+        - ownerSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppearanceSettings"
+      responses:
+        "200":
+          description: Appearance preferences saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppearanceSettings"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  securitySchemes:
+    ownerSession:
+      type: apiKey
+      in: cookie
+      name: nivalis_session
+  headers:
+    ETag:
+      description: Opaque revision validator
+      schema:
+        type: string
+  parameters:
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag returned when the draft was read
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    Provider:
+      name: provider
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Provider"
+    WidgetId:
+      name: widgetId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    Problem:
+      description: RFC 9457 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    PreconditionFailed:
+      description: The supplied revision validator is stale
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    TooManyRequests:
+      description: Synchronization was rate limited
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+  schemas:
+    Provider:
+      type: string
+      enum: [netease, github, bangumi, steam, bilibili]
+    WidgetType:
+      type: string
+      enum:
+        - profile.hero
+        - system.stats
+        - music.netease.overview
+        - github.profile
+        - bilibili.profile
+        - steam.profile
+        - bangumi.collection
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [displayName, handle, headline, bio, avatarUrl, tags]
+      properties:
+        displayName:
+          type: string
+        handle:
+          type: string
+        headline:
+          type: string
+        bio:
+          type: string
+        avatarUrl:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+    LayoutItem:
+      type: object
+      additionalProperties: false
+      required: [i, x, y, w, h]
+      properties:
+        i:
+          type: string
+        x:
+          type: integer
+          minimum: 0
+        y:
+          type: integer
+          minimum: 0
+        w:
+          type: integer
+          minimum: 1
+        h:
+          type: integer
+          minimum: 1
+    ResponsiveLayout:
+      type: object
+      additionalProperties: false
+      required: [lg, md, sm]
+      properties:
+        lg:
+          type: array
+          items:
+            $ref: "#/components/schemas/LayoutItem"
+        md:
+          type: array
+          items:
+            $ref: "#/components/schemas/LayoutItem"
+        sm:
+          type: array
+          items:
+            $ref: "#/components/schemas/LayoutItem"
+    WidgetEnvelope:
+      type: object
+      additionalProperties: false
+      required: [id, schemaVersion, title, updatedAt, stale]
+      properties:
+        id:
+          type: string
+        schemaVersion:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        stale:
+          type: boolean
+    ProfileHeroData:
+      $ref: "#/components/schemas/Profile"
+    SystemStatData:
+      type: object
+      additionalProperties: false
+      required: [metric, value, unit]
+      properties:
+        metric:
+          type: string
+          enum: [uptime_days, providers_connected, sync_completeness, records_collected]
+        value:
+          type: number
+        unit:
+          type: string
+          enum: [days, providers, percent, records]
+    ArtistSummary:
+      type: object
+      additionalProperties: false
+      required: [name, avatarUrl]
+      properties:
+        name:
+          type: string
+        avatarUrl:
+          type: string
+    GenreShare:
+      type: object
+      additionalProperties: false
+      required: [name, share]
+      properties:
+        name:
+          type: string
+        share:
+          type: number
+          minimum: 0
+          maximum: 1
+    TrendPoint:
+      type: object
+      additionalProperties: false
+      required: [label, value]
+      properties:
+        label:
+          type: string
+        value:
+          type: number
+          minimum: 0
+    NeteaseOverviewData:
+      type: object
+      additionalProperties: false
+      required: [range, plays, minutes, dailyAverage, change, topArtists, genres, trend]
+      properties:
+        range:
+          type: string
+          enum: [7d, 30d, year]
+        plays:
+          type: integer
+          minimum: 0
+        minutes:
+          type: integer
+          minimum: 0
+        dailyAverage:
+          type: integer
+          minimum: 0
+        change:
+          type: number
+        topArtists:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtistSummary"
+        genres:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenreShare"
+        trend:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendPoint"
+    GithubProfileData:
+      type: object
+      additionalProperties: false
+      required: [handle, repositories, stars, followers, contributions]
+      properties:
+        handle:
+          type: string
+        repositories:
+          type: integer
+          minimum: 0
+        stars:
+          type: integer
+          minimum: 0
+        followers:
+          type: integer
+          minimum: 0
+        contributions:
+          type: integer
+          minimum: 0
+    BilibiliProfileData:
+      type: object
+      additionalProperties: false
+      required: [level, following, followers, views, likes]
+      properties:
+        level:
+          type: integer
+          minimum: 0
+        following:
+          type: integer
+          minimum: 0
+        followers:
+          type: integer
+          minimum: 0
+        views:
+          type: integer
+          minimum: 0
+        likes:
+          type: integer
+          minimum: 0
+    SteamProfileData:
+      type: object
+      additionalProperties: false
+      required: [level, games, playtimeHours, achievements, screenshots]
+      properties:
+        level:
+          type: integer
+          minimum: 0
+        games:
+          type: integer
+          minimum: 0
+        playtimeHours:
+          type: integer
+          minimum: 0
+        achievements:
+          type: integer
+          minimum: 0
+        screenshots:
+          type: integer
+          minimum: 0
+    BangumiCollectionData:
+      type: object
+      additionalProperties: false
+      required: [level, entries, watched, watching, reviews]
+      properties:
+        level:
+          type: integer
+          minimum: 0
+        entries:
+          type: integer
+          minimum: 0
+        watched:
+          type: integer
+          minimum: 0
+        watching:
+          type: integer
+          minimum: 0
+        reviews:
+          type: integer
+          minimum: 0
+    ProfileHeroWidget:
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: profile.hero
+            schemaVersion:
+              const: 1
+            data:
+              $ref: "#/components/schemas/ProfileHeroData"
+    SystemStatsWidget:
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: system.stats
+            schemaVersion:
+              const: 1
+            data:
+              $ref: "#/components/schemas/SystemStatData"
+    NeteaseOverviewWidget:
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.overview
+            schemaVersion:
+              const: 1
+            data:
+              $ref: "#/components/schemas/NeteaseOverviewData"
+    GithubProfileWidget:
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: github.profile
+            schemaVersion:
+              const: 1
+            data:
+              $ref: "#/components/schemas/GithubProfileData"
+    BilibiliProfileWidget:
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: bilibili.profile
+            schemaVersion:
+              const: 1
+            data:
+              $ref: "#/components/schemas/BilibiliProfileData"
+    SteamProfileWidget:
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: steam.profile
+            schemaVersion:
+              const: 1
+            data:
+              $ref: "#/components/schemas/SteamProfileData"
+    BangumiCollectionWidget:
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: bangumi.collection
+            schemaVersion:
+              const: 1
+            data:
+              $ref: "#/components/schemas/BangumiCollectionData"
+    WidgetProjection:
+      oneOf:
+        - $ref: "#/components/schemas/ProfileHeroWidget"
+        - $ref: "#/components/schemas/SystemStatsWidget"
+        - $ref: "#/components/schemas/NeteaseOverviewWidget"
+        - $ref: "#/components/schemas/GithubProfileWidget"
+        - $ref: "#/components/schemas/BilibiliProfileWidget"
+        - $ref: "#/components/schemas/SteamProfileWidget"
+        - $ref: "#/components/schemas/BangumiCollectionWidget"
+      discriminator:
+        propertyName: type
+        mapping:
+          profile.hero: "#/components/schemas/ProfileHeroWidget"
+          system.stats: "#/components/schemas/SystemStatsWidget"
+          music.netease.overview: "#/components/schemas/NeteaseOverviewWidget"
+          github.profile: "#/components/schemas/GithubProfileWidget"
+          bilibili.profile: "#/components/schemas/BilibiliProfileWidget"
+          steam.profile: "#/components/schemas/SteamProfileWidget"
+          bangumi.collection: "#/components/schemas/BangumiCollectionWidget"
+    WidgetInstance:
+      type: object
+      additionalProperties: false
+      required: [id, type, schemaVersion, config]
+      properties:
+        id:
+          type: string
+        type:
+          $ref: "#/components/schemas/WidgetType"
+        schemaVersion:
+          type: integer
+          minimum: 1
+        title:
+          type: [string, "null"]
+        config:
+          type: object
+          additionalProperties: true
+    CreateWidgetInput:
+      type: object
+      additionalProperties: false
+      required: [type, schemaVersion]
+      properties:
+        type:
+          $ref: "#/components/schemas/WidgetType"
+        schemaVersion:
+          type: integer
+          minimum: 1
+        config:
+          type: object
+          additionalProperties: true
+    UpdateWidgetInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: [string, "null"]
+        config:
+          type: object
+          additionalProperties: true
+    DashboardReadModel:
+      type: object
+      additionalProperties: false
+      required: [revision, profile, layout, widgets]
+      properties:
+        revision:
+          type: integer
+          minimum: 1
+        profile:
+          $ref: "#/components/schemas/Profile"
+        layout:
+          $ref: "#/components/schemas/ResponsiveLayout"
+        widgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/WidgetProjection"
+    DashboardRevision:
+      allOf:
+        - $ref: "#/components/schemas/DashboardReadModel"
+        - type: object
+          additionalProperties: false
+          required: [revisionId, state, basedOnRevision, createdAt]
+          properties:
+            revisionId:
+              type: string
+            state:
+              type: string
+              enum: [draft, published]
+            basedOnRevision:
+              type: integer
+              minimum: 0
+            createdAt:
+              type: string
+              format: date-time
+    DashboardDraftUpdate:
+      type: object
+      additionalProperties: false
+      required: [layout, widgetIds]
+      properties:
+        layout:
+          $ref: "#/components/schemas/ResponsiveLayout"
+        widgetIds:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+    ProviderStatus:
+      type: object
+      additionalProperties: false
+      required: [provider, connection, syncStatus]
+      properties:
+        provider:
+          $ref: "#/components/schemas/Provider"
+        connection:
+          type: string
+          enum: [connected, disconnected, requires_attention]
+        syncStatus:
+          type: string
+          enum: [idle, queued, running, completed, failed]
+        lastAttemptAt:
+          type: [string, "null"]
+          format: date-time
+        lastSuccessAt:
+          type: [string, "null"]
+          format: date-time
+        lastError:
+          type: [string, "null"]
+    SyncJob:
+      type: object
+      additionalProperties: false
+      required: [jobId, provider, status, createdAt]
+      properties:
+        jobId:
+          type: string
+        provider:
+          $ref: "#/components/schemas/Provider"
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: [string, "null"]
+          format: date-time
+        completedAt:
+          type: [string, "null"]
+          format: date-time
+        problem:
+          oneOf:
+            - $ref: "#/components/schemas/ProblemDetails"
+            - type: "null"
+    AppearanceSettings:
+      type: object
+      additionalProperties: false
+      required: [theme, font, glassIntensity, accent, backgroundMode]
+      properties:
+        theme:
+          type: string
+          enum: [light, system]
+        font:
+          type: string
+          enum: [noto-sans, system]
+        glassIntensity:
+          type: string
+          enum: [subtle, balanced, strong]
+        accent:
+          type: string
+          enum: [blue, lilac, rose]
+        backgroundMode:
+          type: string
+          enum: [fixed, rotate]
+    ProblemDetails:
+      type: object
+      additionalProperties: true
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference

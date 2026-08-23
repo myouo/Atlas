@@ -1,0 +1,47 @@
+{
+  "name": "nivalis-about",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A personal digital identity, multi-provider data aggregation, and composable dashboard system.",
+  "packageManager": "pnpm@11.3.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "build": "pnpm generate && pnpm -r --if-present build",
+    "dev": "pnpm --filter @nivalis/web dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "generate": "pnpm --filter @nivalis/api-client generate",
+    "lint": "pnpm lint:eslint && pnpm lint:openapi && pnpm lint:architecture",
+    "lint:architecture": "node scripts/check-architecture.mjs",
+    "lint:eslint": "eslint . --max-warnings=0",
+    "lint:openapi": "redocly lint openapi/nivalis.openapi.yaml",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@redocly/cli": "2.47.0",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.6",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.1.0",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.3.2",
+    "jsdom": "30.0.1",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "yaml": "2.9.0"
+  }
+}

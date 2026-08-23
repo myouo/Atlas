@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+.next/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Local runtime configuration and secrets
+.env*
+!.env.example
+.dev.vars*
+wrangler.deploy.jsonc
+*.tfvars
+*.tfvars.json
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+
+# Local logs and caches
+*.log
+.turbo/

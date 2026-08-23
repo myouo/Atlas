@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/setup@v2
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          cache: pnpm
+          node-version: 24
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint source, OpenAPI, secrets, and architecture boundaries
+        run: pnpm lint
+
+      - name: Generate API client
+        run: pnpm generate
+
+      - name: Verify generated client is committed
+        run: git diff --exit-code -- packages/api-client/src/generated
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Run unit, component, and contract tests
+        run: pnpm test
+
+      - name: Build all applications and packages
+        run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run critical-path E2E tests
+        run: pnpm test:e2e

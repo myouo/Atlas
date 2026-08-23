@@ -1,0 +1,235 @@
+import type {
+  DashboardReadModel,
+  Profile,
+  ResponsiveLayout,
+  WidgetProjection,
+  WidgetType
+} from "@nivalis/api-client";
+
+import type { WidgetOf } from "../widgets/widget-types";
+
+export const mockProfile: Profile = {
+  avatarUrl: "/images/profile-avatar.png",
+  bio: "把可靠的系统边界和有温度的界面，编织成长期可维护的产品。",
+  displayName: "Nivalis",
+  handle: "@nivalis",
+  headline: "全栈开发者 / ACG 爱好者",
+  tags: ["Coding", "Music", "Photography", "Anime"]
+};
+
+const updatedAt = "2026-08-23T04:30:00Z";
+
+export const mockWidgets: WidgetProjection[] = [
+  {
+    id: "profile-main",
+    type: "profile.hero",
+    schemaVersion: 1,
+    title: "Profile",
+    updatedAt,
+    stale: false,
+    data: mockProfile
+  },
+  {
+    id: "stat-uptime",
+    type: "system.stats",
+    schemaVersion: 1,
+    title: "累计运行天数",
+    updatedAt,
+    stale: false,
+    data: { metric: "uptime_days", unit: "days", value: 427 }
+  },
+  {
+    id: "stat-providers",
+    type: "system.stats",
+    schemaVersion: 1,
+    title: "接入平台数",
+    updatedAt,
+    stale: false,
+    data: { metric: "providers_connected", unit: "providers", value: 5 }
+  },
+  {
+    id: "stat-sync",
+    type: "system.stats",
+    schemaVersion: 1,
+    title: "数据同步",
+    updatedAt,
+    stale: false,
+    data: { metric: "sync_completeness", unit: "percent", value: 100 }
+  },
+  {
+    id: "stat-records",
+    type: "system.stats",
+    schemaVersion: 1,
+    title: "收集数据量",
+    updatedAt,
+    stale: false,
+    data: { metric: "records_collected", unit: "records", value: 128_893 }
+  },
+  {
+    id: "netease-overview",
+    type: "music.netease.overview",
+    schemaVersion: 1,
+    title: "网易云音乐",
+    updatedAt,
+    stale: false,
+    data: {
+      range: "7d",
+      plays: 243,
+      minutes: 1_823,
+      dailyAverage: 260,
+      change: 0.12,
+      topArtists: [
+        { name: "米津玄师", avatarUrl: "/images/artist-mizuki.png" },
+        { name: "黒羽", avatarUrl: "/images/artist-kuro.png" },
+        { name: "Aimer", avatarUrl: "/images/artist-aimer.png" }
+      ],
+      genres: [
+        { name: "流行", share: 0.4 },
+        { name: "摇滚", share: 0.26 },
+        { name: "ACG", share: 0.16 },
+        { name: "电子", share: 0.1 },
+        { name: "其他", share: 0.08 }
+      ],
+      trend: [
+        { label: "05/14", value: 410 },
+        { label: "05/15", value: 335 },
+        { label: "05/16", value: 390 },
+        { label: "05/17", value: 310 },
+        { label: "05/18", value: 630 },
+        { label: "05/19", value: 330 },
+        { label: "05/20", value: 395 }
+      ]
+    }
+  },
+  {
+    id: "github-profile",
+    type: "github.profile",
+    schemaVersion: 1,
+    title: "GitHub",
+    updatedAt,
+    stale: false,
+    data: {
+      handle: "@nivalis",
+      repositories: 86,
+      stars: 1_248,
+      followers: 133,
+      contributions: 2_860
+    }
+  },
+  {
+    id: "bilibili-profile",
+    type: "bilibili.profile",
+    schemaVersion: 1,
+    title: "Bilibili",
+    updatedAt,
+    stale: false,
+    data: { level: 6, following: 86, followers: 1_293, views: 67_700, likes: 2_341 }
+  },
+  {
+    id: "steam-profile",
+    type: "steam.profile",
+    schemaVersion: 1,
+    title: "Steam",
+    updatedAt,
+    stale: false,
+    data: { level: 32, games: 126, playtimeHours: 1_456, achievements: 3_314, screenshots: 3_214 }
+  },
+  {
+    id: "bangumi-collection",
+    type: "bangumi.collection",
+    schemaVersion: 1,
+    title: "Bangumi",
+    updatedAt,
+    stale: false,
+    data: { level: 5, entries: 2_341, watched: 12, watching: 389, reviews: 7 }
+  }
+];
+
+export const mockLayout: ResponsiveLayout = {
+  lg: [
+    { i: "profile-main", x: 0, y: 0, w: 7, h: 3 },
+    { i: "stat-uptime", x: 0, y: 3, w: 3, h: 2 },
+    { i: "stat-providers", x: 3, y: 3, w: 3, h: 2 },
+    { i: "stat-sync", x: 6, y: 3, w: 3, h: 2 },
+    { i: "stat-records", x: 9, y: 3, w: 3, h: 2 },
+    { i: "netease-overview", x: 0, y: 5, w: 8, h: 6 },
+    { i: "github-profile", x: 8, y: 5, w: 4, h: 3 },
+    { i: "bilibili-profile", x: 8, y: 8, w: 4, h: 3 },
+    { i: "steam-profile", x: 0, y: 11, w: 6, h: 3 },
+    { i: "bangumi-collection", x: 6, y: 11, w: 6, h: 3 }
+  ],
+  md: [
+    { i: "profile-main", x: 0, y: 0, w: 5, h: 3 },
+    { i: "stat-uptime", x: 0, y: 3, w: 2, h: 2 },
+    { i: "stat-providers", x: 2, y: 3, w: 2, h: 2 },
+    { i: "stat-sync", x: 4, y: 3, w: 2, h: 2 },
+    { i: "stat-records", x: 6, y: 3, w: 2, h: 2 },
+    { i: "netease-overview", x: 0, y: 5, w: 5, h: 6 },
+    { i: "github-profile", x: 5, y: 5, w: 3, h: 3 },
+    { i: "bilibili-profile", x: 5, y: 8, w: 3, h: 3 },
+    { i: "steam-profile", x: 0, y: 11, w: 4, h: 3 },
+    { i: "bangumi-collection", x: 4, y: 11, w: 4, h: 3 }
+  ],
+  sm: [
+    { i: "profile-main", x: 0, y: 0, w: 4, h: 4 },
+    { i: "stat-uptime", x: 0, y: 4, w: 2, h: 2 },
+    { i: "stat-providers", x: 2, y: 4, w: 2, h: 2 },
+    { i: "stat-sync", x: 0, y: 6, w: 2, h: 2 },
+    { i: "stat-records", x: 2, y: 6, w: 2, h: 2 },
+    { i: "netease-overview", x: 0, y: 8, w: 4, h: 12 },
+    { i: "github-profile", x: 0, y: 20, w: 4, h: 4 },
+    { i: "bilibili-profile", x: 0, y: 24, w: 4, h: 4 },
+    { i: "steam-profile", x: 0, y: 28, w: 4, h: 4 },
+    { i: "bangumi-collection", x: 0, y: 32, w: 4, h: 4 }
+  ]
+};
+
+export const mockDashboard: DashboardReadModel = {
+  revision: 42,
+  profile: mockProfile,
+  layout: mockLayout,
+  widgets: mockWidgets
+};
+
+const cloneWidget = <T extends WidgetProjection>(widget: T, id: string): T => ({
+  ...widget,
+  id,
+  title: `${widget.title} · 新实例`
+});
+
+export function createMockWidget(type: WidgetType, id: string): WidgetProjection {
+  if (type === "system.stats") {
+    const metrics: WidgetOf<"system.stats">["data"]["metric"][] = [
+      "uptime_days",
+      "providers_connected",
+      "sync_completeness",
+      "records_collected"
+    ];
+    const metric = metrics[Number(id.slice(-1)) % metrics.length] ?? "records_collected";
+    const units: Record<
+      WidgetOf<"system.stats">["data"]["metric"],
+      WidgetOf<"system.stats">["data"]["unit"]
+    > = {
+      uptime_days: "days",
+      providers_connected: "providers",
+      sync_completeness: "percent",
+      records_collected: "records"
+    };
+    return {
+      ...mockWidgets.find((widget) => widget.type === type),
+      id,
+      type,
+      schemaVersion: 1,
+      title: "统计信息 · 新实例",
+      updatedAt,
+      stale: false,
+      data: { metric, unit: units[metric], value: metric === "sync_completeness" ? 100 : 24 }
+    } as WidgetOf<"system.stats">;
+  }
+
+  const template = mockWidgets.find((widget) => widget.type === type);
+  if (!template) {
+    throw new Error(`No Phase 1 mock template exists for ${type}.`);
+  }
+  return cloneWidget(template, id);
+}

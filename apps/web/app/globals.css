@@ -1,0 +1,164 @@
+@import "tailwindcss";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
+@import "../design-system/tokens.css";
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-primary: var(--color-primary);
+  --color-primary-strong: var(--color-primary-strong);
+  --color-lilac: var(--color-lilac);
+  --color-rose: var(--color-rose);
+  --color-coral: var(--color-coral);
+  --font-sans: var(--font-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #dceeff;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--color-ink);
+  background-color: #dceeff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(37, 118, 237, 0.35);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: #ffffff;
+  background: var(--color-primary);
+}
+
+.nivalis-page {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background-image: url("/images/nivalis-background.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.nivalis-page::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  background: rgba(231, 244, 255, 0.36);
+}
+
+.nivalis-content {
+  position: relative;
+  z-index: 1;
+  width: min(calc(100% - 80px), var(--page-max));
+  margin: 0 auto;
+  padding: 24px 0 70px;
+}
+
+.glass-surface {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(118%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(118%);
+}
+
+.glass-surface-strong {
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(20px) saturate(122%);
+  -webkit-backdrop-filter: blur(20px) saturate(122%);
+}
+
+.dashboard-grid.is-editing {
+  padding: 14px;
+  border: 1px dashed rgba(75, 115, 246, 0.62);
+  border-radius: 28px;
+  background-color: rgba(239, 247, 255, 0.24);
+}
+
+.react-grid-item.react-grid-placeholder {
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  background: rgba(81, 138, 246, 0.16);
+  opacity: 1;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  width: 8px;
+  height: 8px;
+  right: 5px;
+  bottom: 5px;
+  border-right: 2px solid var(--color-primary);
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.react-grid-item > .react-resizable-handle {
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 3px 12px rgba(29, 91, 177, 0.18);
+}
+
+@media (max-width: 760px) {
+  .nivalis-content {
+    width: min(calc(100% - 24px), var(--page-max));
+    padding-top: 12px;
+  }
+
+  .nivalis-page {
+    background-position: 62% top;
+  }
+
+  .dashboard-grid.is-editing {
+    padding: 6px;
+    border-radius: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

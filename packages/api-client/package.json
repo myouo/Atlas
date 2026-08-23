@@ -1,0 +1,15 @@
+{
+  "name": "@nivalis/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "generate": "openapi-typescript ../../openapi/nivalis.openapi.yaml --output src/generated/schema.d.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  }
+}

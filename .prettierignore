@@ -1,0 +1,10 @@
+.next
+coverage
+dist
+node_modules
+pnpm-lock.yaml
+packages/api-client/src/generated
+Nivalis_AboutMe_Spec_GitHub_Pack_v0.1
+apps/web/public/images
+docs/assets
+docs/NIVALIS_ABOUTME_IMPLEMENTATION_SPEC.md
