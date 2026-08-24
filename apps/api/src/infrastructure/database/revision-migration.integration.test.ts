@@ -110,10 +110,33 @@ describe("Phase 2 to Phase 5 migration", () => {
       revision_projection_column: null
     });
 
-    const authAttemptTable = await sql<{ readonly attempts: string | null }>`
-      select to_regclass('provider_auth_attempts')::text as attempts
+    const phaseFiveExtensionTables = await sql<{
+      readonly attempts: string | null;
+      readonly catalog: string | null;
+    }>`
+      select
+        to_regclass('provider_auth_attempts')::text as attempts,
+        to_regclass('provider_data_catalogs')::text as catalog
     `.execute(database);
-    expect(authAttemptTable.rows[0]?.attempts).toBe("provider_auth_attempts");
+    expect(phaseFiveExtensionTables.rows[0]).toEqual({
+      attempts: "provider_auth_attempts",
+      catalog: "provider_data_catalogs"
+    });
+
+    const rolledBackCatalog = await migrator.migrateDown();
+    if (rolledBackCatalog.error) throw rolledBackCatalog.error;
+    const afterCatalogDown = await sql<{
+      readonly attempts: string | null;
+      readonly catalog: string | null;
+    }>`
+      select
+        to_regclass('provider_auth_attempts')::text as attempts,
+        to_regclass('provider_data_catalogs')::text as catalog
+    `.execute(database);
+    expect(afterCatalogDown.rows[0]).toEqual({
+      attempts: "provider_auth_attempts",
+      catalog: null
+    });
 
     const rolledBackAttempts = await migrator.migrateDown();
     if (rolledBackAttempts.error) throw rolledBackAttempts.error;
