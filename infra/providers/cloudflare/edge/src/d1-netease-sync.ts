@@ -3,6 +3,7 @@ import {
   ProviderAuthenticationError,
   ProviderCredentialError,
   ProviderNotConfiguredError,
+  ProviderSchemaMismatchError,
   RetryableProviderError
 } from "@nivalis/domain";
 import type {
@@ -473,6 +474,10 @@ async function hashJson(value: unknown) {
 }
 
 function safeErrorCode(error: unknown) {
+  if (error instanceof ProviderSchemaMismatchError) {
+    const source = error.sourceKind.replaceAll(/[^a-z0-9._-]/gi, "").slice(0, 80);
+    return source ? `${error.code}.${source}` : error.code;
+  }
   if (error instanceof RetryableProviderError && error.diagnosticCode) {
     const diagnostic = error.diagnosticCode.replaceAll(/[^a-z0-9-]/gi, "").slice(0, 60);
     return diagnostic ? `${error.code}.${diagnostic}` : error.code;

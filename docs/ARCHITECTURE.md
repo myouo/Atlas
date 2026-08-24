@@ -255,7 +255,7 @@ NeteaseProviderRuntime
 └── NeteaseProjector     Widget v2 availability/provenance/coverage
 ```
 
-The module implements only account validation, listen totals, weekly listening records, recent songs, and a weekly listening report. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
+The module implements only account validation, user-detail listen totals, weekly listening records, recent songs, and a weekly listening report. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
 
 One SyncRun may insert five immutable `provider_raw_snapshots`, each identified by `source_kind`. The Connector recursively strips credential-bearing keys before returning a payload; the Worker independently rejects credential-like Raw input. Runtime schemas intentionally permit harmless extra Provider fields but require every semantic field consumed by normalization. A missing/renamed field raises `ProviderSchemaMismatchError`; it is never coerced to zero, null, or an empty list.
 

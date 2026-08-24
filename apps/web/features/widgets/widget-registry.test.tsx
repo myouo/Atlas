@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { mockWidgets } from "../dashboard/mock-dashboard";
 import { WidgetCard } from "./widget-card";
 import { WidgetRegistry, widgetRegistry } from "./widget-registry";
 
@@ -38,5 +39,12 @@ describe("WidgetRegistry", () => {
     );
     expect(screen.getByText("暂不支持的模块")).toBeInTheDocument();
     expect(screen.getByText(/其它模块仍可正常显示/)).toBeInTheDocument();
+  });
+
+  it("labels unconnected Provider projections as Fixture", () => {
+    const github = mockWidgets.find((widget) => widget.type === "github.profile");
+    expect(github).toBeDefined();
+    render(<WidgetCard editable={false} onRemove={() => undefined} widget={github!} />);
+    expect(screen.getByText(/Fixture · @nivalis/)).toBeInTheDocument();
   });
 });

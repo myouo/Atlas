@@ -4,7 +4,7 @@ export const NETEASE_SOURCE = {
   account: "netease.account",
   listenReportWeek: "netease.listen_report.week",
   recentSongs: "netease.recent_songs",
-  userLevel: "netease.user_level",
+  userDetail: "netease.user_detail",
   weeklyRecord: "netease.weekly_record"
 } as const;
 

@@ -180,7 +180,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
       payload.totalListenCount,
       "plays",
       "all_time",
-      requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.userLevel),
+      requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.userDetail),
       now
     );
     if (payload.listeningDurationMinutes !== null) {

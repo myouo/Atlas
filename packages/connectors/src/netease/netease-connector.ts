@@ -27,8 +27,8 @@ export class NeteaseConnector implements ProviderConnector {
     const userId = extractUserId(account);
     if (!userId) return snapshots;
 
-    const level = await this.client.getUserLevel(credential);
-    snapshots.push(snapshot(NETEASE_SOURCE.userLevel, level, this.now()));
+    const detail = await this.client.getUserDetail(credential, userId);
+    snapshots.push(snapshot(NETEASE_SOURCE.userDetail, detail, this.now()));
     const weekly = await this.client.getWeeklyRecord(credential, userId);
     snapshots.push(snapshot(NETEASE_SOURCE.weeklyRecord, weekly, this.now()));
     const recent = await this.client.getRecentSongs(credential);

@@ -166,7 +166,10 @@ export const widgetRegistry = new WidgetRegistry()
     kind: "standard",
     allowMultiple: true,
     sizes: platformSizes,
-    subtitle: (widget) => (widget.type === "github.profile" ? widget.data.handle : undefined),
+    subtitle: (widget) =>
+      widget.type === "github.profile"
+        ? fixtureSubtitle(widget.provider, widget.data.handle)
+        : undefined,
     Renderer: adaptRenderer(GithubProfileWidget)
   })
   .register({
@@ -180,7 +183,9 @@ export const widgetRegistry = new WidgetRegistry()
     allowMultiple: true,
     sizes: platformSizes,
     subtitle: (widget) =>
-      widget.type === "bilibili.profile" ? `等级 Lv.${widget.data.level}` : undefined,
+      widget.type === "bilibili.profile"
+        ? fixtureSubtitle(widget.provider, `等级 Lv.${widget.data.level}`)
+        : undefined,
     Renderer: adaptRenderer(BilibiliProfileWidget)
   })
   .register({
@@ -194,7 +199,9 @@ export const widgetRegistry = new WidgetRegistry()
     allowMultiple: true,
     sizes: platformSizes,
     subtitle: (widget) =>
-      widget.type === "steam.profile" ? `等级 ${widget.data.level}` : undefined,
+      widget.type === "steam.profile"
+        ? fixtureSubtitle(widget.provider, `等级 ${widget.data.level}`)
+        : undefined,
     Renderer: adaptRenderer(SteamProfileWidget)
   })
   .register({
@@ -208,6 +215,12 @@ export const widgetRegistry = new WidgetRegistry()
     allowMultiple: true,
     sizes: platformSizes,
     subtitle: (widget) =>
-      widget.type === "bangumi.collection" ? `等级 Lv.${widget.data.level}` : undefined,
+      widget.type === "bangumi.collection"
+        ? fixtureSubtitle(widget.provider, `等级 Lv.${widget.data.level}`)
+        : undefined,
     Renderer: adaptRenderer(BangumiCollectionWidget)
   });
+
+function fixtureSubtitle(provider: string, subtitle: string) {
+  return provider === "fixture" ? `Fixture · ${subtitle}` : subtitle;
+}

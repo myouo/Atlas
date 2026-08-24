@@ -42,8 +42,8 @@ export class NeteaseClient {
     return this.weapi("/api/w/nuser/account/get", {}, credential);
   }
 
-  getUserLevel(credential: string) {
-    return this.weapi("/api/user/level", {}, credential);
+  getUserDetail(credential: string, userId: string) {
+    return this.weapi(`/api/v1/user/detail/${encodeURIComponent(userId)}`, {}, credential);
   }
 
   getWeeklyRecord(credential: string, userId: string) {

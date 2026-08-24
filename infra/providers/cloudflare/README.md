@@ -84,7 +84,7 @@ pnpm d1:seed:local
 pnpm preview:edge
 ```
 
-The Seed is idempotent and contains only explicit fixture projections. D1 schema changes are formal Wrangler migrations under `edge/migrations`.
+The Seed is idempotent and contains only explicit fixture projections. Its NetEase row is an all-unavailable placeholder and uses `ON CONFLICT DO NOTHING`, so rerunning development Seed cannot overwrite a successfully synchronized real NetEase projection. D1 schema changes are formal Wrangler migrations under `edge/migrations`.
 
 ## Remote deployment
 

@@ -44,10 +44,17 @@ export const NeteaseAccountResponseSchema = Type.Object(
   { additionalProperties: true }
 );
 
-export const NeteaseUserLevelResponseSchema = Type.Object(
+export const NeteaseUserDetailResponseSchema = Type.Object(
   {
     code: Type.Literal(200),
-    data: Type.Object({ listenSongs: Type.Integer({ minimum: 0 }) }, { additionalProperties: true })
+    listenSongs: Type.Integer({ minimum: 0 }),
+    profile: Type.Object(
+      {
+        nickname: Type.Optional(Type.String()),
+        userId: Type.Optional(ProviderIdSchema)
+      },
+      { additionalProperties: true }
+    )
   },
   { additionalProperties: true }
 );
@@ -75,14 +82,24 @@ export const NeteaseRecentSongsResponseSchema = Type.Object(
     data: Type.Object(
       {
         list: Type.Array(
-          Type.Object(
-            {
-              playTime: Type.Integer({ minimum: 1 }),
-              resource: NeteaseTrackSchema,
-              resourceId: Type.Optional(ProviderIdSchema)
-            },
-            { additionalProperties: true }
-          )
+          Type.Union([
+            Type.Object(
+              {
+                data: NeteaseTrackSchema,
+                playTime: Type.Integer({ minimum: 1 }),
+                resourceId: Type.Optional(ProviderIdSchema)
+              },
+              { additionalProperties: true }
+            ),
+            Type.Object(
+              {
+                playTime: Type.Integer({ minimum: 1 }),
+                resource: NeteaseTrackSchema,
+                resourceId: Type.Optional(ProviderIdSchema)
+              },
+              { additionalProperties: true }
+            )
+          ])
         ),
         total: Type.Optional(Type.Integer({ minimum: 0 }))
       },
@@ -98,6 +115,29 @@ export const NeteaseListenReportResponseSchema = Type.Object(
     data: Type.Object(
       {
         duration: Type.Optional(Type.Number({ minimum: 0 })),
+        listenTimeDistributionBlock: Type.Optional(
+          Type.Union([
+            Type.Null(),
+            Type.Object(
+              {
+                durationDetails: Type.Optional(
+                  Type.Array(
+                    Type.Object(
+                      {
+                        duration: Type.Number({ minimum: 0 }),
+                        period: Type.String({ minLength: 1 })
+                      },
+                      { additionalProperties: true }
+                    )
+                  )
+                ),
+                listenDays: Type.Optional(Type.Integer({ minimum: 0 })),
+                playDuration: Type.Optional(Type.Number({ minimum: 0 }))
+              },
+              { additionalProperties: true }
+            )
+          ])
+        ),
         period: Type.Optional(Type.Union([Type.Literal("week"), Type.Literal("month")])),
         points: Type.Optional(
           Type.Array(

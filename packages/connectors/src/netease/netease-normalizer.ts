@@ -12,7 +12,7 @@ import {
   NeteaseAccountResponseSchema,
   NeteaseListenReportResponseSchema,
   NeteaseRecentSongsResponseSchema,
-  NeteaseUserLevelResponseSchema,
+  NeteaseUserDetailResponseSchema,
   NeteaseWeeklyRecordResponseSchema
 } from "./schemas/provider-schemas";
 import {
@@ -28,33 +28,40 @@ export class NeteaseNormalizer implements ProviderNormalizer {
   async normalize(snapshots: readonly RawSnapshot[]): Promise<NormalizedProviderData> {
     await Promise.resolve();
     const accountSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.account);
-    const levelSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.userLevel);
+    const detailSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.userDetail);
     const weeklySnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.weeklyRecord);
     const recentSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.recentSongs);
     const reportSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenReportWeek);
 
     const account = checked(NeteaseAccountResponseSchema, accountSnapshot);
-    const level = checked(NeteaseUserLevelResponseSchema, levelSnapshot);
+    const detail = checked(NeteaseUserDetailResponseSchema, detailSnapshot);
     const weekly = checked(NeteaseWeeklyRecordResponseSchema, weeklySnapshot);
     const recent = checked(NeteaseRecentSongsResponseSchema, recentSnapshot);
     const report = checked(NeteaseListenReportResponseSchema, reportSnapshot);
 
+    const distribution = report.data.listenTimeDistributionBlock;
     const payload: NeteaseNormalizedPayload = {
       account: {
         displayName: account.profile?.nickname ?? null,
         providerUserId: String(account.profile?.userId ?? account.account.id)
       },
       listeningDurationMinutes:
-        report.data.duration === undefined ? null : report.data.duration / 60,
+        distribution?.playDuration ??
+        (report.data.duration === undefined ? null : report.data.duration / 60),
       recentListens: recent.data.list.map((item) => ({
         playedAt: new Date(item.playTime).toISOString(),
-        track: normalizeTrack(item.resource)
+        track: normalizeTrack("data" in item ? item.data : item.resource)
       })),
-      reportPoints: (report.data.points ?? []).map((point) => ({
-        label: point.label,
-        minutes: point.duration / 60
-      })),
-      totalListenCount: level.data.listenSongs,
+      reportPoints:
+        distribution?.durationDetails?.map((point) => ({
+          label: point.period,
+          minutes: point.duration
+        })) ??
+        (report.data.points ?? []).map((point) => ({
+          label: point.label,
+          minutes: point.duration / 60
+        })),
+      totalListenCount: detail.listenSongs,
       weeklyRecords: weekly.weekData.map((item) => ({
         playCount: item.playCount,
         score: item.score,

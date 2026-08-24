@@ -356,7 +356,9 @@ function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
   return async (input) => {
     const pathname = new URL(input instanceof Request ? input.url : input.toString()).pathname;
     if (pathname.includes("account/get")) return Response.json(fixture[NETEASE_SOURCE.account]);
-    if (pathname.includes("user/level")) return Response.json(fixture[NETEASE_SOURCE.userLevel]);
+    if (pathname.includes("user/detail")) {
+      return Response.json(fixture[NETEASE_SOURCE.userDetail]);
+    }
     if (pathname.includes("play/record")) {
       return Response.json(fixture[NETEASE_SOURCE.weeklyRecord]);
     }

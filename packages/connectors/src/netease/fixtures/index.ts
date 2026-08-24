@@ -11,7 +11,11 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
     code: 200,
     profile: { nickname: "Nivalis Fixture", userId: 10001 }
   },
-  [NETEASE_SOURCE.userLevel]: { code: 200, data: { level: 8, listenSongs: 6_421 } },
+  [NETEASE_SOURCE.userDetail]: {
+    code: 200,
+    listenSongs: 6_421,
+    profile: { nickname: "Nivalis Fixture", userId: 10001 }
+  },
   [NETEASE_SOURCE.weeklyRecord]: {
     code: 200,
     weekData: [
@@ -26,12 +30,12 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       list: [
         {
           playTime: 1_777_000_000_000,
-          resource: track(20001, "Snow Light", 30001, "Aimer"),
+          data: track(20001, "Snow Light", 30001, "Aimer"),
           resourceId: "20001"
         },
         {
           playTime: 1_776_999_000_000,
-          resource: track(20002, "Blue Hour", 30002, "Mizuki"),
+          data: track(20002, "Blue Hour", 30002, "Mizuki"),
           resourceId: "20002"
         }
       ],
@@ -41,20 +45,29 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
   [NETEASE_SOURCE.listenReportWeek]: {
     code: 200,
     data: {
-      duration: 5_460,
-      period: "week",
-      points: [
-        { duration: 600, label: "Mon" },
-        { duration: 1_200, label: "Tue" },
-        { duration: 3_660, label: "Wed" }
-      ]
+      endTime: 1_777_172_800_000,
+      listenTimeDistributionBlock: {
+        durationDetails: [
+          { duration: 10, period: "2026-04-20" },
+          { duration: 20, period: "2026-04-21" },
+          { duration: 61, period: "2026-04-22" }
+        ],
+        listenDays: 3,
+        playDuration: 91
+      },
+      startTime: 1_776_568_000_000,
+      type: "week"
     }
   }
 };
 
 export const emptyNeteaseFixture: SanitizedNeteaseFixture = {
   ...normalNeteaseFixture,
-  [NETEASE_SOURCE.userLevel]: { code: 200, data: { level: 1, listenSongs: 0 } },
+  [NETEASE_SOURCE.userDetail]: {
+    code: 200,
+    listenSongs: 0,
+    profile: { nickname: "Nivalis Fixture", userId: 10001 }
+  },
   [NETEASE_SOURCE.weeklyRecord]: { code: 200, weekData: [] },
   [NETEASE_SOURCE.recentSongs]: { code: 200, data: { list: [], total: 0 } },
   [NETEASE_SOURCE.listenReportWeek]: { code: 200, data: {} }
@@ -80,7 +93,10 @@ export const schemaDriftFixture: SanitizedNeteaseFixture = {
 
 export const missingFieldFixture: SanitizedNeteaseFixture = {
   ...normalNeteaseFixture,
-  [NETEASE_SOURCE.userLevel]: { code: 200, data: { level: 8 } }
+  [NETEASE_SOURCE.userDetail]: {
+    code: 200,
+    profile: { nickname: "Nivalis Fixture", userId: 10001 }
+  }
 };
 
 export const unknownEnumFixture: SanitizedNeteaseFixture = {
@@ -144,8 +160,8 @@ export function createNeteaseHttpFixtureFetcher(
     if (url.pathname.includes("account/get")) {
       return Response.json(fixture[NETEASE_SOURCE.account]);
     }
-    if (url.pathname.includes("user/level")) {
-      return Response.json(fixture[NETEASE_SOURCE.userLevel]);
+    if (url.pathname.includes("user/detail")) {
+      return Response.json(fixture[NETEASE_SOURCE.userDetail]);
     }
     if (url.pathname.includes("play/record")) {
       return Response.json(fixture[NETEASE_SOURCE.weeklyRecord]);

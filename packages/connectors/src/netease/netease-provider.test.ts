@@ -161,7 +161,7 @@ describe("NetEase Provider module", () => {
 
     expect(results.map((result) => result.sourceKind)).toEqual([
       NETEASE_SOURCE.account,
-      NETEASE_SOURCE.userLevel,
+      NETEASE_SOURCE.userDetail,
       NETEASE_SOURCE.weeklyRecord,
       NETEASE_SOURCE.recentSongs,
       NETEASE_SOURCE.listenReportWeek
@@ -322,7 +322,7 @@ function syncRun(): SyncRun {
 
 function payloadForPath(pathname: string) {
   if (pathname.includes("account/get")) return normalNeteaseFixture[NETEASE_SOURCE.account];
-  if (pathname.includes("user/level")) return normalNeteaseFixture[NETEASE_SOURCE.userLevel];
+  if (pathname.includes("user/detail")) return normalNeteaseFixture[NETEASE_SOURCE.userDetail];
   if (pathname.includes("play/record")) return normalNeteaseFixture[NETEASE_SOURCE.weeklyRecord];
   if (pathname.includes("song/list")) return normalNeteaseFixture[NETEASE_SOURCE.recentSongs];
   if (pathname.includes("realtime/report")) {

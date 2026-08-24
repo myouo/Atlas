@@ -174,7 +174,7 @@ NETEASE_INTEGRATION_MUSIC_U=
 pnpm test:provider
 ```
 
-The NetEase integration is deliberately small: account validation, listen total, weekly records, recent songs, and weekly listening report. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
+The NetEase integration is deliberately small: account validation, user-detail listen total, weekly records, recent songs, and weekly listening report. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
 
 ## Test database and quality gates
 

@@ -67,6 +67,7 @@ const statements: string[] = [
 
 for (const [index, widget] of phaseTwoWidgets.entries()) {
   const projectionKey = await createPortableProjectionKey(widget);
+  const isNetease = widget.type === "music.netease.overview";
   statements.push(
     insert(
       "widgets",
@@ -119,11 +120,12 @@ for (const [index, widget] of phaseTwoWidgets.entries()) {
         `00000000-0000-4000-9000-${String(index + 1).padStart(12, "0")}`,
         widget.provider,
         widget.schemaVersion,
-        JSON.stringify(widget.data),
+        JSON.stringify(isNetease ? unavailableNeteaseProjection() : widget.data),
         widget.stale ? 1 : 0,
         timestamp,
         timestamp
-      ]
+      ],
+      isNetease ? "nothing" : "update"
     )
   );
 }
@@ -134,9 +136,30 @@ statements.push(
 
 process.stdout.write(`${statements.join("\n")}\n`);
 
-function insert(table: string, columns: readonly string[], values: readonly unknown[]) {
+function insert(
+  table: string,
+  columns: readonly string[],
+  values: readonly unknown[],
+  conflict: "nothing" | "update" = "update"
+) {
+  if (conflict === "nothing") {
+    return `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${values.map(sql).join(", ")}) ON CONFLICT DO NOTHING;`;
+  }
   const assignments = columns.map((column) => `${column}=excluded.${column}`).join(", ");
   return `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${values.map(sql).join(", ")}) ON CONFLICT DO UPDATE SET ${assignments};`;
+}
+
+function unavailableNeteaseProjection() {
+  const unavailable = { availability: "unavailable", reason: "not_synced" };
+  return {
+    account: unavailable,
+    listeningDuration: unavailable,
+    provider: "netease",
+    recentListening: unavailable,
+    totalListenCount: unavailable,
+    trend: unavailable,
+    weeklyListening: unavailable
+  };
 }
 
 function sql(value: unknown) {
