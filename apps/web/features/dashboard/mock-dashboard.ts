@@ -9,7 +9,7 @@ import type {
 import type { WidgetOf } from "../widgets/widget-types";
 
 export const mockProfile: Profile = {
-  avatarUrl: "/images/profile-avatar.png",
+  avatarUrl: "/images/mock-avatar-profile.webp",
   bio: "把可靠的系统边界和有温度的界面，编织成长期可维护的产品。",
   displayName: "Nivalis",
   handle: "@nivalis",
@@ -19,7 +19,7 @@ export const mockProfile: Profile = {
 
 const updatedAt = "2026-08-23T04:30:00Z";
 
-export const mockWidgets: WidgetProjection[] = [
+const mockWidgetTemplates = [
   {
     id: "profile-main",
     type: "profile.hero",
@@ -27,6 +27,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "Profile",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: mockProfile
   },
   {
@@ -36,6 +38,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "累计运行天数",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: { metric: "uptime_days", unit: "days", value: 427 }
   },
   {
@@ -45,6 +49,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "接入平台数",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: { metric: "providers_connected", unit: "providers", value: 5 }
   },
   {
@@ -54,6 +60,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "数据同步",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: { metric: "sync_completeness", unit: "percent", value: 100 }
   },
   {
@@ -63,6 +71,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "收集数据量",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: { metric: "records_collected", unit: "records", value: 128_893 }
   },
   {
@@ -72,6 +82,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "网易云音乐",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: { range: "7d", showArtists: true, showGenres: true },
     data: {
       range: "7d",
       plays: 243,
@@ -79,9 +91,9 @@ export const mockWidgets: WidgetProjection[] = [
       dailyAverage: 260,
       change: 0.12,
       topArtists: [
-        { name: "米津玄师", avatarUrl: "/images/artist-mizuki.png" },
-        { name: "黒羽", avatarUrl: "/images/artist-kuro.png" },
-        { name: "Aimer", avatarUrl: "/images/artist-aimer.png" }
+        { name: "米津玄师", avatarUrl: "/images/mock-avatar-artist-1.webp" },
+        { name: "黒羽", avatarUrl: "/images/mock-avatar-artist-2.webp" },
+        { name: "Aimer", avatarUrl: "/images/mock-avatar-artist-3.webp" }
       ],
       genres: [
         { name: "流行", share: 0.4 },
@@ -108,6 +120,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "GitHub",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: {
       handle: "@nivalis",
       repositories: 86,
@@ -123,6 +137,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "Bilibili",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: { level: 6, following: 86, followers: 1_293, views: 67_700, likes: 2_341 }
   },
   {
@@ -132,6 +148,8 @@ export const mockWidgets: WidgetProjection[] = [
     title: "Steam",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: { level: 32, games: 126, playtimeHours: 1_456, achievements: 3_314, screenshots: 3_214 }
   },
   {
@@ -141,9 +159,24 @@ export const mockWidgets: WidgetProjection[] = [
     title: "Bangumi",
     updatedAt,
     stale: false,
+    enabled: true,
+    dataConfig: {},
     data: { level: 5, entries: 2_341, watched: 12, watching: 389, reviews: 7 }
   }
 ];
+
+export const mockWidgets = mockWidgetTemplates.map((widget) => ({
+  ...widget,
+  dataConfig:
+    widget.type === "music.netease.overview"
+      ? { range: widget.dataConfig.range }
+      : widget.dataConfig,
+  presentationConfig:
+    widget.type === "music.netease.overview"
+      ? { showArtists: true, showGenres: true, showTrend: true }
+      : {},
+  provider: "fixture" as const
+})) as WidgetProjection[];
 
 export const mockLayout: ResponsiveLayout = {
   lg: [
@@ -185,6 +218,7 @@ export const mockLayout: ResponsiveLayout = {
 };
 
 export const mockDashboard: DashboardReadModel = {
+  dashboardId: "about",
   revision: 42,
   profile: mockProfile,
   layout: mockLayout,
@@ -197,7 +231,35 @@ const cloneWidget = <T extends WidgetProjection>(widget: T, id: string): T => ({
   title: `${widget.title} · 新实例`
 });
 
-export function createMockWidget(type: WidgetType, id: string): WidgetProjection {
+export function createMockWidget(
+  type: WidgetType,
+  id: string,
+  schemaVersion = 1
+): WidgetProjection {
+  if (type === "music.netease.overview" && schemaVersion === 2) {
+    const unavailable = { availability: "unavailable" as const, reason: "not_synced" as const };
+    return {
+      data: {
+        account: unavailable,
+        listeningDuration: unavailable,
+        provider: "netease",
+        recentListening: unavailable,
+        totalListenCount: unavailable,
+        trend: unavailable,
+        weeklyListening: unavailable
+      },
+      dataConfig: { range: "7d" },
+      enabled: true,
+      id,
+      presentationConfig: { showArtists: true, showTrend: true },
+      provider: "netease",
+      schemaVersion: 2,
+      stale: true,
+      title: "网易云音乐 · 新实例",
+      type,
+      updatedAt
+    };
+  }
   if (type === "system.stats") {
     const metrics: WidgetOf<"system.stats">["data"]["metric"][] = [
       "uptime_days",
@@ -223,6 +285,8 @@ export function createMockWidget(type: WidgetType, id: string): WidgetProjection
       title: "统计信息 · 新实例",
       updatedAt,
       stale: false,
+      enabled: true,
+      dataConfig: {},
       data: { metric, unit: units[metric], value: metric === "sync_completeness" ? 100 : 24 }
     } as WidgetOf<"system.stats">;
   }

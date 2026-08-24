@@ -1,48 +1,246 @@
 # Nivalis About Me
 
-Nivalis is a personal digital identity, multi-provider data aggregation, and composable Dashboard system. Phase 1 validates the Web rendering architecture with explicit mock data; it does not call any third-party provider.
+Nivalis is a personal digital identity, multi-provider data aggregation, and composable Dashboard system.
 
-## Architecture at a glance
+Phase 5 installs the first real, read-only Provider module plus Worker-owned QR/SMS login without coupling external data to immutable Dashboard configuration:
 
 ```text
-Provider → Connector → Worker → PostgreSQL → Nivalis API → generated API client → Web
+Browser → generated API client → Fastify → Application ports → PostgreSQL
+                              └→ SyncRun → pg-boss → Worker
+                                                     ↓
+                               Netease Connector → sanitized Raw Snapshot
+                                                     ↓
+                                      Native Model → Widget Projection
 ```
 
-The Web owns presentation and interaction only. `type + schemaVersion` selects a renderer through the Widget Registry, every widget is wrapped by the same `ModuleShell`, and display/edit modes share one `DashboardCanvas`.
+Owner configuration and Provider data remain independent. A sync can change `data:` and `view:` ETags, but never creates a Revision, moves Draft/Published pointers, or changes a `rev:` ETag.
 
-Read [the implementation specification](docs/NIVALIS_ABOUTME_IMPLEMENTATION_SPEC.md) and [architecture guide](docs/ARCHITECTURE.md) before changing boundaries. Phase 1 visual evidence is recorded in [Design QA](design-qa.md), and generated image prompts are preserved in [Asset Generation](docs/ASSET_GENERATION.md).
+Read [the implementation specification](docs/NIVALIS_ABOUTME_IMPLEMENTATION_SPEC.md), [architecture guide](docs/ARCHITECTURE.md), and [ADRs](docs/adr/) before changing boundaries.
 
-## Prerequisites
+## Requirements
 
 - Node.js 24 LTS
 - pnpm 11+
+- PostgreSQL 18 or another supported PostgreSQL installation
+- A GitHub OAuth App for a real Owner deployment
+- A 32-byte credential master key
+- NetEase App QR scan, SMS OTP, or an existing `MUSIC_U` value configured through Settings
 
-## Local setup
+No real Provider credential is required for normal development or CI. Sanitized NetEase fixtures cover the complete Connector/Raw/Native/Projection pipeline.
+
+## Install
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm generate
+```
+
+## Mock Mode
+
+Mock Mode needs no API or database and remains the default:
+
+```dotenv
+NEXT_PUBLIC_DASHBOARD_SOURCE=mock
+NEXT_PUBLIC_API_BASE_URL=
+```
+
+```bash
+pnpm dev:web
+```
+
+It keeps the lightweight LocalStorage Draft/Published model for UI development and does not call any Provider.
+
+Provider authentication is intentionally disabled in Mock Mode. QR/SMS/manual credential controls do not simulate success; use API Mode with PostgreSQL and the independent Worker for real NetEase login.
+
+## API Mode
+
+Create an untracked `.env.local`; `.env.example` intentionally contains keys only. A safe local/test setup resembles:
+
+```dotenv
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/nivalis
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+APP_PUBLIC_ORIGIN=http://127.0.0.1:4173
+API_PUBLIC_ORIGIN=http://127.0.0.1:3001
+API_HOST=127.0.0.1
+API_PORT=3001
+CORS_ORIGINS=http://127.0.0.1:4173
+NIVALIS_OWNER_ID=00000000-0000-4000-8000-000000000001
+OWNER_GITHUB_USER_ID=
+GITHUB_OAUTH_CLIENT_ID=
+GITHUB_OAUTH_CLIENT_SECRET=
+NIVALIS_CREDENTIAL_MASTER_KEY=
+NIVALIS_CREDENTIAL_KEY_ID=primary
+AUTH_SECURE_COOKIES=false
+FIXTURE_PROVIDER_ENABLED=true
+NETEASE_PROVIDER_ENABLED=true
+PROVIDER_AUTH_QR_TTL_SECONDS=180
+PROVIDER_AUTH_SMS_TTL_SECONDS=300
+PROVIDER_AUTH_LEASE_SECONDS=20
+PROVIDER_AUTH_QR_POLL_SECONDS=2
+PROVIDER_AUTH_SMS_RESEND_SECONDS=30
+NEXT_PUBLIC_DASHBOARD_SOURCE=api
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
+```
+
+Generate a new local master key without committing it:
+
+```bash
+node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))'
+```
+
+For a real OAuth App, configure its callback as:
+
+```text
+${API_PUBLIC_ORIGIN}/v1/auth/github/callback
+```
+
+Set `OWNER_GITHUB_USER_ID` to the stable numeric GitHub user ID, not a username. GitHub’s access token is used only to resolve `/user` during login and is not stored. Nivalis issues its own opaque HttpOnly session; only its hash is persisted.
+
+Local/test-only identity and transport fixtures may be enabled explicitly:
+
+```dotenv
+AUTH_OAUTH_FIXTURE_ENABLED=true
+NETEASE_HTTP_FIXTURE_ENABLED=true
+NETEASE_HTTP_FIXTURE_SCENARIO=normal
+```
+
+Both fixture switches are rejected in production. `NETEASE_HTTP_FIXTURE_SCENARIO` supports `normal`, `credential_expired`, and `schema_drift`.
+
+Start the system:
+
+```bash
+pnpm db:migrate
+pnpm db:migrate:status
+pnpm db:seed
 pnpm dev
 ```
 
-Copy `.env.example` to an untracked local environment file only when a later phase needs runtime configuration. Phase 1 works without credentials.
+`pnpm dev` starts independent Web, API, and Worker processes. Open Settings, authenticate as Owner, then choose QR scan, SMS OTP, or manual `MUSIC_U`. The browser talks only to Nivalis. Provider login I/O runs in the Worker; full Cookie collections are discarded after extracting `MUSIC_U`. The API never returns it.
 
-## Quality gates
+### NetEase login methods
+
+- **QR (recommended):** Worker creates and polls a short-lived QR attempt. Scan with the NetEase App and confirm. Status survives API/Worker restart.
+- **SMS OTP:** Phone and submitted code are stored only as short-lived AES-GCM envelopes. Public responses expose a masked number.
+- **Manual Cookie:** Paste only the value after `MUSIC_U=`. This remains the fallback when Provider login endpoints drift.
+
+Only one active login attempt is permitted per Owner. A competing manual credential write returns `409` until the attempt is completed, expired, or explicitly cancelled. Terminal attempts erase their encrypted state. Password/MD5 login is intentionally unsupported.
+
+Disconnect is durable across refresh/restart: it cancels pending QR/SMS attempts, records a disable timestamp, and prevents any older in-flight attempt from re-enabling the connection. Last Known Good data is retained but becomes stale, and the old Provider account identity is hidden.
+
+## Database commands
 
 ```bash
+pnpm db:migrate
+pnpm db:migrate:status
+pnpm db:rollback
+pnpm db:seed
+```
+
+Application startup never creates tables. Seed is idempotent, development-only, contains no Provider credential, and resets the reproducible Dashboard fixture.
+
+- `001`: Phase 2 current Dashboard state.
+- `002`: immutable Revisions and Draft/Published pointers.
+- `003`: projection extraction, SyncRun, Raw Snapshot, and pg-boss runtime.
+- `004`: Owner Auth/session, AEAD credentials, NetEase native tables, `source_kind`, config split, and NetEase Widget v2 upgrade.
+- `005`: encrypted, expiring Provider AuthAttempt state for QR and SMS login.
+
+Migration rollback and user-facing Revision Restore are unrelated operations. Migration `004` preserves v1 history and creates immutable `schema_upgrade` successors for current NetEase Widget configurations.
+
+## Provider replay
+
+Replay operates on every sanitized Raw Snapshot from the selected SyncRun. It uses current validators, normalizer, and projector:
+
+```bash
+pnpm provider:replay --provider netease --snapshot <uuid>
+```
+
+The default is a dry run that prints normalized output, projections, and a create/replace/unchanged diff. Only an explicit development command commits derived state:
+
+```bash
+pnpm provider:replay --provider netease --snapshot <uuid> --commit
+```
+
+Commit updates Native/Projection data in one transaction. Replay never creates a Dashboard Revision and is refused by this CLI in production.
+
+## Optional real Provider test
+
+Ordinary CI uses sanitized fixtures only. A real read-only contract test runs only when both variables are supplied explicitly outside Git:
+
+```dotenv
+NETEASE_INTEGRATION_TEST=1
+NETEASE_INTEGRATION_MUSIC_U=
+```
+
+```bash
+pnpm test:provider
+```
+
+The NetEase integration is deliberately small: account validation, listen total, weekly records, recent songs, and weekly listening report. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
+
+## Test database and quality gates
+
+The integration database name must contain `test`. CI provisions its own ephemeral PostgreSQL service.
+
+```bash
+pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:integration
+pnpm test:contract
+pnpm test:concurrency
+pnpm test:migration
+pnpm test:sync-runtime
+pnpm test:provider
 pnpm build
+pnpm test:smoke:api
+pnpm test:smoke:worker
+pnpm test:e2e
+pnpm test:e2e:api
 ```
 
-Playwright coverage is configured separately with `pnpm test:e2e`.
+The gates cover OAuth owner/viewer boundaries, session logout, QR/SMS state transitions, Worker restart recovery, masked/write-only inputs, terminal secret erasure, AEAD/tamper/wrong-key behavior, ciphertext-only persistence, schema drift, credential expiry, Native idempotency, Last Known Good, replay, revision isolation, generated-client determinism, and the real pg-boss Worker path.
 
-## Phase status
+## Health
 
-- Phase 1: Dashboard renderer, mock projections, responsive edit experience, local draft/published layout persistence.
-- Phase 2+: API implementation, PostgreSQL repositories, revisions, Worker, and real Connector adapters remain intentionally unimplemented. See [TODO](docs/TODO.md).
+- `GET /health`: process liveness only.
+- `GET /ready`: PostgreSQL reachability only; OAuth and Provider availability do not affect readiness.
+
+## Cloudflare preview deployment
+
+Cloudflare is optional infrastructure. The first public preview keeps runtime semantics explicit:
+
+```bash
+CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
+pnpm deploy:edge
+```
+
+- Pages receives a static Next.js export forced to Mock Mode for visual and interaction QA.
+- The Edge Worker exposes `/health`; without a separately deployed Node API it returns `503` from `/ready` and `/v1/*`.
+- Real Dashboard persistence, Owner Auth, QR/SMS login, and Provider sync still require the PostgreSQL-backed API and persistent Node Worker.
+- No Cloudflare account, domain, project endpoint, or secret is committed.
+
+See [ADR 0015](docs/adr/0015-cloudflare-preview-deployment.md) and the [Cloudflare adapter guide](infra/providers/cloudflare/README.md).
 
 ## Security
 
-Assume this repository is public. Never commit credentials, provider cookies, tokens, deployment instance identifiers, real domains, or object-storage secrets. The committed `.env.example` contains keys only.
+Assume this repository is public:
+
+- Never commit `.env`, OAuth secrets, Provider cookies/tokens, master keys, real domains, or deployment instance identifiers.
+- All `/v1/me/*` routes use one API-owned authentication/authorization boundary.
+- ETags prevent lost updates; they do not replace authorization.
+- Pino redacts Cookie, Authorization, and credential-body paths.
+- Raw Snapshots are insert-only, recursively checked, and receive Connector-sanitized Provider payloads only.
+- Phone, OTP, QR private state, and login Cookie headers never enter Raw Snapshots or queue payloads.
+- Disconnect deletes the credential and disables the connection; it intentionally does not destroy historical Raw/Native/Projection data.
+
+## Phase status
+
+- Phase 1: renderer, Widget/Layout architecture, responsive editing, Mock source.
+- Phase 2: Contract-first API and PostgreSQL persistence.
+- Phase 3: immutable revisions, optimistic concurrency, history, and Restore.
+- Phase 4: async Worker, Raw Snapshot, Projection, retry/LKG, and revision isolation.
+- Phase 5: API-owned Owner Auth, encrypted Provider credentials, Worker-owned QR/SMS login, read-only NetEase module, Native model, Widget v2, schema drift, and replay.
+- Phase 6+: additional Providers remain intentionally out of scope. See [TODO](docs/TODO.md).
+
+Visual evidence is recorded in the Phase 1–4 reports, [Phase 5 Design QA](design-qa-phase5.md), and `docs/qa/`. Phase 5 adds Settings/NetEase regression QA without introducing a Sidebar or editing controls into display mode.

@@ -4,12 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm typecheck && node scripts/build.mjs",
+    "dev": "tsx watch src/start.ts",
+    "provider:replay": "tsx src/cli/provider-replay.ts",
+    "start": "node dist/start.js",
+    "test:smoke": "node scripts/smoke-built-worker.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@nivalis/api": "workspace:*",
     "@nivalis/application": "workspace:*",
     "@nivalis/connectors": "workspace:*",
-    "@nivalis/domain": "workspace:*"
+    "@nivalis/domain": "workspace:*",
+    "dotenv": "17.4.2",
+    "kysely": "0.29.5",
+    "pg": "8.23.0",
+    "pg-boss": "12.27.0",
+    "pino": "10.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

@@ -9,6 +9,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@nivalis/domain": "workspace:*"
+    "@nivalis/application": "workspace:*",
+    "@nivalis/domain": "workspace:*",
+    "kysely": "0.29.5",
+    "typebox": "1.3.17"
   }
 }

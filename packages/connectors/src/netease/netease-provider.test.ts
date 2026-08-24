@@ -1,0 +1,312 @@
+import {
+  ProviderCredentialError,
+  ProviderSchemaMismatchError,
+  RetryableProviderError
+} from "@nivalis/domain";
+import type { JsonObject, ProjectionTarget, RawSnapshot, SyncRun } from "@nivalis/domain";
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  emptyNeteaseFixture,
+  createNeteaseHttpFixtureFetcher,
+  largeNeteaseFixture,
+  missingFieldFixture,
+  normalNeteaseFixture,
+  partialNeteaseFixture,
+  schemaDriftFixture,
+  unknownEnumFixture
+} from "./fixtures";
+import { NeteaseClient } from "./netease-client";
+import { NeteaseAuthClient } from "./netease-auth-client";
+import { NeteaseConnector, sanitizeNeteasePayload } from "./netease-connector";
+import { NeteaseNormalizer } from "./netease-normalizer";
+import { NeteaseProjector } from "./netease-projector";
+import { NETEASE_SOURCE, type NeteaseSourceKind } from "./netease-types";
+
+const fetchedAt = new Date("2026-08-24T04:00:00.000Z");
+const connectionId = "00000000-0000-4000-8000-000000000501";
+const secret = "private-cookie-value-for-tests";
+
+describe("NetEase Provider module", () => {
+  it("acquires MUSIC_U through QR and SMS without returning a full Cookie collection", async () => {
+    const qrClient = new NeteaseAuthClient(
+      { timeoutMs: 2_000 },
+      createNeteaseHttpFixtureFetcher("normal")
+    );
+    const prepared = await qrClient.beginQr();
+    expect(prepared.qrUrl).toContain("music.163.com/login?codekey=");
+    await expect(qrClient.pollQr(prepared.privateState)).resolves.toEqual({
+      status: "waiting_for_scan"
+    });
+    await expect(qrClient.pollQr(prepared.privateState)).resolves.toEqual({
+      status: "waiting_for_confirmation"
+    });
+    const qrConnected = await qrClient.pollQr(prepared.privateState);
+    expect(qrConnected).toMatchObject({ status: "connected" });
+    if (qrConnected.status !== "connected") throw new Error("QR fixture did not connect.");
+    expect(qrConnected.credential).toBe("nivalis_fixture_music_u_credential");
+    const freshQr = await qrClient.beginQr();
+    expect(freshQr.qrUrl).not.toBe(prepared.qrUrl);
+    await expect(qrClient.pollQr(freshQr.privateState)).resolves.toEqual({
+      status: "waiting_for_scan"
+    });
+
+    const smsClient = new NeteaseAuthClient(
+      { timeoutMs: 2_000 },
+      createNeteaseHttpFixtureFetcher("normal")
+    );
+    await expect(
+      smsClient.sendSms(JSON.stringify({ countryCode: "86", phone: "13800138000" }))
+    ).resolves.toBeUndefined();
+    await expect(
+      smsClient.verifySms(
+        JSON.stringify({ code: "123456", countryCode: "86", phone: "13800138000" })
+      )
+    ).resolves.toEqual({ credential: "nivalis_fixture_music_u_credential" });
+  });
+
+  it("maps QR expiration, SMS risk control, and auth schema drift without leaking inputs", async () => {
+    const expired = new NeteaseAuthClient(
+      { timeoutMs: 2_000 },
+      createNeteaseHttpFixtureFetcher("credential_expired")
+    );
+    const prepared = await expired.beginQr();
+    await expect(expired.pollQr(prepared.privateState)).resolves.toEqual({ status: "expired" });
+    await expect(
+      expired.sendSms(JSON.stringify({ countryCode: "86", phone: "13800138000" }))
+    ).rejects.toMatchObject({ reason: "risk_control" });
+
+    const drift = new NeteaseAuthClient(
+      { timeoutMs: 2_000 },
+      createNeteaseHttpFixtureFetcher("schema_drift")
+    );
+    await expect(drift.beginQr()).rejects.toMatchObject({
+      sourceKind: "netease.auth.qr_key"
+    });
+  });
+
+  it("validates, normalizes, and projects honest Provider/Nivalis semantics", async () => {
+    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
+    const [projection] = await new NeteaseProjector().project(normalized, [target("7d")]);
+    expect(projection?.projectionSchemaVersion).toBe(2);
+    expect(projection?.data).toMatchObject({
+      account: { availability: "available", providerUserId: "10001" },
+      listeningDuration: {
+        availability: "available",
+        provenance: "provider_reported",
+        value: 91
+      },
+      totalListenCount: {
+        availability: "available",
+        provenance: "provider_reported",
+        value: 6421
+      },
+      weeklyListening: {
+        availability: "available",
+        coverage: "top_records",
+        provenance: "nivalis_derived",
+        rankedPlayCount: 22
+      }
+    });
+  });
+
+  it("distinguishes a valid empty account from partial availability", async () => {
+    const empty = await new NeteaseNormalizer().normalize(snapshots(emptyNeteaseFixture));
+    const [emptyProjection] = await new NeteaseProjector().project(empty, [target("7d")]);
+    expect(emptyProjection?.data).toMatchObject({
+      listeningDuration: { availability: "unavailable", reason: "provider_omitted" },
+      totalListenCount: { availability: "available", value: 0 },
+      weeklyListening: { availability: "available", rankedPlayCount: 0 }
+    });
+
+    const partial = await new NeteaseNormalizer().normalize(snapshots(partialNeteaseFixture));
+    const [partialProjection] = await new NeteaseProjector().project(partial, [target("30d")]);
+    expect(partialProjection?.data).toMatchObject({
+      listeningDuration: { availability: "unavailable", reason: "provider_omitted" },
+      weeklyListening: { availability: "unavailable", reason: "insufficient_coverage" }
+    });
+  });
+
+  it.each([
+    ["renamed field", schemaDriftFixture],
+    ["missing required field", missingFieldFixture],
+    ["unknown enum", unknownEnumFixture]
+  ])("surfaces %s as ProviderSchemaMismatch rather than fake zero data", async (_name, fixture) => {
+    await expect(new NeteaseNormalizer().normalize(snapshots(fixture))).rejects.toBeInstanceOf(
+      ProviderSchemaMismatchError
+    );
+  });
+
+  it("handles the sanitized large fixture without changing its bounded projection", async () => {
+    const normalized = await new NeteaseNormalizer().normalize(snapshots(largeNeteaseFixture));
+    const [projection] = await new NeteaseProjector().project(normalized, [target("7d")]);
+    const weekly = (projection!.data as JsonObject).weeklyListening as JsonObject;
+    expect(weekly.topTracks).toHaveLength(20);
+    expect(weekly.topArtists).toHaveLength(5);
+  });
+
+  it("keeps the credential in the transport boundary and emits sanitized Provider payloads", async () => {
+    const requests: Request[] = [];
+    const fetcher = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      return Response.json(payloadForPath(new URL(request.url).pathname));
+    });
+    const connector = new NeteaseConnector(
+      new NeteaseClient({ timeoutMs: 2_000 }, fetcher),
+      { resolve: async () => secret },
+      () => fetchedAt
+    );
+    const results = await connector.fetch(syncRun());
+
+    expect(results.map((result) => result.sourceKind)).toEqual([
+      NETEASE_SOURCE.account,
+      NETEASE_SOURCE.userLevel,
+      NETEASE_SOURCE.weeklyRecord,
+      NETEASE_SOURCE.recentSongs,
+      NETEASE_SOURCE.listenReportWeek
+    ]);
+    expect(JSON.stringify(results)).not.toContain(secret);
+    expect(requests).toHaveLength(5);
+    for (const request of requests) {
+      expect(request.method).toBe("POST");
+      expect(["music.163.com", "interfacepc.music.163.com"]).toContain(
+        new URL(request.url).hostname
+      );
+      expect(request.headers.get("cookie")).toContain(`MUSIC_U=${secret}`);
+      expect(request.headers.has("x-real-ip")).toBe(false);
+      expect(request.headers.has("authorization")).toBe(false);
+    }
+  });
+
+  it("classifies credential and transient failures without retry ambiguity", async () => {
+    const expired = new NeteaseClient({ timeoutMs: 2_000 }, async () =>
+      Response.json({ code: 301, message: "login required" })
+    );
+    await expect(expired.getAccount(secret)).rejects.toBeInstanceOf(ProviderCredentialError);
+
+    const unavailable = new NeteaseClient(
+      { timeoutMs: 2_000 },
+      async () => new Response("unavailable", { status: 503 })
+    );
+    await expect(unavailable.getAccount(secret)).rejects.toBeInstanceOf(RetryableProviderError);
+  });
+
+  it("keeps every committed fixture free of credential-like keys", () => {
+    for (const fixture of [
+      normalNeteaseFixture,
+      emptyNeteaseFixture,
+      partialNeteaseFixture,
+      schemaDriftFixture,
+      missingFieldFixture,
+      unknownEnumFixture,
+      largeNeteaseFixture
+    ]) {
+      expect(JSON.stringify(fixture)).not.toMatch(
+        /(?:authorization|cookie|music_u|csrf|access.?token|refresh.?token|api.?key|secret|password)/i
+      );
+    }
+  });
+
+  it("removes credential-bearing keys before a Provider payload can become Raw evidence", () => {
+    const sanitized = sanitizeNeteasePayload({
+      account: { id: 1 },
+      authorization: "private",
+      code: 200,
+      nested: { access_token: "private", keep: "evidence", tokenVersion: 3 },
+      MUSIC_U: "private"
+    });
+    expect(sanitized).toEqual({
+      account: { id: 1 },
+      code: 200,
+      nested: { keep: "evidence", tokenVersion: 3 }
+    });
+  });
+
+  it.skipIf(
+    process.env.NETEASE_INTEGRATION_TEST !== "1" || !process.env.NETEASE_INTEGRATION_MUSIC_U
+  )(
+    "optionally validates the real read-only Provider contract behind an explicit secret gate",
+    async () => {
+      const connector = new NeteaseConnector(new NeteaseClient({ timeoutMs: 10_000 }), {
+        resolve: async () => process.env.NETEASE_INTEGRATION_MUSIC_U!
+      });
+      const fetched = await connector.fetch(syncRun());
+      const normalized = await new NeteaseNormalizer().normalize(
+        fetched.map((item, index) => ({
+          createdAt: item.fetchedAt,
+          fetchedAt: item.fetchedAt,
+          id: `00000000-0000-4000-8000-${String(810 + index).padStart(12, "0")}`,
+          payload: item.payload,
+          payloadHash: `${index}`.padStart(64, "0"),
+          provider: "netease",
+          providerConnectionId: connectionId,
+          schemaVersion: item.schemaVersion,
+          sourceCursor: item.sourceCursor ?? null,
+          sourceKind: item.sourceKind,
+          sourceTimestamp: item.sourceTimestamp ?? null,
+          syncRunId: syncRun().id
+        }))
+      );
+      expect(normalized.provider).toBe("netease");
+    }
+  );
+});
+
+function snapshots(fixture: Readonly<Record<NeteaseSourceKind, JsonObject>>): RawSnapshot[] {
+  return Object.entries(fixture).map(([sourceKind, payload], index) => ({
+    createdAt: fetchedAt,
+    fetchedAt,
+    id: `00000000-0000-4000-8000-${String(610 + index).padStart(12, "0")}`,
+    payload,
+    payloadHash: `${index}`.padStart(64, "0"),
+    provider: "netease",
+    providerConnectionId: connectionId,
+    schemaVersion: 1,
+    sourceCursor: null,
+    sourceKind,
+    sourceTimestamp: null,
+    syncRunId: "00000000-0000-4000-8000-000000000601"
+  }));
+}
+
+function target(range: "7d" | "30d"): ProjectionTarget {
+  return {
+    dataConfig: { range },
+    enabled: true,
+    id: "00000000-0000-4000-8000-000000000701",
+    presentationConfig: { showArtists: true, showTrend: true },
+    projectionKey: "a".repeat(64),
+    provider: "netease",
+    schemaVersion: 2,
+    title: "网易云音乐",
+    type: "music.netease.overview"
+  };
+}
+
+function syncRun(): SyncRun {
+  return {
+    attemptCount: 0,
+    finishedAt: null,
+    id: "00000000-0000-4000-8000-000000000601",
+    lastErrorCode: null,
+    lastErrorMessage: null,
+    provider: "netease",
+    providerConnectionId: connectionId,
+    queueJobId: null,
+    requestedAt: fetchedAt,
+    startedAt: null,
+    status: "queued"
+  };
+}
+
+function payloadForPath(pathname: string) {
+  if (pathname.includes("account/get")) return normalNeteaseFixture[NETEASE_SOURCE.account];
+  if (pathname.includes("user/level")) return normalNeteaseFixture[NETEASE_SOURCE.userLevel];
+  if (pathname.includes("play/record")) return normalNeteaseFixture[NETEASE_SOURCE.weeklyRecord];
+  if (pathname.includes("song/list")) return normalNeteaseFixture[NETEASE_SOURCE.recentSongs];
+  if (pathname.includes("realtime/report")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.listenReportWeek];
+  }
+  return { code: 404 };
+}

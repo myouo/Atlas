@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: "Nivalis — About Me",
   description: "Personal digital identity and composable data dashboard",
   icons: {
-    icon: "/images/profile-avatar.png"
+    icon: "/images/mock-avatar-profile.webp"
   }
 };
 

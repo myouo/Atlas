@@ -1,5 +1,10 @@
 # Provider Connectors
 
-This package is the only future home for Provider HTTP URLs, authentication formats, pagination, signatures, and mapping rules. Phase 1 declares the adapter shape but ships no implementation and performs no external request.
+This package is the only home for Provider HTTP hosts, authentication formats, protocol/signature details, runtime response schemas, normalization, Provider-native persistence adapters, and Widget projection rules.
 
-Each Provider folder records its planned state explicitly.
+Implemented runtimes:
+
+- `src/fixture`: development/test-only generic pipeline fixture; rejected in production.
+- `src/netease`: minimal direct read-only NetEase client, Connector, sanitizer, TypeBox schemas, Normalizer, Native Store, Projector, and sanitized fixtures.
+
+Application code sees only provider-neutral runtime/credential/native-store ports. The API process never imports this package; `apps/worker` selects modules in its composition root.

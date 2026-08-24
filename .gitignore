@@ -1,9 +1,12 @@
 # Dependencies and build output
 node_modules/
 .next/
+.next-*/
+out/
 dist/
 coverage/
 playwright-report/
+playwright-report-api/
 test-results/
 *.tsbuildinfo
 
@@ -20,6 +23,10 @@ wrangler.deploy.jsonc
 .idea/
 .vscode/
 
+# Local project reference bundle (canonical copies live under docs/)
+Nivalis_AboutMe_Spec_GitHub_Pack_v0.1/
+
 # Local logs and caches
 *.log
 .turbo/
+.wrangler/

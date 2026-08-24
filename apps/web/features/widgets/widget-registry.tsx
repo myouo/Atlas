@@ -24,6 +24,7 @@ interface RegistryIconProps {
 export interface WidgetDefinition {
   readonly accent: WidgetAccent;
   readonly allowMultiple: boolean;
+  readonly catalogVisible?: boolean;
   readonly description: string;
   readonly Icon: ComponentType<RegistryIconProps>;
   readonly kind: ModuleShellKind;
@@ -60,7 +61,15 @@ export class WidgetRegistry {
   }
 
   list() {
-    return [...this.definitions.values()];
+    return [...this.definitions.values()].filter(
+      (definition) => definition.catalogVisible !== false
+    );
+  }
+
+  preferred(type: WidgetType) {
+    return this.list()
+      .filter((definition) => definition.type === type)
+      .sort((left, right) => right.schemaVersion - left.schemaVersion)[0];
   }
 
   private key(type: string, schemaVersion: number) {
@@ -116,12 +125,35 @@ export const widgetRegistry = new WidgetRegistry()
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    catalogVisible: false,
     sizes: {
       lg: { w: 8, h: 6, minW: 6, minH: 5 },
       md: { w: 5, h: 6, minW: 5, minH: 5 },
       sm: { w: 4, h: 12, minW: 4, minH: 10 }
     },
-    subtitle: () => "最近 7 天 · Mock Projection",
+    subtitle: () => "Legacy Fixture Projection",
+    Renderer: adaptRenderer(NeteaseOverviewWidget)
+  })
+  .register({
+    type: "music.netease.overview",
+    schemaVersion: 2,
+    name: "网易云音乐",
+    description: "真实 Provider 计数、周排行、最近播放与可用性",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 8, h: 6, minW: 6, minH: 5 },
+      md: { w: 5, h: 6, minW: 5, minH: 5 },
+      sm: { w: 4, h: 12, minW: 4, minH: 10 }
+    },
+    subtitle: (widget) =>
+      widget.type === "music.netease.overview" && widget.schemaVersion === 2
+        ? widget.data.account.availability === "available"
+          ? `网易云 · ${widget.data.account.displayName ?? widget.data.account.providerUserId}`
+          : "网易云 · 尚未同步"
+        : undefined,
     Renderer: adaptRenderer(NeteaseOverviewWidget)
   })
   .register({

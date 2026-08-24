@@ -1,7 +1,6 @@
-/**
- * Phase 2 transport entrypoint.
- *
- * Fastify is intentionally not bootstrapped in Phase 1. The HTTP contract is
- * already committed under /openapi so transport work cannot redefine it later.
- */
-export const apiPhase = "contract-only" as const;
+export * from "./bootstrap/build-api";
+export * from "./config/api-config";
+export * from "./infrastructure/database/database";
+export * from "./infrastructure/database/migrator";
+export * from "./infrastructure/database/seed";
+export * from "./infrastructure/repositories/kysely-dashboard-repository";

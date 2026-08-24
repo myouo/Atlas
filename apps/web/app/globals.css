@@ -62,7 +62,7 @@ select:focus-visible {
   position: relative;
   min-height: 100vh;
   overflow-x: clip;
-  background-image: url("/images/nivalis-background.png");
+  background-image: url("/images/nivalis-background.jpg");
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;

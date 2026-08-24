@@ -25,8 +25,8 @@ describe("Phase 1 Dashboard Read Model", () => {
   });
 
   it("returns an isolated clone through the data-source boundary", async () => {
-    const first = await mockDashboardSource.getPublicAboutDashboard();
-    const second = await mockDashboardSource.getPublicAboutDashboard();
+    const first = (await mockDashboardSource.load()).published;
+    const second = (await mockDashboardSource.load()).published;
     first.widgets.splice(0, 1);
     expect(second.widgets).toHaveLength(mockDashboard.widgets.length);
   });

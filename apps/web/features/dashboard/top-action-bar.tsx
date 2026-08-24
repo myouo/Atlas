@@ -1,12 +1,15 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
+import type { ProviderStatus } from "@nivalis/api-client";
 import {
   ArrowClockwise,
-  CheckCircle,
   Code,
+  Database,
   GearSix,
   Info,
+  SignIn,
+  SignOut,
   SpinnerGap,
   X
 } from "@phosphor-icons/react";
@@ -15,22 +18,28 @@ import Link from "next/link";
 
 import type { DashboardMode } from "./dashboard-store";
 
-export type SyncUiState = "completed" | "idle" | "queued" | "running";
+export type SyncUiState = "completed" | "failed" | "idle" | "queued" | "retrying" | "running";
 
 interface TopActionBarProps {
+  readonly authenticated: boolean;
+  readonly isOwner: boolean;
   readonly mode: DashboardMode;
+  readonly onLogin: () => void;
+  readonly onLogout: () => void;
   readonly onModeChange: (mode: DashboardMode) => void;
   readonly onSync: () => void;
+  readonly providerStatuses: readonly ProviderStatus[];
   readonly syncState: SyncUiState;
 }
 
-const providerStates = [
-  ["网易云音乐", "Mock 就绪"],
-  ["GitHub", "Mock 就绪"],
-  ["Bilibili", "Mock 就绪"],
-  ["Steam", "Mock 就绪"],
-  ["Bangumi", "Mock 就绪"]
-] as const;
+const providerNames: Record<ProviderStatus["provider"], string> = {
+  fixture: "Fixture Provider",
+  netease: "网易云音乐",
+  github: "GitHub",
+  bilibili: "Bilibili",
+  steam: "Steam",
+  bangumi: "Bangumi"
+};
 
 function DialogCloseButton() {
   return (
@@ -65,8 +74,18 @@ function ModalFrame({
   );
 }
 
-export function TopActionBar({ mode, onModeChange, onSync, syncState }: TopActionBarProps) {
-  const syncing = syncState === "queued" || syncState === "running";
+export function TopActionBar({
+  authenticated,
+  isOwner,
+  mode,
+  onLogin,
+  onLogout,
+  onModeChange,
+  onSync,
+  providerStatuses,
+  syncState
+}: TopActionBarProps) {
+  const syncing = syncState === "queued" || syncState === "running" || syncState === "retrying";
 
   return (
     <nav
@@ -124,19 +143,26 @@ export function TopActionBar({ mode, onModeChange, onSync, syncState }: TopActio
             </button>
           </Dialog.Trigger>
           <ModalFrame
-            description="Phase 1 仅展示明确标记的 Provider Mock 状态，不包含真实连接或凭据。"
+            description="状态来自持久化 Provider 连接与同步记录。网易云凭据只在 Settings 写入并加密保存；Fixture 仅用于开发与测试。"
             title="Provider 状态"
           >
             <div className="mt-5 space-y-2">
-              {providerStates.map(([provider, status]) => (
+              {providerStatuses.map((status) => (
                 <div
                   className="flex items-center justify-between rounded-2xl border border-white/80 bg-white/55 px-4 py-3"
-                  key={provider}
+                  key={status.provider}
                 >
-                  <span className="text-sm font-bold">{provider}</span>
-                  <span className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
-                    <CheckCircle aria-hidden size={16} weight="fill" />
-                    {status}
+                  <span>
+                    <span className="block text-sm font-bold">
+                      {providerNames[status.provider]}
+                    </span>
+                    <span className="mt-0.5 block text-[9px] font-semibold text-ink-muted">
+                      {providerStatusDetail(status)}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2 text-xs font-semibold text-blue-700">
+                    <Database aria-hidden size={16} weight="duotone" />
+                    {connectionStatusLabel(status)}
                   </span>
                 </div>
               ))}
@@ -147,9 +173,9 @@ export function TopActionBar({ mode, onModeChange, onSync, syncState }: TopActio
         <button
           aria-label={syncState === "completed" ? "已同步" : "同步"}
           className="flex h-11 items-center gap-2 border-r border-blue-100/80 px-3 text-xs font-bold text-ink transition hover:bg-white/60 disabled:cursor-wait disabled:opacity-60"
-          disabled={syncing}
+          disabled={syncing || !isOwner}
           onClick={onSync}
-          title="Phase 1 模拟异步同步状态，不访问 Provider"
+          title="同步经由 Nivalis API、独立 Worker、Raw Snapshot 与 Projection；浏览器不会访问 Provider"
           type="button"
         >
           {syncing ? (
@@ -157,7 +183,9 @@ export function TopActionBar({ mode, onModeChange, onSync, syncState }: TopActio
           ) : (
             <ArrowClockwise aria-hidden size={16} weight="bold" />
           )}
-          <span className="hidden sm:inline">{syncState === "completed" ? "已同步" : "同步"}</span>
+          <span className="hidden sm:inline">
+            {syncState === "completed" ? "已同步" : syncState === "failed" ? "重试同步" : "同步"}
+          </span>
         </button>
 
         <Dialog.Root>
@@ -172,15 +200,18 @@ export function TopActionBar({ mode, onModeChange, onSync, syncState }: TopActio
             </button>
           </Dialog.Trigger>
           <ModalFrame
-            description="OpenAPI 3.1 是前后端之间唯一正式契约；以下路径在 Phase 1 已定义，服务实现从 Phase 2 开始。"
+            description="OpenAPI 3.1 是唯一正式契约；Revision 配置、Live Projection 与 SyncRun 是独立资源。"
             title="Nivalis API · v1"
           >
             <div className="mt-5 space-y-2 font-mono text-[11px]">
               {[
                 ["GET", "/v1/public/dashboards/about"],
                 ["GET", "/v1/me/dashboards/about/draft"],
+                ["GET", "/v1/me/dashboards/about/data"],
                 ["PUT", "/v1/me/dashboards/about/draft"],
                 ["POST", "/v1/me/dashboards/about/publish"],
+                ["GET", "/v1/me/dashboards/about/revisions"],
+                ["POST", "/v1/me/dashboards/about/revisions/{revisionId}/restore"],
                 ["POST", "/v1/me/providers/{provider}/sync"],
                 ["GET", "/v1/me/sync-jobs/{jobId}"]
               ].map(([method, path]) => (
@@ -196,6 +227,20 @@ export function TopActionBar({ mode, onModeChange, onSync, syncState }: TopActio
           </ModalFrame>
         </Dialog.Root>
 
+        <button
+          aria-label={authenticated ? "退出登录" : "使用 GitHub 登录"}
+          className="flex h-11 items-center gap-2 border-r border-blue-100/80 px-3 text-xs font-bold text-ink transition hover:bg-white/60"
+          onClick={authenticated ? onLogout : onLogin}
+          type="button"
+        >
+          {authenticated ? (
+            <SignOut aria-hidden size={17} weight="bold" />
+          ) : (
+            <SignIn aria-hidden size={17} weight="bold" />
+          )}
+          <span className="hidden lg:inline">{authenticated ? "退出" : "登录"}</span>
+        </button>
+
         <Link
           aria-label="打开设置"
           className="flex h-11 w-11 items-center justify-center text-ink transition hover:bg-white/60"
@@ -206,4 +251,41 @@ export function TopActionBar({ mode, onModeChange, onSync, syncState }: TopActio
       </div>
     </nav>
   );
+}
+
+function syncStatusLabel(status: ProviderStatus["syncStatus"]) {
+  const labels: Record<ProviderStatus["syncStatus"], string> = {
+    completed: "同步完成",
+    credential_invalid: "凭据失效",
+    failed: "同步失败",
+    idle: "等待同步",
+    queued: "排队中",
+    retrying: "等待重试",
+    running: "同步中"
+  };
+  return labels[status];
+}
+
+function connectionStatusLabel(status: ProviderStatus) {
+  switch (status.connection) {
+    case "fixture":
+      return `${syncStatusLabel(status.syncStatus)} · Fixture`;
+    case "connected":
+      return syncStatusLabel(status.syncStatus);
+    case "requires_attention":
+      return "需要重新连接";
+    case "disabled":
+      return "已禁用";
+    case "not_connected":
+      return "未连接";
+  }
+}
+
+function providerStatusDetail(status: ProviderStatus) {
+  if (status.lastErrorCode) return `错误：${status.lastErrorCode}`;
+  if (status.lastSuccessAt) {
+    const suffix = status.attemptCount > 0 ? `${status.attemptCount} 次尝试` : "Seed Projection";
+    return `最近成功 ${status.lastSuccessAt.replace("T", " ").slice(5, 16)} UTC · ${suffix}`;
+  }
+  return "尚无真实同步记录";
 }

@@ -1,28 +1,73 @@
 openapi: 3.1.0
 info:
   title: Nivalis API
-  version: 0.1.0
+  version: 0.5.0
   description: >-
-    Frontend-independent contract for profiles, composable Dashboard revisions,
-    Provider status, asynchronous synchronization jobs, and appearance settings.
-    The API returns data and semantic capabilities, never UI styling.
+    Frontend-independent contract for profiles and composable Dashboard state.
+    Phase 5 adds API-owned Owner authentication, encrypted Provider credential lifecycle,
+    the first real read-only Provider module, and Worker-owned QR/SMS credential acquisition
+    for NetEase Cloud Music while preserving
+    immutable Dashboard revisions and asynchronous Projection isolation. The API returns
+    data and semantic capabilities, never UI styling or Provider secrets.
   license:
     name: MIT
     identifier: MIT
 servers:
   - url: /
+security:
+  - NivalisSession: []
 tags:
+  - name: System
+    description: Process health and database readiness endpoints.
   - name: Public
     description: Public allowlisted profile and Published Dashboard read models.
+  - name: Auth
+    description: API-owned GitHub OAuth and opaque Nivalis session lifecycle.
   - name: Dashboard
     description: Owner Draft, Published, and revision lifecycle operations.
   - name: Widget
     description: Widget instance configuration within a Dashboard Draft.
   - name: Provider
-    description: Provider state and asynchronous synchronization job resources.
+    description: Secret-safe Provider connection state and asynchronous synchronization resources.
   - name: Settings
     description: Owner settings expressed as semantic preferences.
 paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check whether the API process is alive
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /ready:
+    get:
+      operationId: getReadiness
+      summary: Check whether PostgreSQL is reachable
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: API is ready to serve persisted data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/public/profile:
     get:
       operationId: getPublicProfile
@@ -32,9 +77,6 @@ paths:
       responses:
         "200":
           description: Public profile
-          headers:
-            ETag:
-              $ref: "#/components/headers/ETag"
           content:
             application/json:
               schema:
@@ -54,35 +96,126 @@ paths:
           description: Published Dashboard read model
           headers:
             ETag:
-              $ref: "#/components/headers/ETag"
+              $ref: "#/components/headers/ViewETag"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardReadModel"
-        "304":
-          description: Snapshot has not changed
         default:
           $ref: "#/components/responses/Problem"
         "404":
           $ref: "#/components/responses/Problem"
-  /v1/me/dashboards/about/draft:
-    get:
-      operationId: getAboutDashboardDraft
-      summary: Read the owner's draft Dashboard revision
-      tags: [Dashboard]
-      security:
-        - ownerSession: []
+  /v1/auth/github/start:
+    post:
+      operationId: startGithubOwnerAuthentication
+      summary: Create a one-time GitHub OAuth authorization transaction
+      tags: [Auth]
+      security: []
       responses:
         "200":
-          description: Draft Dashboard revision
-          headers:
-            ETag:
-              $ref: "#/components/headers/ETag"
+          description: Browser navigation target for the GitHub authorization transaction
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardRevision"
+                $ref: "#/components/schemas/AuthStart"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/auth/github/callback:
+    get:
+      operationId: completeGithubOwnerAuthentication
+      summary: Complete GitHub OAuth and issue an opaque Nivalis session
+      tags: [Auth]
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 32
+      responses:
+        "302":
+          description: Session issued and browser redirected to the configured Web Settings page
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+            Set-Cookie:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/Problem"
+        "502":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/auth/session:
+    get:
+      operationId: getAuthSession
+      summary: Read the current Nivalis authentication state
+      tags: [Auth]
+      security: []
+      responses:
+        "200":
+          description: Current session state; never includes OAuth or Provider tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/auth/logout:
+    post:
+      operationId: logoutAuthSession
+      summary: Revoke the current opaque Nivalis session
+      tags: [Auth]
+      responses:
+        "204":
+          description: Session revoked and cookie expired
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
         "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/draft:
+    get:
+      operationId: getAboutDashboardDraft
+      summary: Read the owner's current Draft Dashboard state
+      tags: [Dashboard]
+      description: Returns immutable owner-controlled configuration only; live Provider data is a separate resource.
+      responses:
+        "200":
+          description: Current Draft Dashboard state
+          headers:
+            ETag:
+              $ref: "#/components/headers/RevisionETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardState"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "503":
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
@@ -90,8 +223,7 @@ paths:
       operationId: replaceAboutDashboardDraft
       summary: Save the owner's draft without publishing it
       tags: [Dashboard]
-      security:
-        - ownerSession: []
+      description: Creates an immutable successor revision and atomically advances the Draft pointer.
       parameters:
         - $ref: "#/components/parameters/IfMatch"
       requestBody:
@@ -102,39 +234,88 @@ paths:
               $ref: "#/components/schemas/DashboardDraftUpdate"
       responses:
         "200":
-          description: Saved draft revision
+          description: Newly created current Draft revision
           headers:
             ETag:
-              $ref: "#/components/headers/ETag"
+              $ref: "#/components/headers/RevisionETag"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardRevision"
+                $ref: "#/components/schemas/DashboardState"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: "#/components/responses/RevisionConflict"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/data:
+    get:
+      operationId: getAboutDashboardLiveData
+      summary: Read live projections hydrated for the current Draft configuration
+      tags: [Dashboard]
+      description: Provider-derived data changes independently from the Draft Revision and its rev ETag.
+      responses:
+        "200":
+          description: Current Draft live Widget data
+          headers:
+            ETag:
+              $ref: "#/components/headers/DataETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardLiveData"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/dashboards/about/publish:
     post:
       operationId: publishAboutDashboard
-      summary: Explicitly publish the current draft revision
+      summary: Explicitly publish the current Draft state
       tags: [Dashboard]
-      security:
-        - ownerSession: []
+      description: Copies the current Draft to Published inside one database transaction.
       parameters:
         - $ref: "#/components/parameters/IfMatch"
       responses:
         "200":
-          description: Newly published Dashboard revision
+          description: Current Published Dashboard state
           headers:
             ETag:
-              $ref: "#/components/headers/ETag"
+              $ref: "#/components/headers/RevisionETag"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardRevision"
+                $ref: "#/components/schemas/DashboardState"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: "#/components/responses/RevisionConflict"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/dashboards/about/widgets:
@@ -142,8 +323,8 @@ paths:
       operationId: createAboutDashboardWidget
       summary: Add a Widget instance to the About Me Dashboard draft
       tags: [Widget]
-      security:
-        - ownerSession: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
       requestBody:
         required: true
         content:
@@ -152,17 +333,31 @@ paths:
               $ref: "#/components/schemas/CreateWidgetInput"
       responses:
         "201":
-          description: Widget instance created
+          description: Widget configuration created in a new Draft revision
           headers:
             Location:
               schema:
                 type: string
+            ETag:
+              $ref: "#/components/headers/RevisionETag"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WidgetInstance"
+                $ref: "#/components/schemas/WidgetConfiguration"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/RevisionConflict"
         "422":
           $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/widgets/{widgetId}:
@@ -172,8 +367,8 @@ paths:
       operationId: updateWidget
       summary: Update the semantic configuration of a Widget instance
       tags: [Widget]
-      security:
-        - ownerSession: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
       requestBody:
         required: true
         content:
@@ -182,24 +377,359 @@ paths:
               $ref: "#/components/schemas/UpdateWidgetInput"
       responses:
         "200":
-          description: Updated Widget instance
+          description: Updated Widget configuration
+          headers:
+            ETag:
+              $ref: "#/components/headers/RevisionETag"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WidgetInstance"
+                $ref: "#/components/schemas/WidgetConfiguration"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/RevisionConflict"
         "422":
           $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         default:
           $ref: "#/components/responses/Problem"
     delete:
       operationId: deleteWidget
       summary: Remove a Widget instance from the Dashboard draft
       tags: [Widget]
-      security:
-        - ownerSession: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
       responses:
         "204":
           description: Widget instance removed
+          headers:
+            ETag:
+              $ref: "#/components/headers/RevisionETag"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/RevisionConflict"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/revisions:
+    get:
+      operationId: listAboutDashboardRevisions
+      summary: List immutable About Dashboard revision metadata
+      tags: [Dashboard]
+      description: Returns newest-first metadata without loading revision Widget snapshots.
+      parameters:
+        - $ref: "#/components/parameters/RevisionLimit"
+        - $ref: "#/components/parameters/RevisionCursor"
+      responses:
+        "200":
+          description: Cursor-paginated immutable revision history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardRevisionList"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/revisions/{revisionId}:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    get:
+      operationId: getAboutDashboardRevision
+      summary: Read one immutable Dashboard revision snapshot
+      tags: [Dashboard]
+      responses:
+        "200":
+          description: Immutable Dashboard revision detail
+          headers:
+            ETag:
+              $ref: "#/components/headers/RevisionETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardRevisionDetail"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/dashboards/about/revisions/{revisionId}/restore:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      operationId: restoreAboutDashboardRevision
+      summary: Clone a historical revision into a new current Draft revision
+      tags: [Dashboard]
+      description: Creates a new Draft revision and never changes the Published pointer.
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: Newly created restored Draft revision
+          headers:
+            ETag:
+              $ref: "#/components/headers/RevisionETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardState"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/RevisionConflict"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers:
+    get:
+      operationId: listProviderConnections
+      summary: List secret-free Owner Provider connection state
+      tags: [Provider]
+      responses:
+        "200":
+          description: Provider connection state without credential material
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [providers]
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProviderConnection"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease:
+    get:
+      operationId: getNeteaseProviderConnection
+      summary: Read secret-free NetEase Cloud Music connection state
+      tags: [Provider]
+      responses:
+        "200":
+          description: NetEase connection and credential status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConnection"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease/connect:
+    post:
+      operationId: connectNeteaseProvider
+      summary: Store an encrypted MUSIC_U credential and enqueue validation
+      description: The credential is write-only and is never returned by any Nivalis API.
+      tags: [Provider]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NeteaseConnectInput"
+      responses:
+        "202":
+          description: Encrypted credential stored and validation SyncRun accepted
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConnectAccepted"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease/auth-attempts/qr:
+    post:
+      operationId: startNeteaseQrAuthAttempt
+      summary: Create or reuse a NetEase QR login attempt
+      description: Provider I/O is queued for the Worker; the API response never contains Cookie material.
+      tags: [Provider]
+      responses:
+        "202":
+          description: QR login attempt accepted
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderAuthAttempt"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease/auth-attempts/sms:
+    post:
+      operationId: startNeteaseSmsAuthAttempt
+      summary: Create or reuse a NetEase SMS login attempt
+      description: Phone input is encrypted as short-lived attempt state and never returned in full.
+      tags: [Provider]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NeteaseSmsAuthInput"
+      responses:
+        "202":
+          description: SMS delivery attempt accepted
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderAuthAttempt"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease/auth-attempts/{attemptId}:
+    get:
+      operationId: getNeteaseAuthAttempt
+      summary: Read one secret-free NetEase login attempt
+      tags: [Provider]
+      parameters:
+        - $ref: "#/components/parameters/AuthAttemptId"
+      responses:
+        "200":
+          description: Current login attempt state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderAuthAttempt"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: cancelNeteaseAuthAttempt
+      summary: Cancel one active NetEase login attempt and erase its encrypted state
+      tags: [Provider]
+      parameters:
+        - $ref: "#/components/parameters/AuthAttemptId"
+      responses:
+        "204":
+          description: Attempt cancelled; no credential was changed
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease/auth-attempts/{attemptId}/verify:
+    post:
+      operationId: verifyNeteaseSmsAuthAttempt
+      summary: Submit one write-only SMS code for a waiting NetEase attempt
+      tags: [Provider]
+      parameters:
+        - $ref: "#/components/parameters/AuthAttemptId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NeteaseSmsVerifyInput"
+      responses:
+        "202":
+          description: SMS verification accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderAuthAttempt"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease/connection:
+    delete:
+      operationId: disconnectNeteaseProvider
+      summary: Disable NetEase and delete only its encrypted credential
+      description: Raw Snapshots, native observations, and Last Known Good Projections are retained.
+      tags: [Provider]
+      responses:
+        "204":
+          description: Connection disabled and credential deleted
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
         "404":
           $ref: "#/components/responses/Problem"
         default:
@@ -209,8 +739,6 @@ paths:
       operationId: listProviderStatus
       summary: List configured Provider synchronization states
       tags: [Provider]
-      security:
-        - ownerSession: []
       responses:
         "200":
           description: Provider states
@@ -227,21 +755,21 @@ paths:
                       $ref: "#/components/schemas/ProviderStatus"
         "401":
           $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/providers/{provider}/sync:
     post:
       operationId: enqueueProviderSync
-      summary: Enqueue an asynchronous Provider synchronization job
+      summary: Create or reuse an active Provider SyncRun
       tags: [Provider]
-      security:
-        - ownerSession: []
+      description: Enqueues asynchronous work and never performs Provider I/O in the API request.
       parameters:
         - $ref: "#/components/parameters/Provider"
-        - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "202":
-          description: Synchronization job accepted
+          description: SyncRun accepted or an existing active run reused
           headers:
             Location:
               schema:
@@ -250,26 +778,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SyncJob"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/sync-jobs/{jobId}:
     get:
       operationId: getSyncJob
-      summary: Read an asynchronous synchronization job
+      summary: Read one public SyncRun resource
       tags: [Provider]
-      security:
-        - ownerSession: []
+      description: The jobId is a Nivalis SyncRun UUID and never a pg-boss internal identifier.
       parameters:
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
-          description: Synchronization job
+          description: Current SyncRun state
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SyncJob"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
         "404":
           $ref: "#/components/responses/Problem"
         default:
@@ -279,25 +818,21 @@ paths:
       operationId: getAppearanceSettings
       summary: Read the owner's semantic appearance preferences
       tags: [Settings]
-      security:
-        - ownerSession: []
+      description: Appearance remains browser-local in Phase 5; server persistence is not implemented.
       responses:
-        "200":
-          description: Appearance preferences
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AppearanceSettings"
         "401":
           $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
         default:
           $ref: "#/components/responses/Problem"
     put:
       operationId: replaceAppearanceSettings
       summary: Replace the owner's semantic appearance preferences
       tags: [Settings]
-      security:
-        - ownerSession: []
+      description: Appearance remains browser-local in Phase 5; server persistence is not implemented.
       requestBody:
         required: true
         content:
@@ -305,43 +840,54 @@ paths:
             schema:
               $ref: "#/components/schemas/AppearanceSettings"
       responses:
-        "200":
-          description: Appearance preferences saved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AppearanceSettings"
-        "422":
+        "401":
           $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
         default:
           $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
-    ownerSession:
+    NivalisSession:
       type: apiKey
       in: cookie
       name: nivalis_session
-  headers:
-    ETag:
-      description: Opaque revision validator
-      schema:
-        type: string
+      description: Opaque Nivalis session token; PostgreSQL stores only its hash.
   parameters:
     IfMatch:
       name: If-Match
       in: header
       required: true
-      description: ETag returned when the draft was read
+      description: Strong ETag of the current Draft revision on which the mutation is based.
       schema:
         type: string
-    IdempotencyKey:
-      name: Idempotency-Key
-      in: header
+        pattern: '^"rev:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}"$'
+    RevisionId:
+      name: revisionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RevisionLimit:
+      name: limit
+      in: query
       required: false
       schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    RevisionCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque newest-first pagination cursor returned by the preceding page.
+      schema:
         type: string
-        minLength: 8
-        maxLength: 128
+        pattern: "^rev:[1-9][0-9]*$"
     Provider:
       name: provider
       in: path
@@ -354,14 +900,37 @@ components:
       required: true
       schema:
         type: string
-        minLength: 1
+        format: uuid
     JobId:
       name: jobId
       in: path
       required: true
       schema:
         type: string
-        minLength: 1
+        format: uuid
+    AuthAttemptId:
+      name: attemptId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  headers:
+    RevisionETag:
+      description: Strong validator derived from the immutable Dashboard revision UUID.
+      schema:
+        type: string
+        pattern: '^"rev:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}"$'
+    ViewETag:
+      description: Strong validator for Published Revision plus selected live Projection and effective freshness versions.
+      schema:
+        type: string
+        pattern: '^"view:[0-9a-f]{64}"$'
+    DataETag:
+      description: Strong validator for the hydrated current-Draft live data representation.
+      schema:
+        type: string
+        pattern: '^"data:[0-9a-f]{64}"$'
   responses:
     Problem:
       description: RFC 9457 Problem Details
@@ -369,37 +938,221 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/ProblemDetails"
-    PreconditionFailed:
-      description: The supplied revision validator is stale
+    NotImplemented:
+      description: Capability is intentionally unavailable in the current phase
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/ProblemDetails"
-    TooManyRequests:
-      description: Synchronization was rate limited
-      headers:
-        Retry-After:
+    RevisionConflict:
+      description: The supplied revision validator is no longer the current Draft.
+      content:
+        application/problem+json:
           schema:
-            type: integer
-            minimum: 1
+            $ref: "#/components/schemas/RevisionConflictProblem"
+    PreconditionRequired:
+      description: The mutation requires a current Draft If-Match validator.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/ProblemDetails"
   schemas:
-    Provider:
+    AuthStart:
+      type: object
+      additionalProperties: false
+      required: [authorizationUrl, expiresAt]
+      properties:
+        authorizationUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    AuthSession:
+      type: object
+      additionalProperties: false
+      required: [authenticated, actorId, role, expiresAt]
+      properties:
+        authenticated:
+          type: boolean
+        actorId:
+          type: [string, "null"]
+          format: uuid
+        role:
+          type: [string, "null"]
+          enum: [owner, viewer, null]
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+    CredentialStatus:
       type: string
-      enum: [netease, github, bangumi, steam, bilibili]
-    WidgetType:
+      enum: [not_configured, pending_validation, valid, expired, invalid, revoked]
+    ProviderConnection:
+      type: object
+      additionalProperties: false
+      required:
+        - provider
+        - configured
+        - enabled
+        - credentialStatus
+        - providerAccountId
+        - displayName
+        - credentialUpdatedAt
+        - lastValidatedAt
+      properties:
+        provider:
+          type: string
+          const: netease
+        configured:
+          type: boolean
+        enabled:
+          type: boolean
+        credentialStatus:
+          $ref: "#/components/schemas/CredentialStatus"
+        providerAccountId:
+          type: [string, "null"]
+        displayName:
+          type: [string, "null"]
+        credentialUpdatedAt:
+          type: [string, "null"]
+          format: date-time
+        lastValidatedAt:
+          type: [string, "null"]
+          format: date-time
+    NeteaseConnectInput:
+      type: object
+      additionalProperties: false
+      required: [credentialType, credential]
+      properties:
+        credentialType:
+          type: string
+          const: music_u
+        credential:
+          type: string
+          minLength: 16
+          maxLength: 4096
+          writeOnly: true
+    ProviderConnectAccepted:
+      type: object
+      additionalProperties: false
+      required: [connection, validationJob]
+      properties:
+        connection:
+          $ref: "#/components/schemas/ProviderConnection"
+        validationJob:
+          $ref: "#/components/schemas/SyncJob"
+    ProviderAuthMethod:
+      type: string
+      enum: [qr, sms_otp]
+    ProviderAuthAttemptStatus:
       type: string
       enum:
-        - profile.hero
-        - system.stats
-        - music.netease.overview
-        - github.profile
-        - bilibili.profile
-        - steam.profile
-        - bangumi.collection
+        - queued
+        - preparing
+        - waiting_for_scan
+        - waiting_for_confirmation
+        - waiting_for_code
+        - verifying
+        - connected
+        - expired
+        - failed
+    ProviderAuthAttempt:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptId
+        - provider
+        - method
+        - status
+        - qrUrl
+        - maskedPhone
+        - expiresAt
+        - resendAfter
+        - createdAt
+        - updatedAt
+        - lastErrorCode
+        - lastErrorMessage
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          const: netease
+        method:
+          $ref: "#/components/schemas/ProviderAuthMethod"
+        status:
+          $ref: "#/components/schemas/ProviderAuthAttemptStatus"
+        qrUrl:
+          type: [string, "null"]
+          format: uri
+        maskedPhone:
+          type: [string, "null"]
+        expiresAt:
+          type: string
+          format: date-time
+        resendAfter:
+          type: [string, "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastErrorCode:
+          type: [string, "null"]
+        lastErrorMessage:
+          type: [string, "null"]
+    NeteaseSmsAuthInput:
+      type: object
+      additionalProperties: false
+      required: [phone, countryCode]
+      properties:
+        phone:
+          type: string
+          pattern: "^[0-9]{5,20}$"
+          writeOnly: true
+        countryCode:
+          type: string
+          pattern: "^[0-9]{1,4}$"
+          writeOnly: true
+    NeteaseSmsVerifyInput:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: "^[0-9]{4,8}$"
+          writeOnly: true
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status, requestId]
+      properties:
+        status:
+          const: ok
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+    ReadinessStatus:
+      type: object
+      additionalProperties: false
+      required: [status, database, requestId]
+      properties:
+        status:
+          const: ready
+        database:
+          const: reachable
+        requestId:
+          type: string
+    Provider:
+      type: string
+      enum: [fixture, netease, github, bangumi, steam, bilibili]
     Profile:
       type: object
       additionalProperties: false
@@ -455,16 +1208,63 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LayoutItem"
-    WidgetEnvelope:
+    WidgetConfiguration:
       type: object
       additionalProperties: false
-      required: [id, schemaVersion, title, updatedAt, stale]
+      required: [id, type, provider, schemaVersion, title, enabled, dataConfig, presentationConfig]
       properties:
         id:
           type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - profile.hero
+            - system.stats
+            - music.netease.overview
+            - github.profile
+            - bilibili.profile
+            - steam.profile
+            - bangumi.collection
+        provider:
+          $ref: "#/components/schemas/Provider"
         schemaVersion:
           type: integer
           minimum: 1
+        title:
+          type: string
+          minLength: 1
+        enabled:
+          type: boolean
+        dataConfig:
+          type: object
+          additionalProperties: true
+        presentationConfig:
+          type: object
+          additionalProperties: true
+    WidgetEnvelope:
+      type: object
+      required:
+        [
+          id,
+          provider,
+          schemaVersion,
+          title,
+          updatedAt,
+          stale,
+          enabled,
+          dataConfig,
+          presentationConfig
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        schemaVersion:
+          type: integer
+          minimum: 1
+        provider:
+          $ref: "#/components/schemas/Provider"
         title:
           type: string
         updatedAt:
@@ -472,6 +1272,14 @@ components:
           format: date-time
         stale:
           type: boolean
+        enabled:
+          type: boolean
+        dataConfig:
+          type: object
+          additionalProperties: true
+        presentationConfig:
+          type: object
+          additionalProperties: true
     ProfileHeroData:
       $ref: "#/components/schemas/Profile"
     SystemStatData:
@@ -548,6 +1356,219 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TrendPoint"
+    DataUnavailable:
+      type: object
+      additionalProperties: false
+      required: [availability, reason]
+      properties:
+        availability:
+          type: string
+          const: unavailable
+        reason:
+          type: string
+          enum:
+            - not_synced
+            - provider_omitted
+            - unsupported
+            - insufficient_coverage
+            - schema_unavailable
+    NeteaseTrackSummaryV2:
+      type: object
+      additionalProperties: false
+      required: [providerTrackId, name, artists, albumName, coverUrl, durationMs]
+      properties:
+        providerTrackId:
+          type: string
+        name:
+          type: string
+        artists:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [providerArtistId, name]
+            properties:
+              providerArtistId:
+                type: string
+              name:
+                type: string
+        albumName:
+          type: [string, "null"]
+        coverUrl:
+          type: [string, "null"]
+          format: uri
+        durationMs:
+          type: [integer, "null"]
+          minimum: 0
+    NeteaseMetricAvailableV2:
+      type: object
+      additionalProperties: false
+      required: [availability, value, unit, provenance]
+      properties:
+        availability:
+          type: string
+          const: available
+        value:
+          type: number
+          minimum: 0
+        unit:
+          type: string
+          enum: [plays, minutes]
+        provenance:
+          type: string
+          enum: [provider_reported, nivalis_derived]
+    NeteaseAccountAvailableV2:
+      type: object
+      additionalProperties: false
+      required: [availability, providerUserId, displayName]
+      properties:
+        availability:
+          type: string
+          const: available
+        providerUserId:
+          type: string
+        displayName:
+          type: [string, "null"]
+    NeteaseWeeklyAvailableV2:
+      type: object
+      additionalProperties: false
+      required: [availability, period, coverage, provenance, rankedPlayCount, topTracks, topArtists]
+      properties:
+        availability:
+          type: string
+          const: available
+        period:
+          type: string
+          const: provider_week
+        coverage:
+          type: string
+          const: top_records
+        provenance:
+          type: string
+          const: nivalis_derived
+        rankedPlayCount:
+          type: integer
+          minimum: 0
+        topTracks:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [track, playCount, score]
+            properties:
+              track:
+                $ref: "#/components/schemas/NeteaseTrackSummaryV2"
+              playCount:
+                type: integer
+                minimum: 0
+              score:
+                type: number
+                minimum: 0
+        topArtists:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [providerArtistId, name, rankedPlayCount]
+            properties:
+              providerArtistId:
+                type: string
+              name:
+                type: string
+              rankedPlayCount:
+                type: integer
+                minimum: 0
+    NeteaseRecentAvailableV2:
+      type: object
+      additionalProperties: false
+      required: [availability, coverage, provenance, items]
+      properties:
+        availability:
+          type: string
+          const: available
+        coverage:
+          type: string
+          const: provider_recent_limit
+        provenance:
+          type: string
+          const: provider_reported
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [track, playedAt]
+            properties:
+              track:
+                $ref: "#/components/schemas/NeteaseTrackSummaryV2"
+              playedAt:
+                type: string
+                format: date-time
+    NeteaseTrendAvailableV2:
+      type: object
+      additionalProperties: false
+      required: [availability, coverage, provenance, points]
+      properties:
+        availability:
+          type: string
+          const: available
+        coverage:
+          type: string
+          enum: [provider_week, provider_report]
+        provenance:
+          type: string
+          enum: [provider_reported, nivalis_derived]
+        points:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [label, minutes]
+            properties:
+              label:
+                type: string
+              minutes:
+                type: number
+                minimum: 0
+    NeteaseOverviewDataV2:
+      type: object
+      additionalProperties: false
+      required:
+        - provider
+        - account
+        - totalListenCount
+        - weeklyListening
+        - recentListening
+        - listeningDuration
+        - trend
+      properties:
+        provider:
+          type: string
+          const: netease
+        account:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseAccountAvailableV2"
+            - $ref: "#/components/schemas/DataUnavailable"
+        totalListenCount:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseMetricAvailableV2"
+            - $ref: "#/components/schemas/DataUnavailable"
+        weeklyListening:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseWeeklyAvailableV2"
+            - $ref: "#/components/schemas/DataUnavailable"
+        recentListening:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseRecentAvailableV2"
+            - $ref: "#/components/schemas/DataUnavailable"
+        listeningDuration:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseMetricAvailableV2"
+            - $ref: "#/components/schemas/DataUnavailable"
+        trend:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseTrendAvailableV2"
+            - $ref: "#/components/schemas/DataUnavailable"
     GithubProfileData:
       type: object
       additionalProperties: false
@@ -628,10 +1649,10 @@ components:
           type: integer
           minimum: 0
     ProfileHeroWidget:
+      unevaluatedProperties: false
       allOf:
         - $ref: "#/components/schemas/WidgetEnvelope"
         - type: object
-          additionalProperties: false
           required: [type, schemaVersion, data]
           properties:
             type:
@@ -641,10 +1662,10 @@ components:
             data:
               $ref: "#/components/schemas/ProfileHeroData"
     SystemStatsWidget:
+      unevaluatedProperties: false
       allOf:
         - $ref: "#/components/schemas/WidgetEnvelope"
         - type: object
-          additionalProperties: false
           required: [type, schemaVersion, data]
           properties:
             type:
@@ -654,10 +1675,10 @@ components:
             data:
               $ref: "#/components/schemas/SystemStatData"
     NeteaseOverviewWidget:
+      unevaluatedProperties: false
       allOf:
         - $ref: "#/components/schemas/WidgetEnvelope"
         - type: object
-          additionalProperties: false
           required: [type, schemaVersion, data]
           properties:
             type:
@@ -666,11 +1687,26 @@ components:
               const: 1
             data:
               $ref: "#/components/schemas/NeteaseOverviewData"
-    GithubProfileWidget:
+    NeteaseOverviewWidgetV2:
+      unevaluatedProperties: false
       allOf:
         - $ref: "#/components/schemas/WidgetEnvelope"
         - type: object
-          additionalProperties: false
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.overview
+            schemaVersion:
+              const: 2
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseOverviewDataV2"
+    GithubProfileWidget:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
           required: [type, schemaVersion, data]
           properties:
             type:
@@ -680,10 +1716,10 @@ components:
             data:
               $ref: "#/components/schemas/GithubProfileData"
     BilibiliProfileWidget:
+      unevaluatedProperties: false
       allOf:
         - $ref: "#/components/schemas/WidgetEnvelope"
         - type: object
-          additionalProperties: false
           required: [type, schemaVersion, data]
           properties:
             type:
@@ -693,10 +1729,10 @@ components:
             data:
               $ref: "#/components/schemas/BilibiliProfileData"
     SteamProfileWidget:
+      unevaluatedProperties: false
       allOf:
         - $ref: "#/components/schemas/WidgetEnvelope"
         - type: object
-          additionalProperties: false
           required: [type, schemaVersion, data]
           properties:
             type:
@@ -706,10 +1742,10 @@ components:
             data:
               $ref: "#/components/schemas/SteamProfileData"
     BangumiCollectionWidget:
+      unevaluatedProperties: false
       allOf:
         - $ref: "#/components/schemas/WidgetEnvelope"
         - type: object
-          additionalProperties: false
           required: [type, schemaVersion, data]
           properties:
             type:
@@ -723,64 +1759,178 @@ components:
         - $ref: "#/components/schemas/ProfileHeroWidget"
         - $ref: "#/components/schemas/SystemStatsWidget"
         - $ref: "#/components/schemas/NeteaseOverviewWidget"
+        - $ref: "#/components/schemas/NeteaseOverviewWidgetV2"
         - $ref: "#/components/schemas/GithubProfileWidget"
         - $ref: "#/components/schemas/BilibiliProfileWidget"
         - $ref: "#/components/schemas/SteamProfileWidget"
         - $ref: "#/components/schemas/BangumiCollectionWidget"
-      discriminator:
-        propertyName: type
-        mapping:
-          profile.hero: "#/components/schemas/ProfileHeroWidget"
-          system.stats: "#/components/schemas/SystemStatsWidget"
-          music.netease.overview: "#/components/schemas/NeteaseOverviewWidget"
-          github.profile: "#/components/schemas/GithubProfileWidget"
-          bilibili.profile: "#/components/schemas/BilibiliProfileWidget"
-          steam.profile: "#/components/schemas/SteamProfileWidget"
-          bangumi.collection: "#/components/schemas/BangumiCollectionWidget"
-    WidgetInstance:
-      type: object
-      additionalProperties: false
-      required: [id, type, schemaVersion, config]
-      properties:
-        id:
-          type: string
-        type:
-          $ref: "#/components/schemas/WidgetType"
-        schemaVersion:
-          type: integer
-          minimum: 1
-        title:
-          type: [string, "null"]
-        config:
-          type: object
-          additionalProperties: true
     CreateWidgetInput:
       type: object
       additionalProperties: false
-      required: [type, schemaVersion]
+      required: [widget, placement]
       properties:
-        type:
-          $ref: "#/components/schemas/WidgetType"
-        schemaVersion:
-          type: integer
-          minimum: 1
-        config:
-          type: object
-          additionalProperties: true
+        widget:
+          $ref: "#/components/schemas/WidgetConfiguration"
+        placement:
+          $ref: "#/components/schemas/WidgetPlacement"
+    WidgetPlacement:
+      type: object
+      additionalProperties: false
+      required: [lg, md, sm]
+      properties:
+        lg:
+          $ref: "#/components/schemas/LayoutItem"
+        md:
+          $ref: "#/components/schemas/LayoutItem"
+        sm:
+          $ref: "#/components/schemas/LayoutItem"
     UpdateWidgetInput:
       type: object
       additionalProperties: false
+      minProperties: 1
       properties:
         title:
-          type: [string, "null"]
-        config:
+          type: string
+          minLength: 1
+        dataConfig:
           type: object
           additionalProperties: true
-    DashboardReadModel:
+        presentationConfig:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+    DashboardRevisionOperation:
+      type: string
+      enum:
+        - initial_migration
+        - seed
+        - save
+        - widget_add
+        - widget_update
+        - widget_delete
+        - restore
+        - schema_upgrade
+    DashboardRevisionMetadata:
       type: object
       additionalProperties: false
-      required: [revision, profile, layout, widgets]
+      required:
+        - revisionId
+        - revisionNumber
+        - parentRevisionId
+        - restoredFromRevisionId
+        - operation
+        - createdAt
+        - isCurrentDraft
+        - isCurrentPublished
       properties:
+        revisionId:
+          type: string
+          format: uuid
+        revisionNumber:
+          type: integer
+          minimum: 1
+        parentRevisionId:
+          type: [string, "null"]
+          format: uuid
+        restoredFromRevisionId:
+          type: [string, "null"]
+          format: uuid
+        operation:
+          $ref: "#/components/schemas/DashboardRevisionOperation"
+        createdAt:
+          type: string
+          format: date-time
+        isCurrentDraft:
+          type: boolean
+        isCurrentPublished:
+          type: boolean
+    DashboardRevisionList:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardRevisionMetadata"
+        nextCursor:
+          type: [string, "null"]
+          pattern: "^rev:[1-9][0-9]*$"
+    DashboardRevisionDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - dashboardId
+        - revisionId
+        - revisionNumber
+        - parentRevisionId
+        - restoredFromRevisionId
+        - operation
+        - createdAt
+        - isCurrentDraft
+        - isCurrentPublished
+        - profile
+        - layout
+        - widgets
+      properties:
+        dashboardId:
+          type: string
+          const: about
+        revisionId:
+          type: string
+          format: uuid
+        revisionNumber:
+          type: integer
+          minimum: 1
+        parentRevisionId:
+          type: [string, "null"]
+          format: uuid
+        restoredFromRevisionId:
+          type: [string, "null"]
+          format: uuid
+        operation:
+          $ref: "#/components/schemas/DashboardRevisionOperation"
+        createdAt:
+          type: string
+          format: date-time
+        isCurrentDraft:
+          type: boolean
+        isCurrentPublished:
+          type: boolean
+        profile:
+          $ref: "#/components/schemas/Profile"
+        layout:
+          $ref: "#/components/schemas/ResponsiveLayout"
+        widgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/WidgetConfiguration"
+    DashboardConfigurationBase:
+      type: object
+      required: [dashboardId, revision, profile, layout, widgets]
+      properties:
+        dashboardId:
+          type: string
+          const: about
+        revision:
+          type: integer
+          minimum: 1
+        profile:
+          $ref: "#/components/schemas/Profile"
+        layout:
+          $ref: "#/components/schemas/ResponsiveLayout"
+        widgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/WidgetConfiguration"
+    DashboardReadModelBase:
+      type: object
+      required: [dashboardId, revision, profile, layout, widgets]
+      properties:
+        dashboardId:
+          type: string
+          const: about
         revision:
           type: integer
           minimum: 1
@@ -792,82 +1942,148 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WidgetProjection"
-    DashboardRevision:
+    DashboardReadModel:
       allOf:
-        - $ref: "#/components/schemas/DashboardReadModel"
+        - $ref: "#/components/schemas/DashboardReadModelBase"
+      unevaluatedProperties: false
+    DashboardState:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/DashboardConfigurationBase"
         - type: object
-          additionalProperties: false
-          required: [revisionId, state, basedOnRevision, createdAt]
+          required: [revisionId, state, updatedAt]
           properties:
             revisionId:
               type: string
+              format: uuid
             state:
               type: string
               enum: [draft, published]
-            basedOnRevision:
-              type: integer
-              minimum: 0
-            createdAt:
+            updatedAt:
               type: string
               format: date-time
     DashboardDraftUpdate:
       type: object
       additionalProperties: false
-      required: [layout, widgetIds]
+      required: [layout, widgets]
       properties:
         layout:
           $ref: "#/components/schemas/ResponsiveLayout"
-        widgetIds:
+        widgets:
           type: array
           items:
-            type: string
-          uniqueItems: true
+            $ref: "#/components/schemas/WidgetConfiguration"
+    WidgetProjectionVersion:
+      type: object
+      additionalProperties: false
+      required: [widgetId, projectionKey, projectionVersion]
+      properties:
+        widgetId:
+          type: string
+          format: uuid
+        projectionKey:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        projectionVersion:
+          type: [string, "null"]
+          format: uuid
+    DashboardLiveData:
+      type: object
+      additionalProperties: false
+      required: [dashboardId, configurationRevisionId, generatedAt, widgets, projectionVersions]
+      properties:
+        dashboardId:
+          type: string
+          const: about
+        configurationRevisionId:
+          type: string
+          format: uuid
+        generatedAt:
+          type: string
+          format: date-time
+        widgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/WidgetProjection"
+        projectionVersions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WidgetProjectionVersion"
     ProviderStatus:
       type: object
       additionalProperties: false
-      required: [provider, connection, syncStatus]
+      required:
+        - provider
+        - connection
+        - credentialStatus
+        - syncStatus
+        - attemptCount
+        - lastAttemptAt
+        - lastSuccessAt
+        - lastErrorCode
+        - lastErrorMessage
       properties:
         provider:
           $ref: "#/components/schemas/Provider"
         connection:
           type: string
-          enum: [connected, disconnected, requires_attention]
+          enum: [connected, fixture, not_connected, requires_attention, disabled]
+        credentialStatus:
+          $ref: "#/components/schemas/CredentialStatus"
         syncStatus:
           type: string
-          enum: [idle, queued, running, completed, failed]
+          enum: [idle, queued, running, retrying, completed, failed, credential_invalid]
+        attemptCount:
+          type: integer
+          minimum: 0
         lastAttemptAt:
           type: [string, "null"]
           format: date-time
         lastSuccessAt:
           type: [string, "null"]
           format: date-time
-        lastError:
+        lastErrorCode:
+          type: [string, "null"]
+        lastErrorMessage:
           type: [string, "null"]
     SyncJob:
       type: object
       additionalProperties: false
-      required: [jobId, provider, status, createdAt]
+      required:
+        - jobId
+        - provider
+        - status
+        - attemptCount
+        - requestedAt
+        - startedAt
+        - finishedAt
+        - lastErrorCode
+        - lastErrorMessage
       properties:
         jobId:
           type: string
+          format: uuid
         provider:
           $ref: "#/components/schemas/Provider"
         status:
           type: string
-          enum: [queued, running, completed, failed]
-        createdAt:
+          enum: [queued, running, retrying, completed, failed]
+        attemptCount:
+          type: integer
+          minimum: 0
+        requestedAt:
           type: string
           format: date-time
         startedAt:
           type: [string, "null"]
           format: date-time
-        completedAt:
+        finishedAt:
           type: [string, "null"]
           format: date-time
-        problem:
-          oneOf:
-            - $ref: "#/components/schemas/ProblemDetails"
-            - type: "null"
+        lastErrorCode:
+          type: [string, "null"]
+        lastErrorMessage:
+          type: [string, "null"]
     AppearanceSettings:
       type: object
       additionalProperties: false
@@ -907,3 +2123,20 @@ components:
         instance:
           type: string
           format: uri-reference
+        requestId:
+          type: string
+    RevisionConflictProblem:
+      allOf:
+        - $ref: "#/components/schemas/ProblemDetails"
+        - type: object
+          required: [currentRevisionId, currentRevisionNumber, currentEtag]
+          properties:
+            currentRevisionId:
+              type: string
+              format: uuid
+            currentRevisionNumber:
+              type: integer
+              minimum: 1
+            currentEtag:
+              type: string
+              pattern: '^"rev:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}"$'

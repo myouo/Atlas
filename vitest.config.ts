@@ -11,7 +11,13 @@ export default defineConfig({
       reporter: ["text", "json", "html"]
     },
     environment: "jsdom",
-    include: ["apps/**/*.test.{ts,tsx}", "openapi/**/*.test.ts", "packages/**/*.test.ts"],
+    exclude: ["**/.next/**", "**/dist/**", "**/node_modules/**", "**/*.integration.test.ts"],
+    include: [
+      "apps/**/*.test.{ts,tsx}",
+      "infra/**/*.test.ts",
+      "openapi/**/*.test.ts",
+      "packages/**/*.test.ts"
+    ],
     setupFiles: ["./vitest.setup.ts"]
   }
 });

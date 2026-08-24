@@ -7,7 +7,8 @@ import { WidgetRegistry, widgetRegistry } from "./widget-registry";
 describe("WidgetRegistry", () => {
   it("resolves renderers by type + schemaVersion", () => {
     expect(widgetRegistry.resolve("music.netease.overview", 1)?.name).toBe("网易云音乐");
-    expect(widgetRegistry.resolve("music.netease.overview", 2)).toBeUndefined();
+    expect(widgetRegistry.resolve("music.netease.overview", 2)?.name).toBe("网易云音乐");
+    expect(widgetRegistry.preferred("music.netease.overview")?.schemaVersion).toBe(2);
     expect(widgetRegistry.list()).toHaveLength(7);
   });
 

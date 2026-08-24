@@ -5,10 +5,12 @@ packages:
 minimumReleaseAgeExclude:
   - "@tanstack/query-core@5.102.0"
   - "@tanstack/react-query@5.102.0"
+  - typebox@1.3.17
 
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
 
 overrides:
   use-sync-external-store: 1.6.0

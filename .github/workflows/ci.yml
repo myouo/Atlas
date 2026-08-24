@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - master
 
 permissions:
   contents: read
@@ -12,7 +13,21 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: nivalis_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nivalis_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Check out source
@@ -45,14 +60,62 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Run unit, component, and contract tests
+      - name: Run unit, component, and OpenAPI structure tests
         run: pnpm test
+
+      - name: Verify migrations and idempotent Seed
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+          FIXTURE_PROVIDER_ENABLED: "true"
+          NODE_ENV: test
+        run: |
+          pnpm db:migrate
+          pnpm db:migrate:status
+          pnpm db:seed
+          pnpm db:seed
+
+      - name: Run migration, concurrency, repository, API contract, and Worker integration tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+          FIXTURE_PROVIDER_ENABLED: "true"
+          NODE_ENV: test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+        run: pnpm test:integration
 
       - name: Build all applications and packages
         run: pnpm build
+
+      - name: Verify Cloudflare generated types
+        run: pnpm cf:typecheck
+
+      - name: Build Cloudflare Pages static preview
+        run: pnpm build:pages
+
+      - name: Dry-run Cloudflare Edge Worker bundle
+        run: pnpm build:edge
+
+      - name: Smoke test compiled API runtime
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+        run: pnpm test:smoke:api
+
+      - name: Smoke test compiled Worker runtime
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+          FIXTURE_PROVIDER_ENABLED: "true"
+          NODE_ENV: test
+        run: pnpm test:smoke:worker
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run critical-path E2E tests
         run: pnpm test:e2e
+
+      - name: Run API-mode persistence, conflict, and sync E2E
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+          FIXTURE_PROVIDER_ENABLED: "true"
+          NODE_ENV: test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test
+        run: pnpm test:e2e:api

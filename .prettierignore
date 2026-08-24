@@ -1,9 +1,14 @@
 .next
+.next-*
 coverage
 dist
 node_modules
+playwright-report
+playwright-report-api
+test-results
 pnpm-lock.yaml
 packages/api-client/src/generated
+infra/providers/cloudflare/edge/worker-configuration.d.ts
 Nivalis_AboutMe_Spec_GitHub_Pack_v0.1
 apps/web/public/images
 docs/assets

@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check whether the API process is alive */
+        get: operations["getHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check whether PostgreSQL is reachable */
+        get: operations["getReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/profile": {
         parameters: {
             query?: never;
@@ -38,6 +72,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/github/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a one-time GitHub OAuth authorization transaction */
+        post: operations["startGithubOwnerAuthentication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/github/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Complete GitHub OAuth and issue an opaque Nivalis session */
+        get: operations["completeGithubOwnerAuthentication"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current Nivalis authentication state */
+        get: operations["getAuthSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke the current opaque Nivalis session */
+        post: operations["logoutAuthSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/dashboards/about/draft": {
         parameters: {
             query?: never;
@@ -45,10 +147,36 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read the owner's draft Dashboard revision */
+        /**
+         * Read the owner's current Draft Dashboard state
+         * @description Returns immutable owner-controlled configuration only; live Provider data is a separate resource.
+         */
         get: operations["getAboutDashboardDraft"];
-        /** Save the owner's draft without publishing it */
+        /**
+         * Save the owner's draft without publishing it
+         * @description Creates an immutable successor revision and atomically advances the Draft pointer.
+         */
         put: operations["replaceAboutDashboardDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/dashboards/about/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read live projections hydrated for the current Draft configuration
+         * @description Provider-derived data changes independently from the Draft Revision and its rev ETag.
+         */
+        get: operations["getAboutDashboardLiveData"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -65,7 +193,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Explicitly publish the current draft revision */
+        /**
+         * Explicitly publish the current Draft state
+         * @description Copies the current Draft to Published inside one database transaction.
+         */
         post: operations["publishAboutDashboard"];
         delete?: never;
         options?: never;
@@ -110,6 +241,216 @@ export interface paths {
         patch: operations["updateWidget"];
         trace?: never;
     };
+    "/v1/me/dashboards/about/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List immutable About Dashboard revision metadata
+         * @description Returns newest-first metadata without loading revision Widget snapshots.
+         */
+        get: operations["listAboutDashboardRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/dashboards/about/revisions/{revisionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revisionId: components["parameters"]["RevisionId"];
+            };
+            cookie?: never;
+        };
+        /** Read one immutable Dashboard revision snapshot */
+        get: operations["getAboutDashboardRevision"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/dashboards/about/revisions/{revisionId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revisionId: components["parameters"]["RevisionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clone a historical revision into a new current Draft revision
+         * @description Creates a new Draft revision and never changes the Published pointer.
+         */
+        post: operations["restoreAboutDashboardRevision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List secret-free Owner Provider connection state */
+        get: operations["listProviderConnections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/netease": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read secret-free NetEase Cloud Music connection state */
+        get: operations["getNeteaseProviderConnection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/netease/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store an encrypted MUSIC_U credential and enqueue validation
+         * @description The credential is write-only and is never returned by any Nivalis API.
+         */
+        post: operations["connectNeteaseProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/netease/auth-attempts/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or reuse a NetEase QR login attempt
+         * @description Provider I/O is queued for the Worker; the API response never contains Cookie material.
+         */
+        post: operations["startNeteaseQrAuthAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/netease/auth-attempts/sms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or reuse a NetEase SMS login attempt
+         * @description Phone input is encrypted as short-lived attempt state and never returned in full.
+         */
+        post: operations["startNeteaseSmsAuthAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/netease/auth-attempts/{attemptId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one secret-free NetEase login attempt */
+        get: operations["getNeteaseAuthAttempt"];
+        put?: never;
+        post?: never;
+        /** Cancel one active NetEase login attempt and erase its encrypted state */
+        delete: operations["cancelNeteaseAuthAttempt"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/netease/auth-attempts/{attemptId}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit one write-only SMS code for a waiting NetEase attempt */
+        post: operations["verifyNeteaseSmsAuthAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/netease/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disable NetEase and delete only its encrypted credential
+         * @description Raw Snapshots, native observations, and Last Known Good Projections are retained.
+         */
+        delete: operations["disconnectNeteaseProvider"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/providers/status": {
         parameters: {
             query?: never;
@@ -136,7 +477,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Enqueue an asynchronous Provider synchronization job */
+        /**
+         * Create or reuse an active Provider SyncRun
+         * @description Enqueues asynchronous work and never performs Provider I/O in the API request.
+         */
         post: operations["enqueueProviderSync"];
         delete?: never;
         options?: never;
@@ -151,7 +495,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read an asynchronous synchronization job */
+        /**
+         * Read one public SyncRun resource
+         * @description The jobId is a Nivalis SyncRun UUID and never a pg-boss internal identifier.
+         */
         get: operations["getSyncJob"];
         put?: never;
         post?: never;
@@ -168,9 +515,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read the owner's semantic appearance preferences */
+        /**
+         * Read the owner's semantic appearance preferences
+         * @description Appearance remains browser-local in Phase 5; server persistence is not implemented.
+         */
         get: operations["getAppearanceSettings"];
-        /** Replace the owner's semantic appearance preferences */
+        /**
+         * Replace the owner's semantic appearance preferences
+         * @description Appearance remains browser-local in Phase 5; server persistence is not implemented.
+         */
         put: operations["replaceAppearanceSettings"];
         post?: never;
         delete?: never;
@@ -183,10 +536,92 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AuthStart: {
+            /** Format: uri */
+            authorizationUrl: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        AuthSession: {
+            authenticated: boolean;
+            /** Format: uuid */
+            actorId: string | null;
+            /** @enum {string|null} */
+            role: "owner" | "viewer" | null;
+            /** Format: date-time */
+            expiresAt: string | null;
+        };
         /** @enum {string} */
-        Provider: "netease" | "github" | "bangumi" | "steam" | "bilibili";
+        CredentialStatus: "not_configured" | "pending_validation" | "valid" | "expired" | "invalid" | "revoked";
+        ProviderConnection: {
+            /** @constant */
+            provider: "netease";
+            configured: boolean;
+            enabled: boolean;
+            credentialStatus: components["schemas"]["CredentialStatus"];
+            providerAccountId: string | null;
+            displayName: string | null;
+            /** Format: date-time */
+            credentialUpdatedAt: string | null;
+            /** Format: date-time */
+            lastValidatedAt: string | null;
+        };
+        NeteaseConnectInput: {
+            /** @constant */
+            credentialType: "music_u";
+            credential: string;
+        };
+        ProviderConnectAccepted: {
+            connection: components["schemas"]["ProviderConnection"];
+            validationJob: components["schemas"]["SyncJob"];
+        };
         /** @enum {string} */
-        WidgetType: "profile.hero" | "system.stats" | "music.netease.overview" | "github.profile" | "bilibili.profile" | "steam.profile" | "bangumi.collection";
+        ProviderAuthMethod: "qr" | "sms_otp";
+        /** @enum {string} */
+        ProviderAuthAttemptStatus: "queued" | "preparing" | "waiting_for_scan" | "waiting_for_confirmation" | "waiting_for_code" | "verifying" | "connected" | "expired" | "failed";
+        ProviderAuthAttempt: {
+            /** Format: uuid */
+            attemptId: string;
+            /** @constant */
+            provider: "netease";
+            method: components["schemas"]["ProviderAuthMethod"];
+            status: components["schemas"]["ProviderAuthAttemptStatus"];
+            /** Format: uri */
+            qrUrl: string | null;
+            maskedPhone: string | null;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            resendAfter: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            lastErrorCode: string | null;
+            lastErrorMessage: string | null;
+        };
+        NeteaseSmsAuthInput: {
+            phone: string;
+            countryCode: string;
+        };
+        NeteaseSmsVerifyInput: {
+            code: string;
+        };
+        HealthStatus: {
+            /** @constant */
+            status: "ok";
+            requestId: string;
+            errors?: string[];
+        };
+        ReadinessStatus: {
+            /** @constant */
+            status: "ready";
+            /** @constant */
+            database: "reachable";
+            requestId: string;
+        };
+        /** @enum {string} */
+        Provider: "fixture" | "netease" | "github" | "bangumi" | "steam" | "bilibili";
         Profile: {
             displayName: string;
             handle: string;
@@ -207,13 +642,38 @@ export interface components {
             md: components["schemas"]["LayoutItem"][];
             sm: components["schemas"]["LayoutItem"][];
         };
+        WidgetConfiguration: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "profile.hero" | "system.stats" | "music.netease.overview" | "github.profile" | "bilibili.profile" | "steam.profile" | "bangumi.collection";
+            provider: components["schemas"]["Provider"];
+            schemaVersion: number;
+            title: string;
+            enabled: boolean;
+            dataConfig: {
+                [key: string]: unknown;
+            };
+            presentationConfig: {
+                [key: string]: unknown;
+            };
+        };
         WidgetEnvelope: {
+            /** Format: uuid */
             id: string;
             schemaVersion: number;
+            provider: components["schemas"]["Provider"];
             title: string;
             /** Format: date-time */
             updatedAt: string;
             stale: boolean;
+            enabled: boolean;
+            dataConfig: {
+                [key: string]: unknown;
+            };
+            presentationConfig: {
+                [key: string]: unknown;
+            };
         };
         ProfileHeroData: components["schemas"]["Profile"];
         SystemStatData: {
@@ -245,6 +705,95 @@ export interface components {
             topArtists: components["schemas"]["ArtistSummary"][];
             genres: components["schemas"]["GenreShare"][];
             trend: components["schemas"]["TrendPoint"][];
+        };
+        DataUnavailable: {
+            /** @constant */
+            availability: "unavailable";
+            /** @enum {string} */
+            reason: "not_synced" | "provider_omitted" | "unsupported" | "insufficient_coverage" | "schema_unavailable";
+        };
+        NeteaseTrackSummaryV2: {
+            providerTrackId: string;
+            name: string;
+            artists: {
+                providerArtistId: string;
+                name: string;
+            }[];
+            albumName: string | null;
+            /** Format: uri */
+            coverUrl: string | null;
+            durationMs: number | null;
+        };
+        NeteaseMetricAvailableV2: {
+            /** @constant */
+            availability: "available";
+            value: number;
+            /** @enum {string} */
+            unit: "plays" | "minutes";
+            /** @enum {string} */
+            provenance: "provider_reported" | "nivalis_derived";
+        };
+        NeteaseAccountAvailableV2: {
+            /** @constant */
+            availability: "available";
+            providerUserId: string;
+            displayName: string | null;
+        };
+        NeteaseWeeklyAvailableV2: {
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            period: "provider_week";
+            /** @constant */
+            coverage: "top_records";
+            /** @constant */
+            provenance: "nivalis_derived";
+            rankedPlayCount: number;
+            topTracks: {
+                track: components["schemas"]["NeteaseTrackSummaryV2"];
+                playCount: number;
+                score: number;
+            }[];
+            topArtists: {
+                providerArtistId: string;
+                name: string;
+                rankedPlayCount: number;
+            }[];
+        };
+        NeteaseRecentAvailableV2: {
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            coverage: "provider_recent_limit";
+            /** @constant */
+            provenance: "provider_reported";
+            items: {
+                track: components["schemas"]["NeteaseTrackSummaryV2"];
+                /** Format: date-time */
+                playedAt: string;
+            }[];
+        };
+        NeteaseTrendAvailableV2: {
+            /** @constant */
+            availability: "available";
+            /** @enum {string} */
+            coverage: "provider_week" | "provider_report";
+            /** @enum {string} */
+            provenance: "provider_reported" | "nivalis_derived";
+            points: {
+                label: string;
+                minutes: number;
+            }[];
+        };
+        NeteaseOverviewDataV2: {
+            /** @constant */
+            provider: "netease";
+            account: components["schemas"]["NeteaseAccountAvailableV2"] | components["schemas"]["DataUnavailable"];
+            totalListenCount: components["schemas"]["NeteaseMetricAvailableV2"] | components["schemas"]["DataUnavailable"];
+            weeklyListening: components["schemas"]["NeteaseWeeklyAvailableV2"] | components["schemas"]["DataUnavailable"];
+            recentListening: components["schemas"]["NeteaseRecentAvailableV2"] | components["schemas"]["DataUnavailable"];
+            listeningDuration: components["schemas"]["NeteaseMetricAvailableV2"] | components["schemas"]["DataUnavailable"];
+            trend: components["schemas"]["NeteaseTrendAvailableV2"] | components["schemas"]["DataUnavailable"];
         };
         GithubProfileData: {
             handle: string;
@@ -280,12 +829,6 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             data: components["schemas"]["ProfileHeroData"];
-        } & {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "profile.hero";
         };
         SystemStatsWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
@@ -293,12 +836,6 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             data: components["schemas"]["SystemStatData"];
-        } & {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "system.stats";
         };
         NeteaseOverviewWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
@@ -306,12 +843,15 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             data: components["schemas"]["NeteaseOverviewData"];
-        } & {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
+        };
+        NeteaseOverviewWidgetV2: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
             type: "music.netease.overview";
+            /** @constant */
+            schemaVersion: 2;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseOverviewDataV2"];
         };
         GithubProfileWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
@@ -319,12 +859,6 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             data: components["schemas"]["GithubProfileData"];
-        } & {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "github.profile";
         };
         BilibiliProfileWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
@@ -332,12 +866,6 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             data: components["schemas"]["BilibiliProfileData"];
-        } & {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "bilibili.profile";
         };
         SteamProfileWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
@@ -345,12 +873,6 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             data: components["schemas"]["SteamProfileData"];
-        } & {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "steam.profile";
         };
         BangumiCollectionWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
@@ -358,78 +880,142 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             data: components["schemas"]["BangumiCollectionData"];
-        } & {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "bangumi.collection";
         };
-        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
-        WidgetInstance: {
-            id: string;
-            type: components["schemas"]["WidgetType"];
-            schemaVersion: number;
-            title?: string | null;
-            config: {
-                [key: string]: unknown;
-            };
-        };
+        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
         CreateWidgetInput: {
-            type: components["schemas"]["WidgetType"];
-            schemaVersion: number;
-            config?: {
-                [key: string]: unknown;
-            };
+            widget: components["schemas"]["WidgetConfiguration"];
+            placement: components["schemas"]["WidgetPlacement"];
+        };
+        WidgetPlacement: {
+            lg: components["schemas"]["LayoutItem"];
+            md: components["schemas"]["LayoutItem"];
+            sm: components["schemas"]["LayoutItem"];
         };
         UpdateWidgetInput: {
-            title?: string | null;
-            config?: {
+            title?: string;
+            dataConfig?: {
                 [key: string]: unknown;
             };
+            presentationConfig?: {
+                [key: string]: unknown;
+            };
+            enabled?: boolean;
         };
-        DashboardReadModel: {
+        /** @enum {string} */
+        DashboardRevisionOperation: "initial_migration" | "seed" | "save" | "widget_add" | "widget_update" | "widget_delete" | "restore" | "schema_upgrade";
+        DashboardRevisionMetadata: {
+            /** Format: uuid */
+            revisionId: string;
+            revisionNumber: number;
+            /** Format: uuid */
+            parentRevisionId: string | null;
+            /** Format: uuid */
+            restoredFromRevisionId: string | null;
+            operation: components["schemas"]["DashboardRevisionOperation"];
+            /** Format: date-time */
+            createdAt: string;
+            isCurrentDraft: boolean;
+            isCurrentPublished: boolean;
+        };
+        DashboardRevisionList: {
+            items: components["schemas"]["DashboardRevisionMetadata"][];
+            nextCursor: string | null;
+        };
+        DashboardRevisionDetail: {
+            /** @constant */
+            dashboardId: "about";
+            /** Format: uuid */
+            revisionId: string;
+            revisionNumber: number;
+            /** Format: uuid */
+            parentRevisionId: string | null;
+            /** Format: uuid */
+            restoredFromRevisionId: string | null;
+            operation: components["schemas"]["DashboardRevisionOperation"];
+            /** Format: date-time */
+            createdAt: string;
+            isCurrentDraft: boolean;
+            isCurrentPublished: boolean;
+            profile: components["schemas"]["Profile"];
+            layout: components["schemas"]["ResponsiveLayout"];
+            widgets: components["schemas"]["WidgetConfiguration"][];
+        };
+        DashboardConfigurationBase: {
+            /** @constant */
+            dashboardId: "about";
+            revision: number;
+            profile: components["schemas"]["Profile"];
+            layout: components["schemas"]["ResponsiveLayout"];
+            widgets: components["schemas"]["WidgetConfiguration"][];
+        };
+        DashboardReadModelBase: {
+            /** @constant */
+            dashboardId: "about";
             revision: number;
             profile: components["schemas"]["Profile"];
             layout: components["schemas"]["ResponsiveLayout"];
             widgets: components["schemas"]["WidgetProjection"][];
         };
-        DashboardRevision: components["schemas"]["DashboardReadModel"] & {
+        DashboardReadModel: components["schemas"]["DashboardReadModelBase"];
+        DashboardState: components["schemas"]["DashboardConfigurationBase"] & {
+            /** Format: uuid */
             revisionId: string;
             /** @enum {string} */
             state: "draft" | "published";
-            basedOnRevision: number;
             /** Format: date-time */
-            createdAt: string;
+            updatedAt: string;
         };
         DashboardDraftUpdate: {
             layout: components["schemas"]["ResponsiveLayout"];
-            widgetIds: string[];
+            widgets: components["schemas"]["WidgetConfiguration"][];
+        };
+        WidgetProjectionVersion: {
+            /** Format: uuid */
+            widgetId: string;
+            projectionKey: string;
+            /** Format: uuid */
+            projectionVersion: string | null;
+        };
+        DashboardLiveData: {
+            /** @constant */
+            dashboardId: "about";
+            /** Format: uuid */
+            configurationRevisionId: string;
+            /** Format: date-time */
+            generatedAt: string;
+            widgets: components["schemas"]["WidgetProjection"][];
+            projectionVersions: components["schemas"]["WidgetProjectionVersion"][];
         };
         ProviderStatus: {
             provider: components["schemas"]["Provider"];
             /** @enum {string} */
-            connection: "connected" | "disconnected" | "requires_attention";
+            connection: "connected" | "fixture" | "not_connected" | "requires_attention" | "disabled";
+            credentialStatus: components["schemas"]["CredentialStatus"];
             /** @enum {string} */
-            syncStatus: "idle" | "queued" | "running" | "completed" | "failed";
+            syncStatus: "idle" | "queued" | "running" | "retrying" | "completed" | "failed" | "credential_invalid";
+            attemptCount: number;
             /** Format: date-time */
-            lastAttemptAt?: string | null;
+            lastAttemptAt: string | null;
             /** Format: date-time */
-            lastSuccessAt?: string | null;
-            lastError?: string | null;
+            lastSuccessAt: string | null;
+            lastErrorCode: string | null;
+            lastErrorMessage: string | null;
         };
         SyncJob: {
+            /** Format: uuid */
             jobId: string;
             provider: components["schemas"]["Provider"];
             /** @enum {string} */
-            status: "queued" | "running" | "completed" | "failed";
+            status: "queued" | "running" | "retrying" | "completed" | "failed";
+            attemptCount: number;
             /** Format: date-time */
-            createdAt: string;
+            requestedAt: string;
             /** Format: date-time */
-            startedAt?: string | null;
+            startedAt: string | null;
             /** Format: date-time */
-            completedAt?: string | null;
-            problem?: components["schemas"]["ProblemDetails"] | null;
+            finishedAt: string | null;
+            lastErrorCode: string | null;
+            lastErrorMessage: string | null;
         };
         AppearanceSettings: {
             /** @enum {string} */
@@ -451,8 +1037,15 @@ export interface components {
             detail?: string;
             /** Format: uri-reference */
             instance?: string;
+            requestId?: string;
         } & {
             [key: string]: unknown;
+        };
+        RevisionConflictProblem: components["schemas"]["ProblemDetails"] & {
+            /** Format: uuid */
+            currentRevisionId: string;
+            currentRevisionNumber: number;
+            currentEtag: string;
         };
     };
     responses: {
@@ -465,8 +1058,8 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
-        /** @description The supplied revision validator is stale */
-        PreconditionFailed: {
+        /** @description Capability is intentionally unavailable in the current phase */
+        NotImplemented: {
             headers: {
                 [name: string]: unknown;
             };
@@ -474,10 +1067,18 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
-        /** @description Synchronization was rate limited */
-        TooManyRequests: {
+        /** @description The supplied revision validator is no longer the current Draft. */
+        RevisionConflict: {
             headers: {
-                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["RevisionConflictProblem"];
+            };
+        };
+        /** @description The mutation requires a current Draft If-Match validator. */
+        PreconditionRequired: {
+            headers: {
                 [name: string]: unknown;
             };
             content: {
@@ -486,22 +1087,75 @@ export interface components {
         };
     };
     parameters: {
-        /** @description ETag returned when the draft was read */
+        /** @description Strong ETag of the current Draft revision on which the mutation is based. */
         IfMatch: string;
-        IdempotencyKey: string;
+        RevisionId: string;
+        RevisionLimit: number;
+        /** @description Opaque newest-first pagination cursor returned by the preceding page. */
+        RevisionCursor: string;
         Provider: components["schemas"]["Provider"];
         WidgetId: string;
         JobId: string;
+        AuthAttemptId: string;
     };
     requestBodies: never;
     headers: {
-        /** @description Opaque revision validator */
-        ETag: string;
+        /** @description Strong validator derived from the immutable Dashboard revision UUID. */
+        RevisionETag: string;
+        /** @description Strong validator for Published Revision plus selected live Projection and effective freshness versions. */
+        ViewETag: string;
+        /** @description Strong validator for the hydrated current-Draft live data representation. */
+        DataETag: string;
     };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Process is alive */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthStatus"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description API is ready to serve persisted data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessStatus"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
     getPublicProfile: {
         parameters: {
             query?: never;
@@ -514,7 +1168,6 @@ export interface operations {
             /** @description Public profile */
             200: {
                 headers: {
-                    ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -537,21 +1190,106 @@ export interface operations {
             /** @description Published Dashboard read model */
             200: {
                 headers: {
-                    ETag: components["headers"]["ETag"];
+                    ETag: components["headers"]["ViewETag"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardReadModel"];
                 };
             };
-            /** @description Snapshot has not changed */
-            304: {
+            404: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    startGithubOwnerAuthentication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Browser navigation target for the GitHub authorization transaction */
+            200: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthStart"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    completeGithubOwnerAuthentication: {
+        parameters: {
+            query: {
+                code: string;
+                state: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session issued and browser redirected to the configured Web Settings page */
+            302: {
+                headers: {
+                    Location?: string;
+                    "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            404: components["responses"]["Problem"];
+            400: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getAuthSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current session state; never includes OAuth or Provider tokens */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSession"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    logoutAuthSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session revoked and cookie expired */
+            204: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
@@ -564,17 +1302,20 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Draft Dashboard revision */
+            /** @description Current Draft Dashboard state */
             200: {
                 headers: {
-                    ETag: components["headers"]["ETag"];
+                    ETag: components["headers"]["RevisionETag"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardRevision"];
+                    "application/json": components["schemas"]["DashboardState"];
                 };
             };
             401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
@@ -582,7 +1323,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description ETag returned when the draft was read */
+                /** @description Strong ETag of the current Draft revision on which the mutation is based. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path?: never;
@@ -594,17 +1335,49 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Saved draft revision */
+            /** @description Newly created current Draft revision */
             200: {
                 headers: {
-                    ETag: components["headers"]["ETag"];
+                    ETag: components["headers"]["RevisionETag"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardRevision"];
+                    "application/json": components["schemas"]["DashboardState"];
                 };
             };
-            412: components["responses"]["PreconditionFailed"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            412: components["responses"]["RevisionConflict"];
+            422: components["responses"]["Problem"];
+            428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getAboutDashboardLiveData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current Draft live Widget data */
+            200: {
+                headers: {
+                    ETag: components["headers"]["DataETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardLiveData"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
@@ -612,7 +1385,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description ETag returned when the draft was read */
+                /** @description Strong ETag of the current Draft revision on which the mutation is based. */
                 "If-Match": components["parameters"]["IfMatch"];
             };
             path?: never;
@@ -620,24 +1393,33 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Newly published Dashboard revision */
+            /** @description Current Published Dashboard state */
             200: {
                 headers: {
-                    ETag: components["headers"]["ETag"];
+                    ETag: components["headers"]["RevisionETag"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardRevision"];
+                    "application/json": components["schemas"]["DashboardState"];
                 };
             };
-            412: components["responses"]["PreconditionFailed"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            412: components["responses"]["RevisionConflict"];
+            422: components["responses"]["Problem"];
+            428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
     createAboutDashboardWidget: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Strong ETag of the current Draft revision on which the mutation is based. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -647,24 +1429,34 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Widget instance created */
+            /** @description Widget configuration created in a new Draft revision */
             201: {
                 headers: {
                     Location?: string;
+                    ETag: components["headers"]["RevisionETag"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WidgetInstance"];
+                    "application/json": components["schemas"]["WidgetConfiguration"];
                 };
             };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            412: components["responses"]["RevisionConflict"];
             422: components["responses"]["Problem"];
+            428: components["responses"]["PreconditionRequired"];
             default: components["responses"]["Problem"];
         };
     };
     deleteWidget: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Strong ETag of the current Draft revision on which the mutation is based. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
             path: {
                 widgetId: components["parameters"]["WidgetId"];
             };
@@ -675,18 +1467,26 @@ export interface operations {
             /** @description Widget instance removed */
             204: {
                 headers: {
+                    ETag: components["headers"]["RevisionETag"];
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            412: components["responses"]["RevisionConflict"];
+            428: components["responses"]["PreconditionRequired"];
             default: components["responses"]["Problem"];
         };
     };
     updateWidget: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Strong ETag of the current Draft revision on which the mutation is based. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
             path: {
                 widgetId: components["parameters"]["WidgetId"];
             };
@@ -698,16 +1498,350 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Updated Widget instance */
+            /** @description Updated Widget configuration */
+            200: {
+                headers: {
+                    ETag: components["headers"]["RevisionETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WidgetConfiguration"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            412: components["responses"]["RevisionConflict"];
+            422: components["responses"]["Problem"];
+            428: components["responses"]["PreconditionRequired"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    listAboutDashboardRevisions: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["RevisionLimit"];
+                /** @description Opaque newest-first pagination cursor returned by the preceding page. */
+                cursor?: components["parameters"]["RevisionCursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cursor-paginated immutable revision history */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WidgetInstance"];
+                    "application/json": components["schemas"]["DashboardRevisionList"];
                 };
             };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getAboutDashboardRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revisionId: components["parameters"]["RevisionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Immutable Dashboard revision detail */
+            200: {
+                headers: {
+                    ETag: components["headers"]["RevisionETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardRevisionDetail"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    restoreAboutDashboardRevision: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Strong ETag of the current Draft revision on which the mutation is based. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                revisionId: components["parameters"]["RevisionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newly created restored Draft revision */
+            200: {
+                headers: {
+                    ETag: components["headers"]["RevisionETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardState"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            412: components["responses"]["RevisionConflict"];
             422: components["responses"]["Problem"];
+            428: components["responses"]["PreconditionRequired"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    listProviderConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider connection state without credential material */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        providers: components["schemas"]["ProviderConnection"][];
+                    };
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getNeteaseProviderConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description NetEase connection and credential status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConnection"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    connectNeteaseProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NeteaseConnectInput"];
+            };
+        };
+        responses: {
+            /** @description Encrypted credential stored and validation SyncRun accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConnectAccepted"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    startNeteaseQrAuthAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description QR login attempt accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAuthAttempt"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    startNeteaseSmsAuthAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NeteaseSmsAuthInput"];
+            };
+        };
+        responses: {
+            /** @description SMS delivery attempt accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAuthAttempt"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getNeteaseAuthAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attemptId: components["parameters"]["AuthAttemptId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current login attempt state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAuthAttempt"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    cancelNeteaseAuthAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attemptId: components["parameters"]["AuthAttemptId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attempt cancelled; no credential was changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    verifyNeteaseSmsAuthAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attemptId: components["parameters"]["AuthAttemptId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NeteaseSmsVerifyInput"];
+            };
+        };
+        responses: {
+            /** @description SMS verification accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAuthAttempt"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    disconnectNeteaseProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connection disabled and credential deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
@@ -732,15 +1866,14 @@ export interface operations {
                 };
             };
             401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
     enqueueProviderSync: {
         parameters: {
             query?: never;
-            header?: {
-                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
-            };
+            header?: never;
             path: {
                 provider: components["parameters"]["Provider"];
             };
@@ -748,7 +1881,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Synchronization job accepted */
+            /** @description SyncRun accepted or an existing active run reused */
             202: {
                 headers: {
                     Location?: string;
@@ -758,7 +1891,11 @@ export interface operations {
                     "application/json": components["schemas"]["SyncJob"];
                 };
             };
-            429: components["responses"]["TooManyRequests"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
@@ -773,7 +1910,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Synchronization job */
+            /** @description Current SyncRun state */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -782,6 +1919,8 @@ export interface operations {
                     "application/json": components["schemas"]["SyncJob"];
                 };
             };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
@@ -795,16 +1934,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Appearance preferences */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AppearanceSettings"];
-                };
-            };
             401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            501: components["responses"]["NotImplemented"];
             default: components["responses"]["Problem"];
         };
     };
@@ -821,16 +1953,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Appearance preferences saved */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AppearanceSettings"];
-                };
-            };
-            422: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            501: components["responses"]["NotImplemented"];
             default: components["responses"]["Problem"];
         };
     };

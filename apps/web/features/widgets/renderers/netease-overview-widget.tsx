@@ -40,6 +40,7 @@ function Metric({
 export function NeteaseOverviewWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.overview"> }>) {
+  if (widget.schemaVersion === 2) return <NeteaseOverviewWidgetV2 widget={widget} />;
   const { data } = widget;
 
   return (
@@ -155,4 +156,150 @@ export function NeteaseOverviewWidget({
       </div>
     </div>
   );
+}
+
+function NeteaseOverviewWidgetV2({
+  widget
+}: Readonly<{
+  widget: Extract<WidgetOf<"music.netease.overview">, { schemaVersion: 2 }>;
+}>) {
+  const { data } = widget;
+  const weekly = data.weeklyListening;
+  const recent = data.recentListening;
+  const duration = data.listeningDuration;
+  const total = data.totalListenCount;
+  const showArtists = widget.presentationConfig.showArtists !== false;
+  const showTrend = widget.presentationConfig.showTrend !== false;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="grid grid-cols-2 gap-3 border-b border-blue-100/70 pb-3 sm:grid-cols-4">
+        <Metric emphasis label="累计听歌" value={metricValue(total, "首")} />
+        <Metric emphasis label="本周收听时长" value={metricValue(duration, "分钟")} />
+        <Metric
+          label="排行播放次数"
+          value={
+            weekly.availability === "available"
+              ? weekly.rankedPlayCount.toLocaleString("zh-CN")
+              : "暂不可用"
+          }
+        />
+        <Metric
+          label="最近记录"
+          value={
+            recent.availability === "available"
+              ? `${recent.items.length.toLocaleString("zh-CN")} 条`
+              : "暂不可用"
+          }
+        />
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 pt-3 sm:grid-cols-[1.25fr_1fr_1.2fr]">
+        <section className="min-w-0 border-blue-100/70 sm:border-r sm:pr-3">
+          <p className="text-[10px] font-bold text-ink-muted">本周 Top Tracks</p>
+          {weekly.availability === "available" ? (
+            <div className="mt-2 space-y-1.5">
+              {weekly.topTracks.slice(0, 4).map((entry) => (
+                <div
+                  className="flex items-center justify-between gap-2"
+                  key={entry.track.providerTrackId}
+                >
+                  <span className="truncate text-[10px] font-semibold text-ink">
+                    {entry.track.name}
+                  </span>
+                  <span className="shrink-0 text-[9px] font-bold text-[#ff3f5d]">
+                    {entry.playCount} 次
+                  </span>
+                </div>
+              ))}
+              {weekly.topTracks.length === 0 ? <EmptyLabel text="有效空数据集" /> : null}
+            </div>
+          ) : (
+            <UnavailableLabel reason={weekly.reason} />
+          )}
+        </section>
+
+        <section className="min-w-0 border-blue-100/70 sm:border-r sm:pr-3">
+          <p className="text-[10px] font-bold text-ink-muted">
+            {showArtists ? "Top Artists" : "Provider Coverage"}
+          </p>
+          {showArtists && weekly.availability === "available" ? (
+            <div className="mt-2 space-y-1.5">
+              {weekly.topArtists.slice(0, 4).map((artist) => (
+                <div
+                  className="flex items-center justify-between gap-2"
+                  key={artist.providerArtistId}
+                >
+                  <span className="truncate text-[10px] font-semibold text-ink">{artist.name}</span>
+                  <span className="text-[9px] text-ink-muted">{artist.rankedPlayCount}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-[9px] leading-relaxed text-ink-muted">
+              Provider 排行仅覆盖返回的 Top Records；不会推测音乐类型或完整历史。
+            </p>
+          )}
+        </section>
+
+        <section className="min-w-0">
+          <p className="text-[10px] font-bold text-ink-muted">
+            {showTrend ? "收听报告" : "最近播放"}
+          </p>
+          {showTrend && data.trend.availability === "available" ? (
+            <div className="mt-1 h-[100px] w-full">
+              <ResponsiveContainer height="100%" width="100%">
+                <LineChart
+                  data={data.trend.points}
+                  margin={{ bottom: 0, left: -24, right: 4, top: 8 }}
+                >
+                  <XAxis axisLine={false} dataKey="label" fontSize={8} tickLine={false} />
+                  <YAxis axisLine={false} fontSize={8} tickLine={false} />
+                  <Line
+                    dataKey="minutes"
+                    dot={{ fill: "#ff4661", r: 3, strokeWidth: 0 }}
+                    stroke="#ff4661"
+                    strokeWidth={2.2}
+                    type="monotone"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : recent.availability === "available" ? (
+            <div className="mt-2 space-y-1.5">
+              {recent.items.slice(0, 4).map((item) => (
+                <div className="min-w-0" key={`${item.track.providerTrackId}-${item.playedAt}`}>
+                  <p className="truncate text-[10px] font-semibold text-ink">{item.track.name}</p>
+                  <p className="text-[8px] text-ink-muted">
+                    {item.playedAt.slice(5, 16).replace("T", " ")} UTC
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <UnavailableLabel reason={recent.reason} />
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function metricValue(
+  metric:
+    | { readonly availability: "available"; readonly value: number }
+    | { readonly availability: "unavailable" },
+  suffix: string
+) {
+  return metric.availability === "available"
+    ? `${metric.value.toLocaleString("zh-CN")} ${suffix}`
+    : "暂不可用";
+}
+
+function UnavailableLabel({ reason }: Readonly<{ reason: string }>) {
+  return <p className="mt-3 text-[9px] font-semibold text-amber-700">数据不可用 · {reason}</p>;
+}
+
+function EmptyLabel({ text }: Readonly<{ text: string }>) {
+  return <p className="text-[9px] text-ink-muted">{text}</p>;
 }

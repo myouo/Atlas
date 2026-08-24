@@ -30,7 +30,11 @@ async function collect(relativePath) {
 
   const nested = await Promise.all(
     entries
-      .filter((entry) => ![".next", "dist", "node_modules"].includes(entry.name))
+      .filter(
+        (entry) =>
+          !entry.name.startsWith(".next") &&
+          ![".wrangler", "dist", "node_modules", "out"].includes(entry.name)
+      )
       .map((entry) => {
         const child = path.join(relativePath, entry.name);
         return entry.isDirectory() ? collect(child) : [child];
@@ -46,6 +50,7 @@ const files = (await Promise.all(scanRoots.map(collect)))
 
 for (const file of files) {
   const source = await readFile(path.join(root, file), "utf8");
+  const isTestFile = /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file);
 
   if (
     /apps\/web\//.test(file) &&
@@ -56,9 +61,45 @@ for (const file of files) {
 
   if (
     /packages\/(?:domain|application)\//.test(file) &&
-    /(?:cloudflare:|@cloudflare\/)/.test(source)
+    /(?:cloudflare:|@cloudflare\/|from\s+["'](?:fastify|kysely|pg|pg-boss|next)(?:\/|["']))/.test(
+      source
+    )
   ) {
-    findings.push(`${file}: core package imports deployment-specific code.`);
+    findings.push(
+      `${file}: core package imports transport, database, frontend, or deployment code.`
+    );
+  }
+
+  if (/apps\/api\/src\//.test(file) && /from\s+["']@nivalis\/connectors/.test(source)) {
+    findings.push(
+      `${file}: API process imports a Provider Connector; Provider execution belongs in Worker.`
+    );
+  }
+
+  if (
+    /apps\/worker\/src\//.test(file) &&
+    /apps\/api\/src\/transport|transport\/http/.test(source)
+  ) {
+    findings.push(`${file}: Worker imports API transport code.`);
+  }
+
+  if (
+    file.endsWith("kysely-dashboard-repository.ts") &&
+    /projection_data|widget_updated_at|widget_projections/.test(source)
+  ) {
+    findings.push(`${file}: Revision repository contains live Projection persistence.`);
+  }
+
+  if (
+    /apps\/api\/src\/transport\//.test(file) &&
+    !isTestFile &&
+    /(?:from\s+["'](?:kysely|pg)|from\s+["'][^"']*infrastructure\/)/.test(source)
+  ) {
+    findings.push(`${file}: HTTP transport imports a database implementation.`);
+  }
+
+  if (/apps\/web\//.test(file) && !isTestFile && /\bfetch\s*\(/.test(source)) {
+    findings.push(`${file}: Web performs a direct fetch instead of using @nivalis/api-client.`);
   }
 
   if (/(?:https?:\/\/[^\s"']+\.(?:pages|workers)\.dev|r2\.cloudflarestorage\.com)/i.test(source)) {

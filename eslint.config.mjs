@@ -7,9 +7,15 @@ export default defineConfig([
   ...nextTypeScript,
   globalIgnores([
     "**/.next/**",
+    "**/.next-*/**",
+    "**/.wrangler/**",
     "**/coverage/**",
     "**/dist/**",
     "**/node_modules/**",
+    "**/out/**",
+    "**/playwright-report/**",
+    "**/playwright-report-api/**",
+    "**/test-results/**",
     "packages/api-client/src/generated/**",
     "Nivalis_AboutMe_Spec_GitHub_Pack_v0.1/**"
   ]),
@@ -35,10 +41,44 @@ export default defineConfig([
                 "cloudflare:*",
                 "@cloudflare/*",
                 "@nivalis/connectors",
-                "@nivalis/connectors/*"
+                "@nivalis/connectors/*",
+                "fastify",
+                "fastify/*",
+                "kysely",
+                "kysely/*",
+                "next",
+                "next/*",
+                "pg"
               ],
               message:
                 "Domain and application layers cannot depend on infrastructure or connector implementations."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["apps/api/src/transport/**/*.ts"],
+    ignores: [
+      "apps/api/src/transport/**/*.test.ts",
+      "apps/api/src/transport/**/*.integration.test.ts"
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "kysely",
+                "kysely/*",
+                "pg",
+                "../../infrastructure/*",
+                "../../../infrastructure/*"
+              ],
+              message:
+                "HTTP transport may call Application services but cannot access database adapters."
             }
           ]
         }

@@ -1,19 +1,10 @@
-import type { ProviderType } from "@nivalis/domain";
-
-export interface ProviderCapabilities {
-  readonly activities: boolean;
-  readonly profile: boolean;
-}
-
-export interface SyncContext {
-  readonly connectionId: string;
-  readonly requestedAt: Date;
-}
-
-export interface ProviderConnector {
-  readonly provider: ProviderType;
-  getCapabilities(): ProviderCapabilities;
-  syncProfile(context: SyncContext): Promise<void>;
-}
-
-export const connectorImplementations = [] as const;
+export * from "./fixture/fixture-provider";
+export * from "./netease/netease-client";
+export * from "./netease/netease-auth-client";
+export * from "./netease/fixtures";
+export * from "./netease/netease-connector";
+export * from "./netease/netease-native-store";
+export * from "./netease/netease-normalizer";
+export * from "./netease/netease-projector";
+export * from "./netease/netease-provider-runtime";
+export * from "./netease/netease-types";
