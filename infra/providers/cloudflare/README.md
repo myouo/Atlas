@@ -71,6 +71,8 @@ Cloudflare D1 stores Provider connection metadata, encrypted credentials, epheme
 
 Provider authentication remains owned by `ProviderAuthWorkerService`: the API persists an AuthAttempt, returns `202` immediately, and starts its first step with `ExecutionContext.waitUntil()`. QR polling, retry fallback, and credential extraction use the Cloudflare Queue adapter, whose messages contain only the attempt UUID. The consumer uses single-message batches with zero batch wait so interactive work is delivered immediately; the browser polls only Nivalis. The Connector uses manual redirect inspection because edge Fetch implementations do not universally implement `redirect: "error"`, and the default transport is wrapped through `globalThis.fetch` to preserve the required runtime receiver.
 
+Settings prewarms one QR AuthAttempt 250 ms after the API-backed QR panel becomes eligible. This moves the unstable Provider latency before the Owner's explicit QR interaction, while the existing single-active-attempt rule still deduplicates refreshes. Switching to SMS or manual Cookie first cancels the prewarmed attempt, so prewarming cannot race a different credential method.
+
 Fixture transport is accepted only when `ENVIRONMENT=test` and `NETEASE_HTTP_FIXTURE_SCENARIO` names a sanitized scenario. Preview/production deployments reject fixture transport.
 
 ## Local D1

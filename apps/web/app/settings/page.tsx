@@ -376,6 +376,7 @@ function ProviderSettings(props: ProviderSettingsProps) {
   const [phone, setPhone] = useState("");
   const [countryCode, setCountryCode] = useState("86");
   const [smsCode, setSmsCode] = useState("");
+  const autoQrAttempted = useRef(false);
   const completedAttempt = useRef<string | null>(null);
   const previousConfigured = useRef(props.connection?.configured ?? false);
   const queryClient = useQueryClient();
@@ -391,6 +392,9 @@ function ProviderSettings(props: ProviderSettingsProps) {
     retry: false
   });
   const liveAttempt = latestAuthAttempt(authAttempt, attemptQuery.data);
+  const showCredentialForm =
+    !props.connection?.configured ||
+    (reconnecting && !props.validationJob && liveAttempt?.status !== "connected");
   const startQrMutation = useMutation({
     mutationFn: () => dashboardSource.startNeteaseQrAuth(),
     onError: (error) =>
@@ -457,14 +461,40 @@ function ProviderSettings(props: ProviderSettingsProps) {
       setPhone("");
       setSmsCode("");
       setReconnecting(false);
+      autoQrAttempted.current = false;
       queryClient.removeQueries({ queryKey: ["netease-auth-attempt"] });
     }
     previousConfigured.current = configured;
   }, [props.connection?.configured, queryClient]);
 
-  const showCredentialForm =
-    !props.connection?.configured ||
-    (reconnecting && !props.validationJob && liveAttempt?.status !== "connected");
+  useEffect(() => {
+    if (
+      !props.owner ||
+      props.loading ||
+      props.sourceKind !== "api" ||
+      !showCredentialForm ||
+      authMethod !== "qr" ||
+      authAttempt ||
+      startQrMutation.isPending ||
+      autoQrAttempted.current
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      autoQrAttempted.current = true;
+      startQrMutation.mutate();
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [
+    authAttempt,
+    authMethod,
+    props.loading,
+    props.owner,
+    props.sourceKind,
+    showCredentialForm,
+    startQrMutation
+  ]);
+
   return (
     <section className="glass-surface rounded-[26px] p-5">
       <div className="flex items-center gap-3">
@@ -553,6 +583,7 @@ function ProviderSettings(props: ProviderSettingsProps) {
                   disabled={props.pending}
                   onClick={() => {
                     props.onBeginReconnect();
+                    autoQrAttempted.current = false;
                     completedAttempt.current = null;
                     setAuthAttempt(null);
                     setAuthError(null);
@@ -590,12 +621,25 @@ function ProviderSettings(props: ProviderSettingsProps) {
                         ? "rounded-lg bg-blue-600 px-2 py-2 text-[9px] font-extrabold text-white"
                         : "rounded-lg px-2 py-2 text-[9px] font-bold text-ink-muted"
                     }
-                    disabled={
-                      Boolean(liveAttempt && isAuthAttemptActive(liveAttempt.status)) &&
-                      method !== authMethodForAttempt(liveAttempt!)
-                    }
+                    disabled={startQrMutation.isPending || cancelAuthMutation.isPending}
                     key={method}
-                    onClick={() => setAuthMethod(method)}
+                    onClick={() => {
+                      if (
+                        liveAttempt &&
+                        isAuthAttemptActive(liveAttempt.status) &&
+                        method !== authMethodForAttempt(liveAttempt)
+                      ) {
+                        cancelAuthMutation.mutate(liveAttempt.attemptId, {
+                          onSuccess: () => {
+                            autoQrAttempted.current = method !== "qr";
+                            setAuthMethod(method);
+                          }
+                        });
+                        return;
+                      }
+                      if (method === "qr") autoQrAttempted.current = false;
+                      setAuthMethod(method);
+                    }}
                     role="tab"
                     type="button"
                   >
@@ -633,6 +677,7 @@ function ProviderSettings(props: ProviderSettingsProps) {
                       className="mt-3 h-10 rounded-xl bg-blue-600 px-4 text-[11px] font-extrabold text-white disabled:opacity-50"
                       disabled={startQrMutation.isPending}
                       onClick={() => {
+                        autoQrAttempted.current = true;
                         completedAttempt.current = null;
                         setAuthAttempt(null);
                         startQrMutation.mutate();
