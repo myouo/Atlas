@@ -243,4 +243,4 @@ Assume this repository is public:
 - Phase 5: API-owned Owner Auth, encrypted Provider credentials, Worker-owned QR/SMS login, read-only NetEase module, Native model, Widget v2, schema drift, and replay.
 - Phase 6+: additional Providers remain intentionally out of scope. See [TODO](docs/TODO.md).
 
-Visual evidence is recorded in the Phase 1–4 reports, [Phase 5 Design QA](design-qa-phase5.md), and `docs/qa/`. Phase 5 adds Settings/NetEase regression QA without introducing a Sidebar or editing controls into display mode.
+Visual regressions are enforced through component tests and Playwright rather than committed screenshot artifacts.

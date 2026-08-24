@@ -27,6 +27,11 @@ wrangler.deploy.jsonc
 # Local project reference bundle (canonical copies live under docs/)
 Nivalis_AboutMe_Spec_GitHub_Pack_v0.1/
 
+# Local-only visual QA evidence
+design-qa*.md
+docs/qa/
+apps/web/e2e/capture-*-design-qa.mjs
+
 # Local logs and caches
 *.log
 .turbo/
