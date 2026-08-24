@@ -5,12 +5,11 @@ Nivalis is a personal digital identity, multi-provider data aggregation, and com
 Phase 5 installs the first real, read-only Provider module plus Worker-owned QR/SMS login without coupling external data to immutable Dashboard configuration:
 
 ```text
-Browser → generated API client → Fastify → Application ports → PostgreSQL
-                              └→ SyncRun → pg-boss → Worker
-                                                     ↓
-                               Netease Connector → sanitized Raw Snapshot
-                                                     ↓
-                                      Native Model → Widget Projection
+Generic:    Web → Fastify → Application ports → PostgreSQL
+                                     └→ pg-boss → Node Worker
+
+Cloudflare: Pages → API Worker → Application reader ports → D1
+                                      └→ Queue → Consumer Worker
 ```
 
 Owner configuration and Provider data remain independent. A sync can change `data:` and `view:` ETags, but never creates a Revision, moves Draft/Published pointers, or changes a `rev:` ETag.
@@ -21,7 +20,7 @@ Read [the implementation specification](docs/NIVALIS_ABOUTME_IMPLEMENTATION_SPEC
 
 - Node.js 24 LTS
 - pnpm 11+
-- PostgreSQL 18 or another supported PostgreSQL installation
+- PostgreSQL 18 for the generic Node deployment, or Cloudflare D1 for the edge adapter
 - A GitHub OAuth App for a real Owner deployment
 - A 32-byte credential master key
 - NetEase App QR scan, SMS OTP, or an existing `MUSIC_U` value configured through Settings
@@ -50,7 +49,7 @@ pnpm dev:web
 
 It keeps the lightweight LocalStorage Draft/Published model for UI development and does not call any Provider.
 
-Provider authentication is intentionally disabled in Mock Mode. QR/SMS/manual credential controls do not simulate success; use API Mode with PostgreSQL and the independent Worker for real NetEase login.
+Provider authentication is intentionally disabled in Mock Mode. QR/SMS/manual credential controls do not simulate success; use a fully configured API Mode for real NetEase login.
 
 ## API Mode
 
@@ -204,23 +203,35 @@ The gates cover OAuth owner/viewer boundaries, session logout, QR/SMS state tran
 ## Health
 
 - `GET /health`: process liveness only.
-- `GET /ready`: PostgreSQL reachability only; OAuth and Provider availability do not affect readiness.
+- `GET /ready`: configured persistence reachability only; OAuth and Provider availability do not affect readiness.
 
-## Cloudflare preview deployment
+## Cloudflare D1/API Worker deployment
 
-Cloudflare is optional infrastructure. The first public preview keeps runtime semantics explicit:
+Cloudflare remains optional infrastructure. The current vertical slice serves the public Published Dashboard from D1 through a Fetch-native API Worker:
 
 ```bash
-CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
+pnpm generate:d1-seed
+pnpm d1:migrate:local
+pnpm d1:seed:local
+pnpm preview:edge
+
 pnpm deploy:edge
+pnpm d1:migrate:remote
+pnpm d1:seed:remote
+
+NEXT_PUBLIC_DASHBOARD_SOURCE=api \
+NEXT_PUBLIC_API_BASE_URL=<api-worker-origin> \
+CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 ```
 
-- Pages receives a static Next.js export forced to Mock Mode for visual and interaction QA.
-- The Edge Worker exposes `/health`; without a separately deployed Node API it returns `503` from `/ready` and `/v1/*`.
-- Real Dashboard persistence, Owner Auth, QR/SMS login, and Provider sync still require the PostgreSQL-backed API and persistent Node Worker.
+- D1 has independent SQLite migrations and an idempotent fixture Seed.
+- `/health`, `/ready`, public Profile/Dashboard, and anonymous Auth Session are implemented.
+- Cloudflare Queues implements the `SyncJobQueue` port and has an explicit per-message ack/retry consumer boundary.
+- Owner write APIs, OAuth, encrypted Provider credentials, and real NetEase execution intentionally return Problem Details until their D1 adapters are complete.
+- The PostgreSQL/Fastify/pg-boss implementation remains available and fully tested.
 - No Cloudflare account, domain, project endpoint, or secret is committed.
 
-See [ADR 0015](docs/adr/0015-cloudflare-preview-deployment.md) and the [Cloudflare adapter guide](infra/providers/cloudflare/README.md).
+See [ADR 0016](docs/adr/0016-cloudflare-d1-worker-queue-adapter.md) and the [Cloudflare adapter guide](infra/providers/cloudflare/README.md).
 
 ## Security
 

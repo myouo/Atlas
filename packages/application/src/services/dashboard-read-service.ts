@@ -5,13 +5,13 @@ import type {
   OwnerContext
 } from "@nivalis/domain";
 
-import type { DashboardRepository } from "../ports/dashboard-repository";
-import type { ProjectionRepository, ViewVersionFactory } from "../ports/projection-repository";
+import type { DashboardConfigurationReader } from "../ports/dashboard-repository";
+import type { ViewVersionFactory, WidgetProjectionHydrator } from "../ports/projection-repository";
 
 export class DashboardReadService {
   constructor(
-    private readonly dashboards: DashboardRepository,
-    private readonly projections: ProjectionRepository,
+    private readonly dashboards: DashboardConfigurationReader,
+    private readonly projections: WidgetProjectionHydrator,
     private readonly versions: ViewVersionFactory
   ) {}
 
@@ -30,7 +30,10 @@ export class DashboardReadService {
       revision: configuration.revision,
       revisionId: configuration.revisionId,
       updatedAt: configuration.updatedAt,
-      viewVersion: this.versions.createViewVersion(configuration.revisionId, hydrated.versions),
+      viewVersion: await this.versions.createViewVersion(
+        configuration.revisionId,
+        hydrated.versions
+      ),
       widgets: hydrated.widgets
     };
   }
@@ -50,7 +53,10 @@ export class DashboardReadService {
     return {
       configurationRevisionId: configuration.revisionId,
       dashboardId: configuration.dashboardId,
-      dataVersion: this.versions.createDataVersion(configuration.revisionId, hydrated.versions),
+      dataVersion: await this.versions.createDataVersion(
+        configuration.revisionId,
+        hydrated.versions
+      ),
       generatedAt: hydrated.generatedAt,
       projectionVersions: hydrated.versions,
       widgets: hydrated.widgets

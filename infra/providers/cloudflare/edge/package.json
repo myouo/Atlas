@@ -1,0 +1,16 @@
+{
+  "name": "@nivalis/cloudflare-edge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nivalis/application": "workspace:*",
+    "@nivalis/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260823.1"
+  }
+}

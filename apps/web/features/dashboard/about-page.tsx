@@ -92,7 +92,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
     onError: (error) => handleMutationError(error, "保存失败；当前本地草稿已保留，可稍后重试"),
     onSuccess: (saved) => {
       store.acceptSavedDraft(saved.dashboard, saved.concurrencyToken);
-      showNotice(source.kind === "api" ? "草稿已保存到 PostgreSQL" : "草稿已保存到当前浏览器");
+      showNotice(source.kind === "api" ? "草稿已保存到服务端持久化存储" : "草稿已保存到当前浏览器");
       void queryClient.invalidateQueries({ queryKey: ["dashboard", "about", source.kind] });
       void queryClient.invalidateQueries({
         queryKey: ["dashboard", "about", "revisions", source.kind]
@@ -294,7 +294,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           <h1 className="text-xl font-extrabold text-ink">Dashboard 暂时无法加载</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-muted">
             {source.kind === "api"
-              ? "Nivalis API 不可用。确认 PostgreSQL、Migration、Seed 与 API 服务均已启动。"
+              ? "Nivalis API 不可用。确认 Persistence Migration、Seed 与 API 服务均已启动。"
               : "Mock Read Model 初始化失败。刷新页面后可重试。"}
           </p>
         </div>
@@ -425,7 +425,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 px-2 text-[10px] font-medium text-blue-900/55">
           <span>
             Published version {store.published.revision} ·{" "}
-            {source.kind === "api" ? "PostgreSQL" : "Local Fixture"}
+            {source.kind === "api" ? "Nivalis API" : "Local Fixture"}
           </span>
           <span>Provider 数据：{source.kind === "api" ? "异步 Projection 管线" : "显式 Mock"}</span>
         </footer>

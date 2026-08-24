@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - infra/providers/cloudflare/edge
   - packages/*
 
 minimumReleaseAgeExclude:

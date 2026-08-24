@@ -4,6 +4,29 @@
   "main": "./src/index.ts",
   "compatibility_date": "2026-08-24",
   "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "SYNC_QUEUE",
+        "queue": "nivalis-sync-preview"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "nivalis-sync-preview",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "retry_delay": 30
+      }
+    ]
+  },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

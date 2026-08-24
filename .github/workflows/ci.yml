@@ -94,6 +94,14 @@ jobs:
       - name: Dry-run Cloudflare Edge Worker bundle
         run: pnpm build:edge
 
+      - name: Verify D1 Seed is deterministic
+        run: |
+          pnpm generate:d1-seed
+          git diff --exit-code -- infra/providers/cloudflare/edge/seed.sql
+
+      - name: Smoke test local D1 API Worker
+        run: pnpm test:smoke:d1
+
       - name: Smoke test compiled API runtime
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nivalis_test

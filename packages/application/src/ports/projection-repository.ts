@@ -26,7 +26,15 @@ export interface ProjectionRepository {
   ): Promise<readonly StoredWidgetProjection[]>;
 }
 
+export type WidgetProjectionHydrator = Pick<ProjectionRepository, "hydrateWidgets">;
+
 export interface ViewVersionFactory {
-  createDataVersion(revisionId: string, versions: readonly WidgetProjectionVersion[]): string;
-  createViewVersion(revisionId: string, versions: readonly WidgetProjectionVersion[]): string;
+  createDataVersion(
+    revisionId: string,
+    versions: readonly WidgetProjectionVersion[]
+  ): string | Promise<string>;
+  createViewVersion(
+    revisionId: string,
+    versions: readonly WidgetProjectionVersion[]
+  ): string | Promise<string>;
 }

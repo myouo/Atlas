@@ -1,29 +1,72 @@
-# Optional Cloudflare deployment adapters
+# Cloudflare deployment adapters
 
-Cloudflare remains an infrastructure provider, not a business dependency. No Account ID, Zone ID, deployment hostname, database endpoint, or credential is committed here.
+Cloudflare remains infrastructure, not a business dependency. Account IDs, generated hostnames, D1 IDs, and credentials are never committed.
 
-## Pages preview
+## Current vertical slice
 
-The current Pages target is an explicit static Next.js export in Mock Mode. It is intended for public visual and interaction QA while keeping Browser-only fixtures honest.
+```text
+Cloudflare Pages
+       ↓ generated OpenAPI client
+Fetch-native API Worker
+       ↓
+DashboardReadService
+       ↓
+D1 Reader / Projection Hydrator
 
-```bash
-CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
+SyncJobQueue Port
+       ↓
+Cloudflare Queue Adapter
+       ↓
+Queue Consumer boundary
 ```
 
-The build output is `apps/web/out`. `NEXT_PUBLIC_DASHBOARD_SOURCE=mock` is forced by the preview build command, so Provider authentication is unavailable and cannot be mistaken for a real connection.
+Implemented Worker routes:
 
-## Edge gateway Worker
+- `GET /health`
+- `GET /ready`
+- `GET /v1/public/profile`
+- `GET /v1/public/dashboards/about`
+- `GET /v1/auth/session` as an honest anonymous session
 
-`edge/` contains a Fetch-native infrastructure gateway:
+Other `/v1/*` routes return deployment-neutral Problem Details until their D1 adapters are implemented.
+
+## Local D1
 
 ```bash
+pnpm generate:d1-seed
+pnpm d1:migrate:local
+pnpm d1:seed:local
 pnpm preview:edge
-pnpm deploy:edge
 ```
 
-- `/health` reports only the Edge process status.
-- Without `UPSTREAM_API_BASE_URL`, `/ready` and `/v1/*` return an RFC 9457-style `503` instead of fake data.
-- If a separately deployed Node API origin is configured, the gateway forwards only `/ready` and `/v1/*`.
-- CORS has no wildcard fallback; allowed origins come from `CORS_ORIGINS`.
+The Seed is idempotent and contains only explicit fixture projections. D1 schema changes are formal Wrangler migrations under `edge/migrations`.
 
-The current Fastify + PostgreSQL + pg-boss processes are not silently converted to edge state. A full Cloudflare runtime requires a reachable PostgreSQL deployment and an explicit queue/runtime adapter decision.
+## Remote deployment
+
+```bash
+pnpm deploy:edge
+pnpm d1:migrate:remote
+pnpm d1:seed:remote
+```
+
+Wrangler automatic provisioning creates and links the D1/Queue resources without committed instance IDs. `CORS_ORIGINS` is injected as a deployment variable.
+
+Build Pages in API Mode by injecting the Worker origin at build time:
+
+```bash
+NEXT_PUBLIC_DASHBOARD_SOURCE=api \
+NEXT_PUBLIC_API_BASE_URL=<api-worker-origin> \
+CLOUDFLARE_PAGES_PROJECT=<project> \
+pnpm deploy:pages
+```
+
+## Remaining adapter work
+
+- immutable D1 Revision write/CAS operations;
+- API Worker Owner OAuth/session persistence;
+- WebCrypto credential protection and D1 credential store;
+- D1 SyncRun/Raw/Projection repositories;
+- Queue Consumer composition with ProviderRegistry and NetEase runtime;
+- remote concurrency and migration-preservation tests.
+
+The generic PostgreSQL/Fastify/pg-boss deployment remains supported while these edge adapters are completed.

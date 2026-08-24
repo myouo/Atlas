@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the first public deployment preview.
+Superseded by ADR 0016 after the user explicitly selected D1 and Cloudflare Queues as additional infrastructure adapters. This ADR remains as the record of the original static-only preview decision.
 
 ## Context
 

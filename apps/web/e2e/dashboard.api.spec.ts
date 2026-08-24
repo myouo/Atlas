@@ -91,7 +91,7 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   await expect(page.getByText("草稿有未保存调整")).toBeVisible();
 
   await page.getByRole("button", { name: "保存草稿" }).click();
-  await expect(page.getByText("草稿已保存到 PostgreSQL")).toBeVisible();
+  await expect(page.getByText("草稿已保存到服务端持久化存储")).toBeVisible();
   const savedResponse = await api.get("http://127.0.0.1:3002/v1/me/dashboards/about/draft");
   const savedDashboard = await savedResponse.json();
   const savedProfileLayout = savedDashboard.layout.lg.find(
@@ -146,7 +146,7 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   }
 
   await pageA.getByRole("button", { name: "保存草稿" }).click();
-  await expect(pageA.getByText("草稿已保存到 PostgreSQL")).toBeVisible();
+  await expect(pageA.getByText("草稿已保存到服务端持久化存储")).toBeVisible();
   await pageB.getByRole("button", { name: "保存草稿" }).click();
   await expect(pageB.getByRole("dialog", { name: "检测到新的版本" })).toBeVisible();
   await expect(pageB.getByText("草稿有未保存调整")).toBeVisible();

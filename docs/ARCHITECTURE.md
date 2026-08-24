@@ -286,7 +286,7 @@ Sanitized NetEase HTTP fixtures cover normal, empty, partial, credential-expired
 ### Health and errors
 
 - `/health` checks only process liveness.
-- `/ready` checks only PostgreSQL reachability.
+- `/ready` checks only the configured persistence adapter (PostgreSQL or D1).
 - Every error uses RFC 9457 `application/problem+json` with deployment-neutral `urn:nivalis:problem:*` identifiers and a request ID.
 - Fastify/Pino logs are structured and redact authorization/cookie headers.
 
@@ -301,6 +301,22 @@ Sanitized NetEase HTTP fixtures cover normal, empty, partial, credential-expired
 - `packages/storage`: provider-neutral object storage port.
 - `packages/api-client`: deterministic client and types generated from OpenAPI; the Web's sole backend dependency.
 - `openapi`: authoritative HTTP contract.
+
+### Cloudflare D1 vertical slice
+
+The optional Cloudflare adapter preserves the same contract boundary:
+
+```text
+Pages → generated API client → Fetch API Worker
+                                  ↓
+                         DashboardReadService
+                                  ↓
+                   D1 Reader / Projection Hydrator
+
+SyncJobQueue Port → Cloudflare Queue → Consumer Worker
+```
+
+D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The first slice exposes the public Published Dashboard and anonymous Auth Session. Owner mutations, OAuth, Credential storage, and Provider execution remain disabled until their D1 repositories pass the same immutability, CAS, encryption, LKG, and retry tests as the generic runtime. See ADR 0016.
 
 The API production artifact bundles Nivalis Domain/Application code while leaving third-party Node dependencies external. This is a packaging boundary only; it does not collapse the source-layer dependency direction. See ADR 0005.
 

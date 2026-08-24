@@ -14,6 +14,7 @@ export default defineConfig([
     "**/node_modules/**",
     "**/out/**",
     "**/next-env.d.ts",
+    "**/worker-configuration.d.ts",
     "**/playwright-report/**",
     "**/playwright-report-api/**",
     "**/test-results/**",

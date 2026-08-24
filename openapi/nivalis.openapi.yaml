@@ -52,7 +52,7 @@ paths:
   /ready:
     get:
       operationId: getReadiness
-      summary: Check whether PostgreSQL is reachable
+      summary: Check whether the configured persistence adapter is reachable
       tags: [System]
       security: []
       responses:

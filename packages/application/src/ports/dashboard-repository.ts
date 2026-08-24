@@ -55,6 +55,11 @@ export interface DashboardRepository {
   ): Promise<RevisionMutationResult>;
 }
 
+export type DashboardConfigurationReader = Pick<
+  DashboardRepository,
+  "getCurrentBySlug" | "getCurrentForOwner"
+>;
+
 export interface DashboardUnitOfWork {
   run<T>(work: (repository: DashboardRepository) => Promise<T>): Promise<T>;
 }

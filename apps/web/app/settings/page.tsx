@@ -474,7 +474,7 @@ function ProviderSettings(props: ProviderSettingsProps) {
             <code className="block">NEXT_PUBLIC_DASHBOARD_SOURCE=api</code>
             <code className="block">NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:3001</code>
             <span className="mt-1 block">
-              配置 PostgreSQL、OAuth 与 Master Key 后运行 pnpm dev。
+              配置持久化 Adapter、OAuth 与 Master Key 后运行完整 API Mode。
             </span>
           </div>
         </div>

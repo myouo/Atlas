@@ -28,7 +28,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Check whether PostgreSQL is reachable */
+        /** Check whether the configured persistence adapter is reachable */
         get: operations["getReadiness"];
         put?: never;
         post?: never;
