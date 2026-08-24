@@ -158,7 +158,7 @@ export class ProviderAuthWorkerService {
       if (error instanceof RetryableProviderError) {
         const retry = await this.repository.markRetry(
           claimed.id,
-          error.code,
+          retryErrorCode(error),
           "The Provider authentication request failed temporarily.",
           this.clock.now()
         );
@@ -204,6 +204,11 @@ export class ProviderAuthWorkerService {
       subjectId: attempt.id
     });
   }
+}
+
+function retryErrorCode(error: RetryableProviderError) {
+  const diagnostic = error.diagnosticCode?.replaceAll(/[^a-z0-9-]/gi, "").slice(0, 60);
+  return diagnostic ? `${error.code}.${diagnostic}` : error.code;
 }
 
 function safeAuthError(error: unknown) {

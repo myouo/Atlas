@@ -72,7 +72,10 @@ function SettingsContent() {
   });
   const connectMutation = useMutation({
     mutationFn: (musicU: string) => dashboardSource.connectNetease(musicU),
-    onError: () => setProviderNotice("连接失败。凭据仍只保留在当前输入框中，可检查后重试。"),
+    onError: (error) =>
+      setProviderNotice(
+        providerFailureMessage(error, "连接失败。凭据仍只保留在当前输入框中，可检查后重试。")
+      ),
     onSuccess: async (accepted) => {
       setCredential("");
       setValidationJob(accepted.validationJob);
@@ -82,10 +85,12 @@ function SettingsContent() {
   });
   const disconnectMutation = useMutation({
     mutationFn: () => dashboardSource.disconnectNetease(),
-    onError: () => setProviderNotice("断开失败，请稍后重试。"),
+    onError: (error) => setProviderNotice(providerFailureMessage(error, "断开失败，请稍后重试。")),
     onSuccess: async () => {
+      setCredential("");
       setValidationJob(null);
       setProviderNotice("网易云凭据已删除；历史 Raw/Native/Projection 数据未被删除。");
+      queryClient.removeQueries({ queryKey: ["netease-auth-attempt"] });
       await queryClient.invalidateQueries({ queryKey: ["provider-connection", "netease"] });
     }
   });
@@ -372,6 +377,8 @@ function ProviderSettings(props: ProviderSettingsProps) {
   const [countryCode, setCountryCode] = useState("86");
   const [smsCode, setSmsCode] = useState("");
   const completedAttempt = useRef<string | null>(null);
+  const previousConfigured = useRef(props.connection?.configured ?? false);
+  const queryClient = useQueryClient();
   const attemptQuery = useQuery({
     enabled: Boolean(authAttempt && isAuthAttemptActive(authAttempt.status)),
     queryFn: () => dashboardSource.getNeteaseAuthAttempt(authAttempt!.attemptId),
@@ -383,7 +390,10 @@ function ProviderSettings(props: ProviderSettingsProps) {
   const liveAttempt = latestAuthAttempt(authAttempt, attemptQuery.data);
   const startQrMutation = useMutation({
     mutationFn: () => dashboardSource.startNeteaseQrAuth(),
-    onError: () => setAuthError("扫码登录暂时无法启动，请稍后重试或使用手动 MUSIC_U。"),
+    onError: (error) =>
+      setAuthError(
+        providerFailureMessage(error, "扫码登录暂时无法启动，请稍后重试或使用手动 MUSIC_U。")
+      ),
     onSuccess: (attempt) => {
       setAuthError(null);
       setAuthAttempt(attempt);
@@ -392,7 +402,10 @@ function ProviderSettings(props: ProviderSettingsProps) {
   });
   const startSmsMutation = useMutation({
     mutationFn: () => dashboardSource.startNeteaseSmsAuth(phone, countryCode),
-    onError: () => setAuthError("验证码发送失败；请检查号码、频率限制或 Provider 风控。"),
+    onError: (error) =>
+      setAuthError(
+        providerFailureMessage(error, "验证码发送失败；请检查号码、频率限制或 Provider 风控。")
+      ),
     onSuccess: (attempt) => {
       setAuthError(null);
       setPhone("");
@@ -403,7 +416,10 @@ function ProviderSettings(props: ProviderSettingsProps) {
   const verifySmsMutation = useMutation({
     mutationFn: (input: { readonly attemptId: string; readonly code: string }) =>
       dashboardSource.verifyNeteaseSmsAuth(input.attemptId, input.code),
-    onError: () => setAuthError("验证码校验失败；敏感输入已清空，请重新开始登录。"),
+    onError: (error) =>
+      setAuthError(
+        providerFailureMessage(error, "验证码校验失败；敏感输入已清空，请重新开始登录。")
+      ),
     onSuccess: (attempt) => {
       setAuthError(null);
       setAuthAttempt(attempt);
@@ -411,7 +427,10 @@ function ProviderSettings(props: ProviderSettingsProps) {
   });
   const cancelAuthMutation = useMutation({
     mutationFn: (attemptId: string) => dashboardSource.cancelNeteaseAuthAttempt(attemptId),
-    onError: () => setAuthError("登录正在完成关键步骤，当前无法取消，请稍后查看结果。"),
+    onError: (error) =>
+      setAuthError(
+        providerFailureMessage(error, "登录正在完成关键步骤，当前无法取消，请稍后查看结果。")
+      ),
     onSuccess: () => {
       completedAttempt.current = null;
       setAuthAttempt(null);
@@ -425,6 +444,20 @@ function ProviderSettings(props: ProviderSettingsProps) {
       props.onAuthConnected();
     }
   }, [liveAttempt, props]);
+
+  useEffect(() => {
+    const configured = props.connection?.configured ?? false;
+    if (previousConfigured.current && !configured) {
+      completedAttempt.current = null;
+      setAuthAttempt(null);
+      setAuthError(null);
+      setPhone("");
+      setSmsCode("");
+      setReconnecting(false);
+      queryClient.removeQueries({ queryKey: ["netease-auth-attempt"] });
+    }
+    previousConfigured.current = configured;
+  }, [props.connection?.configured, queryClient]);
 
   const showCredentialForm =
     !props.connection?.configured ||
@@ -553,6 +586,10 @@ function ProviderSettings(props: ProviderSettingsProps) {
                       authMethod === method
                         ? "rounded-lg bg-blue-600 px-2 py-2 text-[9px] font-extrabold text-white"
                         : "rounded-lg px-2 py-2 text-[9px] font-bold text-ink-muted"
+                    }
+                    disabled={
+                      Boolean(liveAttempt && isAuthAttemptActive(liveAttempt.status)) &&
+                      method !== authMethodForAttempt(liveAttempt!)
                     }
                     key={method}
                     onClick={() => setAuthMethod(method)}
@@ -742,6 +779,11 @@ function ProviderSettings(props: ProviderSettingsProps) {
                   {authError ?? "登录状态暂时无法读取；短期秘密仍保持加密。"}
                 </p>
               ) : null}
+              {liveAttempt?.lastErrorMessage ? (
+                <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-[9px] font-bold text-rose-700">
+                  {liveAttempt.lastErrorMessage}
+                </p>
+              ) : null}
               {liveAttempt && isAuthAttemptActive(liveAttempt.status) ? (
                 <button
                   className="mt-3 text-[9px] font-bold text-rose-600 underline underline-offset-2 disabled:opacity-50"
@@ -828,6 +870,10 @@ function isAuthAttemptActive(status: ProviderAuthAttempt["status"]) {
   return !["connected", "expired", "failed"].includes(status);
 }
 
+function authMethodForAttempt(attempt: ProviderAuthAttempt): "qr" | "sms" {
+  return attempt.method === "qr" ? "qr" : "sms";
+}
+
 function authAttemptStatusLabel(status: ProviderAuthAttempt["status"]) {
   const labels: Record<ProviderAuthAttempt["status"], string> = {
     connected: "登录成功，正在验证 Provider 数据权限",
@@ -851,4 +897,14 @@ function latestAuthAttempt(
   if (!remote) return local;
   if (!isAuthAttemptActive(local.status) && isAuthAttemptActive(remote.status)) return local;
   return new Date(remote.updatedAt) >= new Date(local.updatedAt) ? remote : local;
+}
+
+function providerFailureMessage(error: unknown, fallback: string) {
+  if (!error || typeof error !== "object" || !("problem" in error)) return fallback;
+  const problem = error.problem;
+  if (!problem || typeof problem !== "object") return fallback;
+  const detail = "detail" in problem ? problem.detail : null;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  const title = "title" in problem ? problem.title : null;
+  return typeof title === "string" && title.trim() ? title : fallback;
 }

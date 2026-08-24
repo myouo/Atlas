@@ -101,6 +101,13 @@ export abstract class SyncPipelineError extends NivalisError {
 export class RetryableProviderError extends SyncPipelineError {
   readonly code = "retryable-provider-error";
   readonly retryable = true;
+
+  constructor(
+    message: string,
+    readonly diagnosticCode: string | null = null
+  ) {
+    super(message);
+  }
 }
 
 export class PermanentProviderError extends SyncPipelineError {

@@ -4,6 +4,10 @@ import type {
   DashboardReadModelSnapshot,
   DashboardSnapshot,
   Profile,
+  ProviderAuthAttempt,
+  ProviderConnectionView,
+  ProviderStatus,
+  SyncRun,
   WidgetConfiguration,
   WidgetProjection
 } from "@nivalis/domain";
@@ -16,19 +20,21 @@ import {
   sessionCookie
 } from "./cloudflare-auth";
 import type { AuthEnvironment } from "./cloudflare-auth";
-import { consumeSyncMessages } from "./cloudflare-sync-queue";
-import type { CloudflareSyncMessage } from "./cloudflare-sync-queue";
+import { createCloudflareProviderRuntime } from "./cloudflare-provider-runtime";
+import type { ProviderEnvironment } from "./cloudflare-provider-runtime";
+import { consumeQueueMessages } from "./cloudflare-sync-queue";
+import type { CloudflareQueueMessage } from "./cloudflare-sync-queue";
 import {
   D1DashboardConfigurationReader,
   D1WidgetProjectionHydrator
 } from "./d1-dashboard-read-adapter";
 import { PortableViewVersionFactory } from "./portable-version-factory";
 
-export interface Environment extends AuthEnvironment {
+export interface Environment extends AuthEnvironment, ProviderEnvironment {
   readonly CORS_ORIGINS?: string;
   readonly DB: D1Database;
   readonly ENVIRONMENT?: string;
-  readonly SYNC_QUEUE: Queue<CloudflareSyncMessage>;
+  readonly SYNC_QUEUE: Queue<CloudflareQueueMessage>;
 }
 
 const worker = {
@@ -230,16 +236,183 @@ const worker = {
           });
         }
 
-        if (requestUrl.pathname === "/v1/me/providers/status" && request.method === "GET") {
-          return json({ providers: disconnectedProviderStatuses() }, 200, corsHeaders);
-        }
+        if (
+          requestUrl.pathname.startsWith("/v1/me/providers") ||
+          requestUrl.pathname.startsWith("/v1/me/sync-jobs")
+        ) {
+          const providers = createCloudflareProviderRuntime(
+            environment.DB,
+            environment.SYNC_QUEUE,
+            environment
+          );
+          if (!providers) {
+            return problem(
+              503,
+              "provider-security-not-configured",
+              "Provider credential encryption is not configured",
+              requestUrl.pathname,
+              requestId,
+              corsHeaders
+            );
+          }
+          const context = { actorId: session.actor.id };
 
-        if (requestUrl.pathname === "/v1/me/providers" && request.method === "GET") {
-          return json({ providers: [disconnectedNeteaseConnection()] }, 200, corsHeaders);
-        }
+          if (requestUrl.pathname === "/v1/me/providers/status" && request.method === "GET") {
+            return json(
+              {
+                providers: (await providers.sync.listProviderStatuses(session.actor.id)).map(
+                  serializeProviderStatus
+                )
+              },
+              200,
+              corsHeaders
+            );
+          }
 
-        if (requestUrl.pathname === "/v1/me/providers/netease" && request.method === "GET") {
-          return json(disconnectedNeteaseConnection(), 200, corsHeaders);
+          if (requestUrl.pathname === "/v1/me/providers" && request.method === "GET") {
+            return json(
+              {
+                providers: (await providers.connections.list(context)).map(
+                  serializeProviderConnection
+                )
+              },
+              200,
+              corsHeaders
+            );
+          }
+
+          if (requestUrl.pathname === "/v1/me/providers/netease" && request.method === "GET") {
+            return json(
+              serializeProviderConnection(await providers.connections.getNetease(context)),
+              200,
+              corsHeaders
+            );
+          }
+
+          if (
+            requestUrl.pathname === "/v1/me/providers/netease/connect" &&
+            request.method === "POST"
+          ) {
+            const body = await readObjectBody(request);
+            const credential = requiredString(body, "credential");
+            if (body.credentialType !== "music_u") throw new InvalidRequestError();
+            await providers.auth.assertNoActive(context);
+            const accepted = await providers.connections.connectNetease(
+              context,
+              "music_u",
+              credential
+            );
+            return json(
+              {
+                connection: serializeProviderConnection(accepted.connection),
+                validationJob: serializeSyncJob(accepted.validationJob)
+              },
+              202,
+              corsHeaders,
+              { Location: `/v1/me/sync-jobs/${accepted.validationJob.id}` }
+            );
+          }
+
+          if (
+            requestUrl.pathname === "/v1/me/providers/netease/auth-attempts/qr" &&
+            request.method === "POST"
+          ) {
+            const attempt = await providers.auth.startQr(context);
+            return json(serializeProviderAuthAttempt(attempt), 202, corsHeaders, {
+              Location: `/v1/me/providers/netease/auth-attempts/${attempt.id}`
+            });
+          }
+
+          if (
+            requestUrl.pathname === "/v1/me/providers/netease/auth-attempts/sms" &&
+            request.method === "POST"
+          ) {
+            const body = await readObjectBody(request);
+            const attempt = await providers.auth.startSms(
+              context,
+              requiredString(body, "phone"),
+              requiredString(body, "countryCode")
+            );
+            return json(serializeProviderAuthAttempt(attempt), 202, corsHeaders, {
+              Location: `/v1/me/providers/netease/auth-attempts/${attempt.id}`
+            });
+          }
+
+          const verifyAttemptId = pathParameter(
+            requestUrl.pathname,
+            /^\/v1\/me\/providers\/netease\/auth-attempts\/([^/]+)\/verify$/
+          );
+          if (verifyAttemptId && request.method === "POST") {
+            const body = await readObjectBody(request);
+            const attempt = await providers.auth.verifySms(
+              context,
+              verifyAttemptId,
+              requiredString(body, "code")
+            );
+            return json(serializeProviderAuthAttempt(attempt), 202, corsHeaders);
+          }
+
+          const authAttemptId = pathParameter(
+            requestUrl.pathname,
+            /^\/v1\/me\/providers\/netease\/auth-attempts\/([^/]+)$/
+          );
+          if (authAttemptId && request.method === "GET") {
+            return json(
+              serializeProviderAuthAttempt(await providers.auth.get(context, authAttemptId)),
+              200,
+              corsHeaders
+            );
+          }
+          if (authAttemptId && request.method === "DELETE") {
+            await providers.auth.cancel(context, authAttemptId);
+            return empty(204, corsHeaders);
+          }
+
+          if (
+            requestUrl.pathname === "/v1/me/providers/netease/connection" &&
+            request.method === "DELETE"
+          ) {
+            await providers.auth.cancelAll(context);
+            await providers.connections.disconnectNetease(context);
+            return empty(204, corsHeaders);
+          }
+
+          const syncProvider = pathParameter(
+            requestUrl.pathname,
+            /^\/v1\/me\/providers\/([^/]+)\/sync$/
+          );
+          if (syncProvider && request.method === "POST") {
+            if (syncProvider !== "netease") {
+              return problem(
+                503,
+                "provider-not-configured",
+                "Provider synchronization is not configured",
+                requestUrl.pathname,
+                requestId,
+                corsHeaders
+              );
+            }
+            const run = await providers.sync.enqueue(session.actor.id);
+            return json(serializeSyncJob(run), 202, corsHeaders, {
+              Location: `/v1/me/sync-jobs/${run.id}`
+            });
+          }
+
+          const syncRunId = pathParameter(requestUrl.pathname, /^\/v1\/me\/sync-jobs\/([^/]+)$/);
+          if (syncRunId && request.method === "GET") {
+            const run = await providers.sync.getForOwner(session.actor.id, syncRunId);
+            if (!run) {
+              return problem(
+                404,
+                "sync-run-not-found",
+                "SyncRun not found",
+                requestUrl.pathname,
+                requestId,
+                corsHeaders
+              );
+            }
+            return json(serializeSyncJob(run), 200, corsHeaders);
+          }
         }
 
         return problem(
@@ -271,22 +444,31 @@ const worker = {
         requestId,
         corsHeaders
       );
-    } catch {
-      return problem(
-        500,
-        "d1-read-model-failed",
-        "The D1 Dashboard read model could not be loaded",
-        requestUrl.pathname,
-        requestId,
-        corsHeaders
-      );
+    } catch (error) {
+      return mapProblem(error, requestUrl.pathname, requestId, corsHeaders);
     }
   },
 
-  async queue(batch: MessageBatch<CloudflareSyncMessage>, environment: Environment) {
-    await consumeSyncMessages(batch, environment.DB);
+  async queue(batch: MessageBatch<CloudflareQueueMessage>, environment: Environment) {
+    const providers = createCloudflareProviderRuntime(
+      environment.DB,
+      environment.SYNC_QUEUE,
+      environment
+    );
+    if (!providers) {
+      for (const message of batch.messages) message.retry({ delaySeconds: 300 });
+      return;
+    }
+    await consumeQueueMessages(batch, environment.DB, {
+      providerAuth: async (attemptId) => {
+        await providers.authWorker.process(attemptId);
+      },
+      sync: async (syncRunId) => {
+        await providers.sync.process(syncRunId);
+      }
+    });
   }
-} satisfies ExportedHandler<Environment, CloudflareSyncMessage>;
+} satisfies ExportedHandler<Environment, CloudflareQueueMessage>;
 
 export default worker;
 
@@ -376,31 +558,62 @@ function serializeWidgetProjection(widget: WidgetProjection) {
   };
 }
 
-function disconnectedNeteaseConnection() {
+function serializeProviderConnection(connection: ProviderConnectionView) {
   return {
-    configured: false,
-    credentialStatus: "not_configured",
-    credentialUpdatedAt: null,
-    displayName: null,
-    enabled: false,
-    lastValidatedAt: null,
-    provider: "netease",
-    providerAccountId: null
+    configured: connection.configured,
+    credentialStatus: connection.credentialStatus,
+    credentialUpdatedAt: connection.credentialUpdatedAt?.toISOString() ?? null,
+    displayName: connection.displayName,
+    enabled: connection.enabled,
+    lastValidatedAt: connection.lastValidatedAt?.toISOString() ?? null,
+    provider: connection.provider,
+    providerAccountId: connection.providerAccountId
   };
 }
 
-function disconnectedProviderStatuses() {
-  return ["netease", "github", "bangumi", "steam", "bilibili"].map((provider) => ({
-    attemptCount: 0,
-    connection: "not_connected",
-    credentialStatus: "not_configured",
-    lastAttemptAt: null,
-    lastErrorCode: null,
-    lastErrorMessage: null,
-    lastSuccessAt: null,
-    provider,
-    syncStatus: "idle"
-  }));
+function serializeProviderAuthAttempt(attempt: ProviderAuthAttempt) {
+  return {
+    attemptId: attempt.id,
+    createdAt: attempt.createdAt.toISOString(),
+    expiresAt: attempt.expiresAt.toISOString(),
+    lastErrorCode: attempt.lastErrorCode,
+    lastErrorMessage: attempt.lastErrorMessage,
+    maskedPhone: attempt.maskedPhone,
+    method: attempt.method,
+    provider: attempt.provider,
+    qrUrl: attempt.qrUrl,
+    resendAfter: attempt.resendAfter?.toISOString() ?? null,
+    status: attempt.status,
+    updatedAt: attempt.updatedAt.toISOString()
+  };
+}
+
+function serializeSyncJob(run: SyncRun) {
+  return {
+    attemptCount: run.attemptCount,
+    finishedAt: run.finishedAt?.toISOString() ?? null,
+    jobId: run.id,
+    lastErrorCode: run.lastErrorCode,
+    lastErrorMessage: run.lastErrorMessage,
+    provider: run.provider,
+    requestedAt: run.requestedAt.toISOString(),
+    startedAt: run.startedAt?.toISOString() ?? null,
+    status: run.status === "retry_wait" ? "retrying" : run.status
+  };
+}
+
+function serializeProviderStatus(status: ProviderStatus) {
+  return {
+    attemptCount: status.attemptCount,
+    connection: status.connection,
+    credentialStatus: status.credentialStatus,
+    lastAttemptAt: status.lastAttemptAt?.toISOString() ?? null,
+    lastErrorCode: status.lastErrorCode,
+    lastErrorMessage: status.lastErrorMessage,
+    lastSuccessAt: status.lastSuccessAt?.toISOString() ?? null,
+    provider: status.provider,
+    syncStatus: status.syncStatus
+  };
 }
 
 function resolveCorsHeaders(request: Request, configuredOrigins?: string) {
@@ -439,13 +652,20 @@ function json(
   return new Response(JSON.stringify(body), { headers, status });
 }
 
+function empty(status: number, corsHeaders?: Headers) {
+  const headers = new Headers({ "Cache-Control": "no-store" });
+  applyCorsHeaders(headers, corsHeaders);
+  return new Response(null, { headers, status });
+}
+
 function problem(
   status: number,
   code: string,
   title: string,
   instance: string,
   requestId: string,
-  corsHeaders?: Headers
+  corsHeaders?: Headers,
+  detail?: string
 ) {
   const headers = new Headers({
     "Cache-Control": "no-store",
@@ -458,10 +678,126 @@ function problem(
       requestId,
       status,
       title,
-      type: `urn:nivalis:problem:${code}`
+      type: `urn:nivalis:problem:${code}`,
+      ...(detail ? { detail } : {})
     }),
     { headers, status }
   );
+}
+
+class InvalidRequestError extends Error {
+  readonly code = "invalid-request";
+
+  constructor() {
+    super("The request body is invalid.");
+    this.name = "InvalidRequestError";
+  }
+}
+
+async function readObjectBody(request: Request): Promise<Record<string, unknown>> {
+  const length = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(length) && length > 65_536) throw new InvalidRequestError();
+  const text = await request.text();
+  if (text.length > 65_536) throw new InvalidRequestError();
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new InvalidRequestError();
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new InvalidRequestError();
+  }
+  return value as Record<string, unknown>;
+}
+
+function requiredString(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (typeof value !== "string") throw new InvalidRequestError();
+  return value;
+}
+
+function pathParameter(pathname: string, pattern: RegExp) {
+  const value = pattern.exec(pathname)?.[1];
+  if (!value) return null;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new InvalidRequestError();
+  }
+}
+
+function mapProblem(error: unknown, instance: string, requestId: string, corsHeaders?: Headers) {
+  const code =
+    error && typeof error === "object" && "code" in error && typeof error.code === "string"
+      ? error.code
+      : "internal-error";
+  const detail = error instanceof Error ? error.message : undefined;
+  switch (code) {
+    case "invalid-request":
+    case "invalid-provider-credential":
+      return problem(400, code, "Invalid request", instance, requestId, corsHeaders, detail);
+    case "provider-auth-attempt-not-found":
+      return problem(
+        404,
+        code,
+        "Provider authentication attempt not found",
+        instance,
+        requestId,
+        corsHeaders,
+        detail
+      );
+    case "provider-connection-not-found":
+      return problem(
+        404,
+        code,
+        "Provider connection not found",
+        instance,
+        requestId,
+        corsHeaders,
+        detail
+      );
+    case "sync-run-not-found":
+      return problem(404, code, "SyncRun not found", instance, requestId, corsHeaders, detail);
+    case "provider-auth-attempt-state":
+      return problem(
+        409,
+        code,
+        "Provider authentication state conflict",
+        instance,
+        requestId,
+        corsHeaders,
+        detail
+      );
+    case "provider-not-configured":
+      return problem(
+        503,
+        code,
+        "Provider is not configured",
+        instance,
+        requestId,
+        corsHeaders,
+        detail
+      );
+    case "retryable-provider-error":
+      return problem(
+        503,
+        code,
+        "Provider is temporarily unavailable",
+        instance,
+        requestId,
+        corsHeaders
+      );
+    default:
+      return problem(
+        500,
+        "internal-error",
+        "The request could not be completed",
+        instance,
+        requestId,
+        corsHeaders
+      );
+  }
 }
 
 function applyCorsHeaders(target: Headers, corsHeaders?: Headers) {

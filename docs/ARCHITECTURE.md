@@ -317,10 +317,16 @@ Pages → generated API client → same-origin /api
                                       ↓
                        D1 Reader / Projection Hydrator
 
-SyncJobQueue Port → Cloudflare Queue → Consumer Worker
+SyncJobQueue / ProviderAuthJobQueue Ports
+                    ↓
+             Cloudflare Queue
+                    ↓
+              Consumer Worker
+                    ↓
+     Netease Connector → Raw → Projection
 ```
 
-D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, and Owner reads. Owner mutations, Credential storage, and Provider execution remain disabled until their D1 repositories pass the same immutability, CAS, encryption, LKG, and retry tests as the generic runtime. See ADR 0016.
+D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, Owner reads, encrypted NetEase connection management, QR/SMS AuthAttempts, Queue-backed SyncRuns, sanitized Raw Snapshots, and Last Known Good projections. Provider messages carry only Nivalis UUIDs; credentials and private authentication state remain contextual AEAD ciphertext in D1. Immutable Revision write/CAS operations, full NetEase native history, and replay commit remain unported. See ADR 0016.
 
 The public homepage is content-only: anonymous visitors receive no mode switcher, editing chrome, status/sync/API controls, Settings link, phase badge, or operational footer. Direct `/settings` access owns the authentication entry point. Once the API reports an authenticated Owner session, the same `DashboardCanvas` reveals the existing control surface without introducing a second renderer.
 

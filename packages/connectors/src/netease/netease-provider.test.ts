@@ -170,12 +170,32 @@ describe("NetEase Provider module", () => {
     expect(requests).toHaveLength(5);
     for (const request of requests) {
       expect(request.method).toBe("POST");
-      expect(["music.163.com", "interfacepc.music.163.com"]).toContain(
-        new URL(request.url).hostname
-      );
+      expect(["music.163.com", "interface.music.163.com"]).toContain(new URL(request.url).hostname);
       expect(request.headers.get("cookie")).toContain(`MUSIC_U=${secret}`);
       expect(request.headers.has("x-real-ip")).toBe(false);
       expect(request.headers.has("authorization")).toBe(false);
+    }
+  });
+
+  it("invokes the default Fetch transport with the runtime global receiver", async () => {
+    const receivers: unknown[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async function (
+      this: typeof globalThis,
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ) {
+      receivers.push(this);
+      expect(init?.redirect).toBe("manual");
+      return Response.json(normalNeteaseFixture[NETEASE_SOURCE.account]);
+    });
+
+    try {
+      await expect(
+        new NeteaseClient({ timeoutMs: 2_000 }).getAccount(secret)
+      ).resolves.toMatchObject({ code: 200 });
+      expect(receivers).toEqual([globalThis]);
+    } finally {
+      fetchSpy.mockRestore();
     }
   });
 

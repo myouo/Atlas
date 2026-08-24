@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@nivalis/application": "workspace:*",
+    "@nivalis/connectors": "workspace:*",
     "@nivalis/domain": "workspace:*"
   },
   "devDependencies": {

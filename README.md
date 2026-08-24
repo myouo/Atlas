@@ -225,9 +225,10 @@ CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 ```
 
 - D1 has independent SQLite migrations and an idempotent fixture Seed.
-- `/health`, `/ready`, public Profile/Dashboard, GitHub OAuth, D1 Session, and Owner read resources are implemented.
-- Cloudflare Queues implements the `SyncJobQueue` port and has an explicit per-message ack/retry consumer boundary.
-- Owner write APIs, encrypted Provider credentials, and real NetEase execution intentionally return Problem Details until their D1 adapters are complete.
+- `/health`, `/ready`, public Profile/Dashboard, GitHub OAuth, D1 Session, Owner reads, and Provider connection resources are implemented.
+- Cloudflare Queues carries both SyncRun and Provider AuthAttempt UUID envelopes with explicit per-message ack/retry behavior.
+- D1 stores AEAD-encrypted NetEase credentials, ephemeral QR/SMS state, SyncRuns, sync state, sanitized Raw Snapshots, account-native metadata, and Last Known Good projections.
+- Immutable Revision write/CAS routes and the full NetEase native history/replay adapter remain incomplete on D1 and continue to return Problem Details where applicable.
 - The PostgreSQL/Fastify/pg-boss implementation remains available and fully tested.
 - No Cloudflare account, domain, project endpoint, or secret is committed.
 

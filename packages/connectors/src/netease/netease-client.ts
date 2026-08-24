@@ -10,7 +10,7 @@ import type { JsonObject, JsonValue } from "@nivalis/domain";
 import { NETEASE_CREDENTIAL_CODES, NETEASE_RETRYABLE_CODES } from "./errors";
 
 const MUSIC_ORIGIN = "https://music.163.com";
-const INTERFACE_PC_ORIGIN = "https://interfacepc.music.163.com";
+const INTERFACE_ORIGIN = "https://interface.music.163.com";
 const WEAPI_IV = Buffer.from("0102030405060708");
 const WEAPI_PRESET_KEY = Buffer.from("0CoJUm6Qyw8W8jud");
 const EAPI_KEY = Buffer.from("e82ckenh8dichen8");
@@ -29,10 +29,14 @@ export interface NeteaseTransportResponse {
 }
 
 export class NeteaseClient {
+  private readonly fetcher: typeof fetch;
+
   constructor(
     private readonly options: NeteaseClientOptions,
-    private readonly fetcher: typeof fetch = fetch
-  ) {}
+    fetcher?: typeof fetch
+  ) {
+    this.fetcher = fetcher ?? ((input, init) => globalThis.fetch(input, init));
+  }
 
   getAccount(credential: string) {
     return this.weapi("/api/w/nuser/account/get", {}, credential);
@@ -95,7 +99,7 @@ export class NeteaseClient {
     };
     const encrypted = encryptEapi(path, { ...data, header });
     return this.request(
-      new URL(path.replace("/api/", "/eapi/"), INTERFACE_PC_ORIGIN),
+      new URL(path.replace("/api/", "/eapi/"), INTERFACE_ORIGIN),
       encrypted,
       credential,
       {},
@@ -130,17 +134,28 @@ export class NeteaseClient {
           ...extraHeaders
         },
         method: "POST",
-        redirect: "error",
+        // Do not follow Provider redirects because credentials are carried in headers.
+        // `manual` is portable across Node and edge Fetch implementations.
+        redirect: "manual",
         signal: AbortSignal.timeout(this.options.timeoutMs)
       });
     } catch {
-      throw new RetryableProviderError("NetEase request timed out or was unavailable.");
+      throw new RetryableProviderError(
+        "NetEase request timed out or was unavailable.",
+        "transport"
+      );
     }
     if (response.status === 401 || response.status === 403) {
       throw new ProviderCredentialError("expired");
     }
     if (response.status === 429 || response.status >= 500) {
-      throw new RetryableProviderError("NetEase request failed temporarily.");
+      throw new RetryableProviderError(
+        "NetEase request failed temporarily.",
+        response.status === 429 ? "rate-limited" : "upstream-5xx"
+      );
+    }
+    if (response.status >= 300 && response.status < 400) {
+      throw new PermanentProviderError("NetEase request attempted an unexpected redirect.");
     }
     if (!response.ok) throw new PermanentProviderError("NetEase request was rejected.");
     let payload: unknown;
@@ -153,7 +168,7 @@ export class NeteaseClient {
     if (isObject(payload) && typeof payload.code === "number") {
       if (NETEASE_CREDENTIAL_CODES.has(payload.code)) throw new ProviderCredentialError("expired");
       if (NETEASE_RETRYABLE_CODES.has(payload.code)) {
-        throw new RetryableProviderError("NetEase response requested retry.");
+        throw new RetryableProviderError("NetEase response requested retry.", "provider-code");
       }
       if (!acceptedProviderCodes.has(payload.code)) {
         throw new PermanentProviderError("NetEase response was rejected.");
@@ -173,25 +188,31 @@ function encryptWeapi(value: JsonObject) {
   const encSecKey = publicEncrypt(
     { key: WEAPI_PUBLIC_KEY, padding: constants.RSA_NO_PADDING },
     padded
-  ).toString("hex");
-  return { encSecKey, params };
+  );
+  return { encSecKey: bytesToHex(encSecKey), params };
 }
 
 function encryptEapi(path: string, value: JsonObject) {
   const text = JSON.stringify(value);
-  const digest = createHash("md5").update(`nobody${path}use${text}md5forencrypt`).digest("hex");
+  const digest = bytesToHex(
+    createHash("md5")
+      .update(Buffer.from(`nobody${path}use${text}md5forencrypt`))
+      .digest()
+  );
   const message = `${path}-36cd479b6b5-${text}-36cd479b6b5-${digest}`;
-  const cipher = createCipheriv("aes-128-ecb", EAPI_KEY, null);
+  // Web-compatible Node runtimes may require a BufferSource even for ECB,
+  // where Node also accepts null because the cipher does not use an IV.
+  const cipher = createCipheriv("aes-128-ecb", EAPI_KEY, Buffer.alloc(0));
   return {
-    params: Buffer.concat([cipher.update(message, "utf8"), cipher.final()])
-      .toString("hex")
-      .toUpperCase()
+    params: bytesToHex(
+      Buffer.concat([cipher.update(Buffer.from(message)), cipher.final()])
+    ).toUpperCase()
   };
 }
 
 function aesCbc(value: string, key: Buffer) {
   const cipher = createCipheriv("aes-128-cbc", key, WEAPI_IV);
-  return Buffer.concat([cipher.update(value, "utf8"), cipher.final()]).toString("base64");
+  return bytesToBase64(Buffer.concat([cipher.update(Buffer.from(value)), cipher.final()]));
 }
 
 function randomSecret() {
@@ -224,4 +245,14 @@ function isJsonValue(value: unknown): value is JsonValue {
   if (typeof value === "number") return Number.isFinite(value);
   if (Array.isArray(value)) return value.every(isJsonValue);
   return typeof value === "object" && value !== null && Object.values(value).every(isJsonValue);
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
