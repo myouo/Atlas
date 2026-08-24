@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
-import { mockWidgets } from "../dashboard/mock-dashboard";
+import { createMockWidget, mockWidgets } from "../dashboard/mock-dashboard";
 import { WidgetCard } from "./widget-card";
 import { WidgetRegistry, widgetRegistry } from "./widget-registry";
 
@@ -46,5 +47,28 @@ describe("WidgetRegistry", () => {
     expect(github).toBeDefined();
     render(<WidgetCard editable={false} onRemove={() => undefined} widget={github!} />);
     expect(screen.getByText(/Fixture · @nivalis/)).toBeInTheDocument();
+  });
+
+  it("edits display fields through Registry-driven presentation controls", async () => {
+    const netease = createMockWidget(
+      "music.netease.overview",
+      "00000000-0000-4000-8000-000000001006",
+      2
+    );
+    const onPresentationConfigChange = vi.fn();
+    render(
+      <WidgetCard
+        editable
+        onPresentationConfigChange={onPresentationConfigChange}
+        onRemove={() => undefined}
+        widget={netease}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /设置 网易云音乐.*展示字段/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /Top Artists/ }));
+    expect(onPresentationConfigChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ showArtists: false })
+    );
   });
 });

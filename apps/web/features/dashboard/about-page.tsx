@@ -411,6 +411,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
             editable={isOwner && effectiveMode === "edit"}
             layout={snapshot.layout}
             onLayoutChange={store.updateBreakpointLayout}
+            onPresentationConfigChange={store.updateWidgetPresentationConfig}
             onRemoveWidget={(widgetId) => {
               store.removeWidget(widgetId);
               showNotice("模块已从本地草稿移除，可通过重置恢复");

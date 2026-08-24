@@ -62,6 +62,7 @@ const worker = spawn(
   { env: process.env, stdio: ["ignore", "pipe", "pipe"] }
 );
 let output = "";
+const savedRevisionIds = [];
 worker.stdout.on("data", (chunk) => {
   output += String(chunk);
 });
@@ -104,6 +105,114 @@ try {
   };
   const ownerSession = await fetchJson("/v1/auth/session", { headers: ownerHeaders });
   assert(ownerSession.body.role === "owner", "the D1 fixture Owner session was not accepted");
+
+  const initialDraft = await fetchJson("/v1/me/dashboards/about/draft", {
+    headers: ownerHeaders
+  });
+  const initialRevisionEtag = initialDraft.response.headers.get("etag");
+  assert(Boolean(initialRevisionEtag), "D1 Draft omitted its revision ETag");
+  const initialLiveData = await fetchJson("/v1/me/dashboards/about/data", {
+    headers: ownerHeaders
+  });
+  const draftUpdate = {
+    layout: initialDraft.body.layout,
+    widgets: initialDraft.body.widgets.map((widget) =>
+      widget.type === "music.netease.overview"
+        ? {
+            ...widget,
+            presentationConfig: {
+              ...widget.presentationConfig,
+              detailPanel: "recent",
+              showArtists: false
+            }
+          }
+        : widget
+    )
+  };
+  const missingPrecondition = await fetchJson("/v1/me/dashboards/about/draft", {
+    body: JSON.stringify(draftUpdate),
+    headers: ownerHeaders,
+    method: "PUT"
+  });
+  assert(
+    missingPrecondition.response.status === 428,
+    "D1 Draft write without If-Match did not return 428"
+  );
+  const savedDraft = await fetchJson("/v1/me/dashboards/about/draft", {
+    body: JSON.stringify(draftUpdate),
+    headers: { ...ownerHeaders, "if-match": initialRevisionEtag },
+    method: "PUT"
+  });
+  savedRevisionIds.push(savedDraft.body.revisionId);
+  const savedRevisionEtag = savedDraft.response.headers.get("etag");
+  assert(savedDraft.response.status === 200, "D1 Draft save did not return 200");
+  assert(savedRevisionEtag !== initialRevisionEtag, "D1 Draft save did not advance its ETag");
+  assert(
+    savedDraft.body.widgets.find((widget) => widget.type === "music.netease.overview")
+      ?.presentationConfig.detailPanel === "recent",
+    "D1 Draft did not persist Widget presentationConfig"
+  );
+  const savedLiveData = await fetchJson("/v1/me/dashboards/about/data", {
+    headers: ownerHeaders
+  });
+  const initialNeteaseVersion = initialLiveData.body.projectionVersions.find(
+    (version) => version.widgetId === "00000000-0000-4000-8000-000000001006"
+  );
+  const savedNeteaseVersion = savedLiveData.body.projectionVersions.find(
+    (version) => version.widgetId === "00000000-0000-4000-8000-000000001006"
+  );
+  assert(
+    initialNeteaseVersion?.projectionKey === savedNeteaseVersion?.projectionKey &&
+      initialNeteaseVersion?.projectionVersion === savedNeteaseVersion?.projectionVersion,
+    "presentationConfig change created a new Projection partition"
+  );
+  const staleSave = await fetchJson("/v1/me/dashboards/about/draft", {
+    body: JSON.stringify(draftUpdate),
+    headers: { ...ownerHeaders, "if-match": initialRevisionEtag },
+    method: "PUT"
+  });
+  assert(staleSave.response.status === 412, "stale D1 Draft write did not return 412");
+  const concurrentWrites = await Promise.all(
+    [true, false].map((showTopTracks) =>
+      fetchJson("/v1/me/dashboards/about/draft", {
+        body: JSON.stringify({
+          ...draftUpdate,
+          widgets: draftUpdate.widgets.map((widget) =>
+            widget.type === "music.netease.overview"
+              ? {
+                  ...widget,
+                  presentationConfig: { ...widget.presentationConfig, showTopTracks }
+                }
+              : widget
+          )
+        }),
+        headers: { ...ownerHeaders, "if-match": savedRevisionEtag },
+        method: "PUT"
+      })
+    )
+  );
+  assert(
+    concurrentWrites
+      .map((result) => result.response.status)
+      .sort()
+      .join(",") === "200,412",
+    "concurrent D1 Draft writes did not produce one success and one conflict"
+  );
+  const concurrentWinner = concurrentWrites.find((result) => result.response.status === 200);
+  assert(Boolean(concurrentWinner), "concurrent D1 Draft winner was not returned");
+  savedRevisionIds.push(concurrentWinner.body.revisionId);
+  const winnerEtag = concurrentWinner.response.headers.get("etag");
+  const published = await fetchJson("/v1/me/dashboards/about/publish", {
+    headers: { ...ownerHeaders, "if-match": winnerEtag },
+    method: "POST"
+  });
+  assert(published.response.status === 200, "D1 publish did not return 200");
+  const publicAfterPublish = await fetchJson("/v1/public/dashboards/about");
+  assert(
+    publicAfterPublish.body.widgets.find((widget) => widget.type === "music.netease.overview")
+      ?.presentationConfig.showArtists === false,
+    "published D1 Dashboard did not expose the selected Widget fields"
+  );
 
   const accepted = await fetchJson("/v1/me/providers/netease/connect", {
     body: JSON.stringify({
@@ -160,6 +269,22 @@ try {
   process.stdout.write(`${JSON.stringify({ command: "smoke-d1-worker", status: "passed" })}\n`);
 } finally {
   worker.kill("SIGTERM");
+  await waitForExit(worker);
+  if (savedRevisionIds.length > 0) {
+    const revisionIds = savedRevisionIds.map((id) => `'${id}'`).join(", ");
+    const revisionDeletes = [...savedRevisionIds]
+      .reverse()
+      .map((id) => `DELETE FROM dashboard_revisions WHERE id = '${id}';`)
+      .join("\n");
+    await executeLocalSql(`
+      UPDATE dashboards
+         SET current_draft_revision_id = '00000000-0000-4000-8000-000000000303',
+             current_published_revision_id = '00000000-0000-4000-8000-000000000303'
+       WHERE slug = 'about';
+      DELETE FROM dashboard_revision_widgets WHERE revision_id IN (${revisionIds});
+      ${revisionDeletes}
+    `);
+  }
 }
 
 async function waitUntilReady() {
@@ -220,4 +345,9 @@ function executeLocalSql(sql) {
     "--command",
     sql
   ]);
+}
+
+function waitForExit(child) {
+  if (child.exitCode !== null) return Promise.resolve();
+  return new Promise((resolve) => child.once("exit", resolve));
 }

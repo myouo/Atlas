@@ -48,7 +48,7 @@ export class NeteaseNormalizer implements ProviderNormalizer {
       listeningDurationMinutes:
         distribution?.playDuration ??
         (report.data.duration === undefined ? null : report.data.duration / 60),
-      recentListens: recent.data.list.map((item) => ({
+      recentListens: recent.data.list.slice(0, 100).map((item) => ({
         playedAt: new Date(item.playTime).toISOString(),
         track: normalizeTrack("data" in item ? item.data : item.resource)
       })),

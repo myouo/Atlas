@@ -107,7 +107,7 @@ pnpm deploy:pages
 
 ## Remaining adapter work
 
-- immutable D1 Revision write/CAS operations;
+- D1 Revision list/detail/restore and granular Widget mutation routes;
 - full NetEase native track/listen history tables in the D1 adapter;
 - D1 Raw Snapshot replay/commit tooling;
 - remote concurrency and migration-preservation tests.

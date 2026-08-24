@@ -330,6 +330,8 @@ D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in 
 
 The public homepage is content-only: anonymous visitors receive no mode switcher, editing chrome, status/sync/API controls, Settings link, phase badge, or operational footer. Direct `/settings` access owns the authentication entry point. Once the API reports an authenticated Owner session, the same `DashboardCanvas` reveals the existing control surface without introducing a second renderer.
 
+Widget display customization is Registry-driven. Each definition may declare toggle/select `presentationControls`; the shared ModuleShell opens one display-field dialog, and Renderers consume the resulting `presentationConfig`. These values are Revision configuration, not Provider data, and are deliberately excluded from Projection Keys. Cloudflare D1 Draft save creates a full immutable successor snapshot through an atomic batch and conditional pointer update; Publish moves only the Published pointer. See ADR 0017.
+
 The Pages Function removes the `/api` prefix and forwards the request through a Worker Service Binding. OAuth callback responses therefore set a first-party Pages cookie; the browser never depends on a third-party Worker-domain cookie.
 
 The API production artifact bundles Nivalis Domain/Application code while leaving third-party Node dependencies external. This is a packaging boundary only; it does not collapse the source-layer dependency direction. See ADR 0005.

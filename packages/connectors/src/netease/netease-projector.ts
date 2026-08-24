@@ -73,7 +73,7 @@ function overview(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
     recentListening: {
       availability: "available",
       coverage: "provider_recent_limit",
-      items: payload.recentListens.slice(0, 20).map((item) => ({
+      items: payload.recentListens.slice(0, 100).map((item) => ({
         playedAt: item.playedAt,
         track: trackSummary(item.track)
       })),
@@ -108,13 +108,13 @@ function overview(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
             ),
             topArtists: [...artistCounts.entries()]
               .sort((left, right) => right[1].plays - left[1].plays)
-              .slice(0, 5)
+              .slice(0, 20)
               .map(([providerArtistId, artist]) => ({
                 name: artist.name,
                 providerArtistId,
                 rankedPlayCount: artist.plays
               })),
-            topTracks: payload.weeklyRecords.slice(0, 20).map((record) => ({
+            topTracks: payload.weeklyRecords.slice(0, 100).map((record) => ({
               playCount: record.playCount,
               score: record.score,
               track: trackSummary(record.track)

@@ -1,16 +1,26 @@
 import { PuzzlePiece } from "@phosphor-icons/react";
+import type { WidgetProjection } from "@nivalis/api-client";
+import { useState } from "react";
 
 import { ModuleShell } from "../../design-system/module-shell";
+import { WidgetDisplaySettingsDialog } from "./widget-display-settings-dialog";
 import { widgetRegistry } from "./widget-registry";
 import type { RuntimeWidgetProjection } from "./widget-types";
 
 interface WidgetCardProps {
   readonly editable: boolean;
+  readonly onPresentationConfigChange?: (config: WidgetProjection["presentationConfig"]) => void;
   readonly onRemove: () => void;
   readonly widget: RuntimeWidgetProjection;
 }
 
-export function WidgetCard({ editable, onRemove, widget }: WidgetCardProps) {
+export function WidgetCard({
+  editable,
+  onPresentationConfigChange,
+  onRemove,
+  widget
+}: WidgetCardProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const definition = widgetRegistry.resolve(widget.type, widget.schemaVersion);
 
   if (!definition) {
@@ -33,18 +43,32 @@ export function WidgetCard({ editable, onRemove, widget }: WidgetCardProps) {
 
   const { Icon, Renderer } = definition;
   const subtitle = definition.subtitle?.(widget as never);
+  const controls = definition.presentationControls ?? [];
   return (
-    <ModuleShell
-      accent={definition.accent}
-      editable={editable}
-      icon={<Icon aria-hidden size={19} />}
-      kind={definition.kind}
-      onRemove={onRemove}
-      stale={widget.stale}
-      {...(subtitle ? { subtitle } : {})}
-      title={widget.title}
-    >
-      <Renderer widget={widget as never} />
-    </ModuleShell>
+    <>
+      <ModuleShell
+        accent={definition.accent}
+        editable={editable}
+        icon={<Icon aria-hidden size={19} />}
+        kind={definition.kind}
+        {...(editable && controls.length > 0 ? { onConfigure: () => setSettingsOpen(true) } : {})}
+        onRemove={onRemove}
+        stale={widget.stale}
+        {...(subtitle ? { subtitle } : {})}
+        title={widget.title}
+      >
+        <Renderer widget={widget as never} />
+      </ModuleShell>
+      {controls.length > 0 && "presentationConfig" in widget ? (
+        <WidgetDisplaySettingsDialog
+          controls={controls}
+          name={definition.name}
+          onChange={(config) => onPresentationConfigChange?.(config)}
+          onOpenChange={setSettingsOpen}
+          open={settingsOpen}
+          presentationConfig={widget.presentationConfig}
+        />
+      ) : null}
+    </>
   );
 }

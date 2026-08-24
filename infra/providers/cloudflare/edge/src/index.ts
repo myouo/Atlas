@@ -24,10 +24,12 @@ import { createCloudflareProviderRuntime } from "./cloudflare-provider-runtime";
 import type { ProviderEnvironment } from "./cloudflare-provider-runtime";
 import { consumeQueueMessages } from "./cloudflare-sync-queue";
 import type { CloudflareQueueMessage } from "./cloudflare-sync-queue";
+import { parseDashboardDraft } from "./dashboard-http-input";
 import {
   D1DashboardConfigurationReader,
   D1WidgetProjectionHydrator
 } from "./d1-dashboard-read-adapter";
+import { D1DashboardWriteService } from "./d1-dashboard-write-service";
 import { PortableViewVersionFactory } from "./portable-version-factory";
 
 export interface Environment extends AuthEnvironment, ProviderEnvironment {
@@ -188,7 +190,7 @@ const worker = {
       if (requestUrl.pathname === "/v1/public/dashboards/about" && request.method === "GET") {
         const dashboard = await service.getPublishedDashboard();
         return json(serializePublicDashboard(dashboard), 200, corsHeaders, {
-          "Cache-Control": "public, max-age=60",
+          "Cache-Control": "public, max-age=60, no-transform",
           ETag: `"view:${dashboard.viewVersion}"`
         });
       }
@@ -230,6 +232,33 @@ const worker = {
           }
           return json(serializeDashboardState(draft), 200, corsHeaders, {
             ETag: `"rev:${draft.revisionId}"`
+          });
+        }
+
+        if (requestUrl.pathname === "/v1/me/dashboards/about/draft" && request.method === "PUT") {
+          const expectedRevisionId = parseRequiredRevisionEtag(request.headers.get("if-match"));
+          const input = parseDashboardDraft(await readObjectBody(request));
+          const saved = await new D1DashboardWriteService(environment.DB).saveDraft(
+            session.actor.id,
+            expectedRevisionId,
+            input
+          );
+          return json(serializeDashboardState(saved), 200, corsHeaders, {
+            ETag: `"rev:${saved.revisionId}"`
+          });
+        }
+
+        if (
+          requestUrl.pathname === "/v1/me/dashboards/about/publish" &&
+          request.method === "POST"
+        ) {
+          const expectedRevisionId = parseRequiredRevisionEtag(request.headers.get("if-match"));
+          const published = await new D1DashboardWriteService(environment.DB).publish(
+            session.actor.id,
+            expectedRevisionId
+          );
+          return json(serializeDashboardState(published), 200, corsHeaders, {
+            ETag: `"rev:${published.revisionId}"`
           });
         }
 
@@ -662,7 +691,7 @@ function json(
   additionalHeaders?: Readonly<Record<string, string>>
 ) {
   const headers = new Headers({
-    "Cache-Control": "no-store",
+    "Cache-Control": "no-store, no-transform",
     "Content-Type": "application/json; charset=utf-8",
     ...additionalHeaders
   });
@@ -683,7 +712,8 @@ function problem(
   instance: string,
   requestId: string,
   corsHeaders?: Headers,
-  detail?: string
+  detail?: string,
+  extensions?: Readonly<Record<string, unknown>>
 ) {
   const headers = new Headers({
     "Cache-Control": "no-store",
@@ -697,7 +727,8 @@ function problem(
       status,
       title,
       type: `urn:nivalis:problem:${code}`,
-      ...(detail ? { detail } : {})
+      ...(detail ? { detail } : {}),
+      ...extensions
     }),
     { headers, status }
   );
@@ -709,6 +740,15 @@ class InvalidRequestError extends Error {
   constructor() {
     super("The request body is invalid.");
     this.name = "InvalidRequestError";
+  }
+}
+
+class PreconditionRequiredError extends Error {
+  readonly code = "precondition-required";
+
+  constructor() {
+    super("This operation requires an If-Match revision validator.");
+    this.name = "PreconditionRequiredError";
   }
 }
 
@@ -735,6 +775,16 @@ function requiredString(body: Record<string, unknown>, key: string) {
   return value;
 }
 
+function parseRequiredRevisionEtag(value: string | null) {
+  if (!value) throw new PreconditionRequiredError();
+  const match =
+    /^"rev:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})"$/i.exec(
+      value
+    );
+  if (!match?.[1]) throw new InvalidRequestError();
+  return match[1];
+}
+
 function pathParameter(pathname: string, pattern: RegExp) {
   const value = pattern.exec(pathname)?.[1];
   if (!value) return null;
@@ -755,6 +805,48 @@ function mapProblem(error: unknown, instance: string, requestId: string, corsHea
     case "invalid-request":
     case "invalid-provider-credential":
       return problem(400, code, "Invalid request", instance, requestId, corsHeaders, detail);
+    case "precondition-required":
+      return problem(428, code, "Precondition required", instance, requestId, corsHeaders, detail);
+    case "dashboard-not-found":
+      return problem(404, code, "Dashboard not found", instance, requestId, corsHeaders, detail);
+    case "invalid-dashboard": {
+      const issues =
+        error && typeof error === "object" && "issues" in error && Array.isArray(error.issues)
+          ? error.issues.filter((issue): issue is string => typeof issue === "string")
+          : [];
+      return problem(
+        422,
+        code,
+        "Dashboard state is invalid",
+        instance,
+        requestId,
+        corsHeaders,
+        detail,
+        {
+          issues
+        }
+      );
+    }
+    case "revision-conflict": {
+      const conflict = error as {
+        readonly currentRevisionId: string;
+        readonly currentRevisionNumber: number;
+      };
+      return problem(
+        412,
+        code,
+        "Dashboard revision conflict",
+        instance,
+        requestId,
+        corsHeaders,
+        detail,
+        {
+          currentEtag: `"rev:${conflict.currentRevisionId}"`,
+          currentRevisionId: conflict.currentRevisionId,
+          currentRevisionNumber: conflict.currentRevisionNumber
+        }
+      );
+    }
     case "provider-auth-attempt-not-found":
       return problem(
         404,

@@ -22,6 +22,10 @@ The generic Nivalis deployment uses PostgreSQL, Fastify, and a persistent pg-bos
 
 The incremental adapter now includes D1-backed Provider connections, AEAD credentials, ephemeral Provider AuthAttempts, SyncRuns, Provider sync state, sanitized Raw Snapshots, and Last Known Good projections. Cloudflare Queue messages use an explicit discriminated envelope for `sync` and `provider_auth`; only Nivalis UUIDs cross the queue boundary.
 
+The adapter also implements immutable Draft save and Published-pointer updates for the existing OpenAPI endpoints. Draft writes use `D1Database.batch()` as one SQLite transaction and finish with a conditional `current_draft_revision_id = expected` compare-and-swap. Presentation-only edits therefore receive the same Revision ETag conflict protection as layout edits. Revision list/detail/restore remain separate incremental adapter work.
+
+ETag-bearing JSON responses include `Cache-Control: no-transform`. Without that directive, Pages/edge compression weakens a strong `"rev:..."` validator to `W/"rev:..."`, which is invalid for standard `If-Match` strong comparison. The adapter does not relax `If-Match`; it prevents the intermediary transformation instead.
+
 NetEase QR/SMS authentication continues to use the provider-neutral services from ADR 0014. To avoid adding the Queue batch delay to an interactive login, the Cloudflare fetch adapter persists the attempt, returns `202`, and registers its first `ProviderAuthWorkerService.process()` call with `ExecutionContext.waitUntil()`. The same service sends subsequent QR polls and retry fallback through Cloudflare Queues; credential extraction and persistence never move into the route or browser. A queued attempt with no recorded error can be restarted by a later Owner status read if the original isolate is interrupted. The consumer uses `max_batch_size: 1` and `max_batch_timeout: 0` because authentication messages are latency-sensitive and are not aggregated.
 
 Runtime compatibility also required two transport-level changes inside the NetEase Connector only:

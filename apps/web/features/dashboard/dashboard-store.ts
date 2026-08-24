@@ -67,6 +67,10 @@ interface DashboardStore {
   resetDraft: () => void;
   setMode: (mode: DashboardMode) => void;
   updateBreakpointLayout: (breakpoint: DashboardBreakpoint, layout: DashboardLayoutItem[]) => void;
+  updateWidgetPresentationConfig: (
+    widgetId: string,
+    config: WidgetProjection["presentationConfig"]
+  ) => void;
 }
 
 const cloneSnapshot = (snapshot: LocalDashboardSnapshot): LocalDashboardSnapshot =>
@@ -166,6 +170,21 @@ export const useDashboardStore = create<DashboardStore>()(
             ...draft,
             layout: removeWidgetFromLayouts(draft.layout, widgetId),
             widgets: draft.widgets.filter((widget) => widget.id !== widgetId)
+          }
+        });
+      },
+      updateWidgetPresentationConfig: (widgetId, config) => {
+        const draft = get().draft;
+        if (!draft) return;
+        set({
+          dirty: true,
+          draft: {
+            ...draft,
+            widgets: draft.widgets.map((widget) =>
+              widget.id === widgetId
+                ? ({ ...widget, presentationConfig: structuredClone(config) } as WidgetProjection)
+                : widget
+            )
           }
         });
       },

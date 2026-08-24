@@ -141,7 +141,7 @@ describe("NetEase Provider module", () => {
     const normalized = await new NeteaseNormalizer().normalize(snapshots(largeNeteaseFixture));
     const [projection] = await new NeteaseProjector().project(normalized, [target("7d")]);
     const weekly = (projection!.data as JsonObject).weeklyListening as JsonObject;
-    expect(weekly.topTracks).toHaveLength(20);
+    expect(weekly.topTracks).toHaveLength(100);
     expect(weekly.topArtists).toHaveLength(5);
   });
 

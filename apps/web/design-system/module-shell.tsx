@@ -1,6 +1,6 @@
 "use client";
 
-import { DotsSixVertical, WarningCircle, X } from "@phosphor-icons/react";
+import { DotsSixVertical, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
@@ -13,6 +13,7 @@ interface ModuleShellProps {
   readonly editable: boolean;
   readonly icon?: ReactNode;
   readonly kind?: ModuleShellKind;
+  readonly onConfigure?: () => void;
   readonly onRemove?: () => void;
   readonly stale?: boolean;
   readonly subtitle?: string;
@@ -33,6 +34,7 @@ export function ModuleShell({
   editable,
   icon,
   kind = "standard",
+  onConfigure,
   onRemove,
   stale = false,
   subtitle,
@@ -71,6 +73,20 @@ export function ModuleShell({
           type="button"
         >
           <X aria-hidden size={14} weight="bold" />
+        </button>
+      ) : null}
+
+      {editable && onConfigure ? (
+        <button
+          aria-label={`设置 ${title} 展示字段`}
+          className={clsx(
+            "absolute top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/92 text-blue-600 shadow-sm transition hover:bg-blue-50",
+            onRemove ? "right-10" : "right-2"
+          )}
+          onClick={onConfigure}
+          type="button"
+        >
+          <SlidersHorizontal aria-hidden size={14} weight="bold" />
         </button>
       ) : null}
 

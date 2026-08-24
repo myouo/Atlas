@@ -236,6 +236,8 @@ See [ADR 0016](docs/adr/0016-cloudflare-d1-worker-queue-adapter.md) and the [Clo
 
 The public homepage intentionally has no administration chrome. Open `/settings` directly to authenticate as Owner; the display/edit controls, Provider status, sync actions, API information, and Settings link appear on the homepage only after the API reports an Owner session.
 
+In Owner edit mode, every registered card exposes a shared display-field control. Toggle/select choices update only the local Draft `presentationConfig`; use **Save Draft** to create an immutable server revision and **Publish Layout** to update the public view. Display choices do not trigger Provider synchronization or change Projection Keys.
+
 Cloudflare Pages Functions proxies `/api/*` to the API Worker through a Service Binding. OAuth callback and Session cookies therefore stay on the Pages origin instead of relying on cross-site `pages.dev` → `workers.dev` cookies.
 
 ## Security

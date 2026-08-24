@@ -13,6 +13,7 @@ import {
 } from "recharts";
 
 import type { WidgetOf } from "../widget-types";
+import { presentationSelection, presentationToggle } from "../widget-presentation";
 
 const genreColors = ["#ff4f67", "#ff8a55", "#6f7df4", "#d356dd", "#48a6d7"];
 
@@ -168,118 +169,161 @@ function NeteaseOverviewWidgetV2({
   const recent = data.recentListening;
   const duration = data.listeningDuration;
   const total = data.totalListenCount;
-  const showArtists = widget.presentationConfig.showArtists !== false;
-  const showTrend = widget.presentationConfig.showTrend !== false;
+  const showTopTracks = presentationToggle(widget.presentationConfig, "showTopTracks");
+  const showArtists = presentationToggle(widget.presentationConfig, "showArtists");
+  const detailPanel = presentationSelection(widget.presentationConfig, "detailPanel", "trend", [
+    "trend",
+    "recent",
+    "none"
+  ]);
+  const listLimit = Number(
+    presentationSelection(widget.presentationConfig, "listLimit", "4", ["2", "4", "6"])
+  );
+  const metrics = [
+    presentationToggle(widget.presentationConfig, "showTotalListenCount") ? (
+      <Metric emphasis key="total" label="累计听歌" value={metricValue(total, "首")} />
+    ) : null,
+    presentationToggle(widget.presentationConfig, "showListeningDuration") ? (
+      <Metric emphasis key="duration" label="本周收听时长" value={metricValue(duration, "分钟")} />
+    ) : null,
+    presentationToggle(widget.presentationConfig, "showRankedPlayCount") ? (
+      <Metric
+        key="ranked"
+        label="排行播放次数"
+        value={
+          weekly.availability === "available"
+            ? weekly.rankedPlayCount.toLocaleString("zh-CN")
+            : "暂不可用"
+        }
+      />
+    ) : null,
+    presentationToggle(widget.presentationConfig, "showRecentCount") ? (
+      <Metric
+        key="recent"
+        label="最近记录"
+        value={
+          recent.availability === "available"
+            ? `${recent.items.length.toLocaleString("zh-CN")} 条`
+            : "暂不可用"
+        }
+      />
+    ) : null
+  ].filter(Boolean);
+  const detailCount = Number(showTopTracks) + Number(showArtists) + Number(detailPanel !== "none");
+  const detailGrid =
+    detailCount >= 3
+      ? "sm:grid-cols-[1.25fr_1fr_1.2fr]"
+      : detailCount === 2
+        ? "sm:grid-cols-2"
+        : "sm:grid-cols-1";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid grid-cols-2 gap-3 border-b border-blue-100/70 pb-3 sm:grid-cols-4">
-        <Metric emphasis label="累计听歌" value={metricValue(total, "首")} />
-        <Metric emphasis label="本周收听时长" value={metricValue(duration, "分钟")} />
-        <Metric
-          label="排行播放次数"
-          value={
-            weekly.availability === "available"
-              ? weekly.rankedPlayCount.toLocaleString("zh-CN")
-              : "暂不可用"
-          }
-        />
-        <Metric
-          label="最近记录"
-          value={
-            recent.availability === "available"
-              ? `${recent.items.length.toLocaleString("zh-CN")} 条`
-              : "暂不可用"
-          }
-        />
-      </div>
+      {metrics.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3 border-b border-blue-100/70 pb-3 sm:grid-cols-4">
+          {metrics}
+        </div>
+      ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 pt-3 sm:grid-cols-[1.25fr_1fr_1.2fr]">
-        <section className="min-w-0 border-blue-100/70 sm:border-r sm:pr-3">
-          <p className="text-[10px] font-bold text-ink-muted">本周 Top Tracks</p>
-          {weekly.availability === "available" ? (
-            <div className="mt-2 space-y-1.5">
-              {weekly.topTracks.slice(0, 4).map((entry) => (
-                <div
-                  className="flex items-center justify-between gap-2"
-                  key={entry.track.providerTrackId}
-                >
-                  <span className="truncate text-[10px] font-semibold text-ink">
-                    {entry.track.name}
-                  </span>
-                  <span className="shrink-0 text-[9px] font-bold text-[#ff3f5d]">
-                    {entry.playCount} 次
-                  </span>
-                </div>
-              ))}
-              {weekly.topTracks.length === 0 ? <EmptyLabel text="有效空数据集" /> : null}
-            </div>
-          ) : (
-            <UnavailableLabel reason={weekly.reason} />
-          )}
-        </section>
+      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-3 pt-3 ${detailGrid}`}>
+        {showTopTracks ? (
+          <section className="min-w-0 border-blue-100/70 sm:border-r sm:pr-3">
+            <p className="text-[10px] font-bold text-ink-muted">本周 Top Tracks</p>
+            {weekly.availability === "available" ? (
+              <div className="mt-2 space-y-1.5">
+                {weekly.topTracks.slice(0, listLimit).map((entry) => (
+                  <div
+                    className="flex items-center justify-between gap-2"
+                    key={entry.track.providerTrackId}
+                  >
+                    <span className="truncate text-[10px] font-semibold text-ink">
+                      {entry.track.name}
+                    </span>
+                    <span className="shrink-0 text-[9px] font-bold text-[#ff3f5d]">
+                      {entry.playCount} 次
+                    </span>
+                  </div>
+                ))}
+                {weekly.topTracks.length === 0 ? <EmptyLabel text="有效空数据集" /> : null}
+              </div>
+            ) : (
+              <UnavailableLabel reason={weekly.reason} />
+            )}
+          </section>
+        ) : null}
 
-        <section className="min-w-0 border-blue-100/70 sm:border-r sm:pr-3">
-          <p className="text-[10px] font-bold text-ink-muted">
-            {showArtists ? "Top Artists" : "Provider Coverage"}
-          </p>
-          {showArtists && weekly.availability === "available" ? (
-            <div className="mt-2 space-y-1.5">
-              {weekly.topArtists.slice(0, 4).map((artist) => (
-                <div
-                  className="flex items-center justify-between gap-2"
-                  key={artist.providerArtistId}
-                >
-                  <span className="truncate text-[10px] font-semibold text-ink">{artist.name}</span>
-                  <span className="text-[9px] text-ink-muted">{artist.rankedPlayCount}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-[9px] leading-relaxed text-ink-muted">
-              Provider 排行仅覆盖返回的 Top Records；不会推测音乐类型或完整历史。
+        {showArtists ? (
+          <section className="min-w-0 border-blue-100/70 sm:border-r sm:pr-3">
+            <p className="text-[10px] font-bold text-ink-muted">Top Artists</p>
+            {weekly.availability === "available" ? (
+              <div className="mt-2 space-y-1.5">
+                {weekly.topArtists.slice(0, listLimit).map((artist) => (
+                  <div
+                    className="flex items-center justify-between gap-2"
+                    key={artist.providerArtistId}
+                  >
+                    <span className="truncate text-[10px] font-semibold text-ink">
+                      {artist.name}
+                    </span>
+                    <span className="text-[9px] text-ink-muted">{artist.rankedPlayCount}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <UnavailableLabel reason={weekly.reason} />
+            )}
+          </section>
+        ) : null}
+
+        {detailPanel !== "none" ? (
+          <section className="min-w-0">
+            <p className="text-[10px] font-bold text-ink-muted">
+              {detailPanel === "trend" ? "收听报告" : "最近播放"}
             </p>
-          )}
-        </section>
-
-        <section className="min-w-0">
-          <p className="text-[10px] font-bold text-ink-muted">
-            {showTrend ? "收听报告" : "最近播放"}
-          </p>
-          {showTrend && data.trend.availability === "available" ? (
-            <div className="mt-1 h-[100px] w-full">
-              <ResponsiveContainer height="100%" width="100%">
-                <LineChart
-                  data={data.trend.points}
-                  margin={{ bottom: 0, left: -24, right: 4, top: 8 }}
-                >
-                  <XAxis axisLine={false} dataKey="label" fontSize={8} tickLine={false} />
-                  <YAxis axisLine={false} fontSize={8} tickLine={false} />
-                  <Line
-                    dataKey="minutes"
-                    dot={{ fill: "#ff4661", r: 3, strokeWidth: 0 }}
-                    stroke="#ff4661"
-                    strokeWidth={2.2}
-                    type="monotone"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : recent.availability === "available" ? (
-            <div className="mt-2 space-y-1.5">
-              {recent.items.slice(0, 4).map((item) => (
-                <div className="min-w-0" key={`${item.track.providerTrackId}-${item.playedAt}`}>
-                  <p className="truncate text-[10px] font-semibold text-ink">{item.track.name}</p>
-                  <p className="text-[8px] text-ink-muted">
-                    {item.playedAt.slice(5, 16).replace("T", " ")} UTC
-                  </p>
+            {detailPanel === "trend" ? (
+              data.trend.availability === "available" ? (
+                <div className="mt-1 h-[100px] w-full">
+                  <ResponsiveContainer height="100%" width="100%">
+                    <LineChart
+                      data={data.trend.points}
+                      margin={{ bottom: 0, left: -24, right: 4, top: 8 }}
+                    >
+                      <XAxis axisLine={false} dataKey="label" fontSize={8} tickLine={false} />
+                      <YAxis axisLine={false} fontSize={8} tickLine={false} />
+                      <Line
+                        dataKey="minutes"
+                        dot={{ fill: "#ff4661", r: 3, strokeWidth: 0 }}
+                        stroke="#ff4661"
+                        strokeWidth={2.2}
+                        type="monotone"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <UnavailableLabel reason={recent.reason} />
-          )}
-        </section>
+              ) : (
+                <UnavailableLabel reason={data.trend.reason} />
+              )
+            ) : recent.availability === "available" ? (
+              <div className="mt-2 space-y-1.5">
+                {recent.items.slice(0, listLimit).map((item) => (
+                  <div className="min-w-0" key={`${item.track.providerTrackId}-${item.playedAt}`}>
+                    <p className="truncate text-[10px] font-semibold text-ink">{item.track.name}</p>
+                    <p className="text-[8px] text-ink-muted">
+                      {item.playedAt.slice(5, 16).replace("T", " ")} UTC
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <UnavailableLabel reason={recent.reason} />
+            )}
+          </section>
+        ) : null}
+        {detailCount === 0 ? (
+          <p className="self-center text-center text-[10px] font-semibold text-ink-muted">
+            未选择详情字段
+          </p>
+        ) : null}
       </div>
     </div>
   );

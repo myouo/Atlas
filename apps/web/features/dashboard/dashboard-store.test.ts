@@ -74,6 +74,31 @@ describe("local Draft / Published lifecycle", () => {
     ).toBe(true);
   });
 
+  it("updates one Widget presentationConfig only in the local Draft", () => {
+    useDashboardStore.getState().initializeLocal(mockDashboard, mockDraft, "mock:rev:1");
+    const widget = useDashboardStore
+      .getState()
+      .draft!.widgets.find((candidate) => candidate.type === "music.netease.overview")!;
+
+    useDashboardStore.getState().updateWidgetPresentationConfig(widget.id, {
+      ...widget.presentationConfig,
+      detailPanel: "recent",
+      showArtists: false
+    });
+
+    const state = useDashboardStore.getState();
+    const draftWidget = state.draft!.widgets.find((candidate) => candidate.id === widget.id)!;
+    const publishedWidget = state.published!.widgets.find(
+      (candidate) => candidate.id === widget.id
+    )!;
+    expect(state.dirty).toBe(true);
+    expect(draftWidget.presentationConfig).toMatchObject({
+      detailPanel: "recent",
+      showArtists: false
+    });
+    expect(publishedWidget.presentationConfig.showArtists).toBe(true);
+  });
+
   it("replaces cached state from the API composition boundary", () => {
     useDashboardStore.getState().initializeLocal(mockDashboard, mockDraft, "mock:rev:1");
     const remoteDraft = {
