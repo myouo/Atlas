@@ -86,7 +86,7 @@ jobs:
         run: pnpm build
 
       - name: Verify Cloudflare generated types
-        run: pnpm cf:typecheck
+        run: pnpm cf:typecheck && pnpm cf:typecheck:pages
 
       - name: Build Cloudflare Pages static preview
         run: pnpm build:pages

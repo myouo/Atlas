@@ -19,7 +19,7 @@ const worker = spawn(
     "--port",
     String(port),
     "--var",
-    "API_PUBLIC_ORIGIN:http://127.0.0.1:8791",
+    "API_PUBLIC_ORIGIN:http://127.0.0.1:8791/api",
     "--var",
     "APP_PUBLIC_ORIGIN:http://127.0.0.1:3000",
     "--var",
@@ -68,6 +68,11 @@ try {
   assert(authorizationUrl.hostname === "github.com", "unexpected GitHub authorization host");
   assert(Boolean(authorizationUrl.searchParams.get("state")), "OAuth state is missing");
   assert(Boolean(authorizationUrl.searchParams.get("code_challenge")), "PKCE challenge is missing");
+  assert(
+    new URL(authorizationUrl.searchParams.get("redirect_uri")).pathname ===
+      "/api/v1/auth/github/callback",
+    "OAuth callback did not preserve the same-origin API prefix"
+  );
 
   process.stdout.write(`${JSON.stringify({ command: "smoke-d1-worker", status: "passed" })}\n`);
 } finally {

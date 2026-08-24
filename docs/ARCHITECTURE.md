@@ -307,11 +307,15 @@ Sanitized NetEase HTTP fixtures cover normal, empty, partial, credential-expired
 The optional Cloudflare adapter preserves the same contract boundary:
 
 ```text
-Pages → generated API client → Fetch API Worker
-                                  ↓
-                         DashboardReadService
-                                  ↓
-                   D1 Reader / Projection Hydrator
+Pages → generated API client → same-origin /api
+                                      ↓
+                           Pages Function proxy
+                                      ↓ service binding
+                              Fetch API Worker
+                                      ↓
+                             DashboardReadService
+                                      ↓
+                       D1 Reader / Projection Hydrator
 
 SyncJobQueue Port → Cloudflare Queue → Consumer Worker
 ```
@@ -319,6 +323,8 @@ SyncJobQueue Port → Cloudflare Queue → Consumer Worker
 D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, and Owner reads. Owner mutations, Credential storage, and Provider execution remain disabled until their D1 repositories pass the same immutability, CAS, encryption, LKG, and retry tests as the generic runtime. See ADR 0016.
 
 The public homepage is content-only: anonymous visitors receive no mode switcher, editing chrome, status/sync/API controls, Settings link, phase badge, or operational footer. Direct `/settings` access owns the authentication entry point. Once the API reports an authenticated Owner session, the same `DashboardCanvas` reveals the existing control surface without introducing a second renderer.
+
+The Pages Function removes the `/api` prefix and forwards the request through a Worker Service Binding. OAuth callback responses therefore set a first-party Pages cookie; the browser never depends on a third-party Worker-domain cookie.
 
 The API production artifact bundles Nivalis Domain/Application code while leaving third-party Node dependencies external. This is a packaging boundary only; it does not collapse the source-layer dependency direction. See ADR 0005.
 

@@ -9,6 +9,7 @@ test-results
 pnpm-lock.yaml
 packages/api-client/src/generated
 infra/providers/cloudflare/edge/worker-configuration.d.ts
+apps/web/cloudflare-env.d.ts
 Nivalis_AboutMe_Spec_GitHub_Pack_v0.1
 apps/web/next-env.d.ts
 apps/web/public/images

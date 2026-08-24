@@ -6,7 +6,9 @@ Cloudflare remains infrastructure, not a business dependency. Account IDs, gener
 
 ```text
 Cloudflare Pages
-       ↓ generated OpenAPI client
+       ↓ same-origin /api
+Pages Function
+       ↓ Worker Service Binding
 Fetch-native API Worker
        ↓
 DashboardReadService
@@ -38,7 +40,7 @@ Anonymous visitors receive a content-only homepage. The mode switcher, editing c
 Create a GitHub OAuth App with this exact callback shape:
 
 ```text
-<api-worker-origin>/v1/auth/github/callback
+<pages-origin>/api/v1/auth/github/callback
 ```
 
 Configure these Worker values through deployment variables/secrets, never source:
@@ -54,7 +56,7 @@ GITHUB_OAUTH_CLIENT_SECRET
 NIVALIS_CREDENTIAL_MASTER_KEY
 ```
 
-OAuth state/PKCE material is short-lived and AEAD-encrypted in D1. Session cookies are opaque, HttpOnly, Secure, and SameSite=None; only the token hash is stored. GitHub access tokens are used once to read the stable numeric user ID and are never persisted.
+OAuth state/PKCE material is short-lived and AEAD-encrypted in D1. Session cookies are opaque, HttpOnly, Secure, and SameSite=Lax; only the token hash is stored. GitHub access tokens are used once to read the stable numeric user ID and are never persisted.
 
 ## Local D1
 
@@ -81,7 +83,7 @@ Build Pages in API Mode by injecting the Worker origin at build time:
 
 ```bash
 NEXT_PUBLIC_DASHBOARD_SOURCE=api \
-NEXT_PUBLIC_API_BASE_URL=<api-worker-origin> \
+NEXT_PUBLIC_API_BASE_URL=<pages-origin>/api \
 CLOUDFLARE_PAGES_PROJECT=<project> \
 pnpm deploy:pages
 ```

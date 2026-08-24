@@ -15,6 +15,7 @@
     "build:pages": "pnpm generate && NIVALIS_WEB_DEPLOY_TARGET=cloudflare-pages pnpm --filter @nivalis/web build",
     "build:pages:mock": "NEXT_PUBLIC_DASHBOARD_SOURCE=mock NEXT_PUBLIC_API_BASE_URL= pnpm build:pages",
     "cf:typecheck": "wrangler types infra/providers/cloudflare/edge/worker-configuration.d.ts --config infra/providers/cloudflare/edge/wrangler.jsonc --include-runtime=false --check",
+    "cf:typecheck:pages": "wrangler types apps/web/cloudflare-env.d.ts --config apps/web/wrangler.jsonc --include-runtime=false --check",
     "db:migrate": "pnpm --filter @nivalis/api db:migrate",
     "db:migrate:status": "pnpm --filter @nivalis/api db:migrate:status",
     "db:rollback": "pnpm --filter @nivalis/api db:rollback",

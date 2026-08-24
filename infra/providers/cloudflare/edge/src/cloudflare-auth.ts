@@ -35,7 +35,7 @@ export function createAuthRuntime(
 ): AuthRuntime | null {
   const clientId = nonEmpty(environment.GITHUB_OAUTH_CLIENT_ID);
   const clientSecret = nonEmpty(environment.GITHUB_OAUTH_CLIENT_SECRET);
-  const apiOrigin = validOrigin(environment.API_PUBLIC_ORIGIN);
+  const apiBaseUrl = validBaseUrl(environment.API_PUBLIC_ORIGIN);
   const appOrigin = validOrigin(environment.APP_PUBLIC_ORIGIN);
   const masterKey = nonEmpty(environment.NIVALIS_CREDENTIAL_MASTER_KEY);
   const ownerActorId = nonEmpty(environment.NIVALIS_OWNER_ID);
@@ -43,7 +43,7 @@ export function createAuthRuntime(
   if (
     !clientId ||
     !clientSecret ||
-    !apiOrigin ||
+    !apiBaseUrl ||
     !appOrigin ||
     !masterKey ||
     !ownerActorId ||
@@ -59,7 +59,7 @@ export function createAuthRuntime(
     new WorkerGitHubOAuthClient({
       clientId,
       clientSecret,
-      redirectUri: new URL("/v1/auth/github/callback", apiOrigin).toString()
+      redirectUri: appendPath(apiBaseUrl, "v1/auth/github/callback")
     }),
     tokens,
     new WebCryptoSecretProtector(
@@ -103,11 +103,11 @@ export async function revokeAuthSession(request: Request, database: D1Database) 
 
 export function sessionCookie(token: string, expiresAt: Date) {
   const maxAge = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1_000));
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`;
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 }
 
 export function expiredSessionCookie() {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`;
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 }
 
 function readCookie(request: Request, name: string) {
@@ -134,4 +134,24 @@ function validOrigin(value: string | undefined) {
   } catch {
     return null;
   }
+}
+
+function validBaseUrl(value: string | undefined) {
+  const normalized = nonEmpty(value);
+  if (!normalized) return null;
+  try {
+    const url = new URL(normalized);
+    if (!(url.protocol === "https:" || url.hostname === "127.0.0.1")) return null;
+    if (url.search || url.hash) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function appendPath(baseUrl: string, pathname: string) {
+  const url = new URL(baseUrl);
+  const basePath = url.pathname.replace(/\/$/, "");
+  url.pathname = `${basePath}/${pathname}`;
+  return url.toString();
 }

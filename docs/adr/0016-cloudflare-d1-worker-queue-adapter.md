@@ -16,6 +16,7 @@ The generic Nivalis deployment uses PostgreSQL, Fastify, and a persistent pg-bos
 4. Cloudflare Queues implements `SyncJobQueue`; every consumer message is explicitly acknowledged or retried.
 5. The first vertical slices are the public Published Dashboard read model, GitHub OAuth/D1 Session, and Owner configuration reads. Owner writes and Provider execution remain unavailable until their D1 adapters are complete.
 6. Unimplemented Cloudflare routes return structured Problem Details and never fall back to ephemeral state.
+7. Pages Functions owns a same-origin `/api/*` proxy to the API Worker through a Service Binding, so OAuth Session cookies are first-party to the public site.
 
 ## Consequences
 

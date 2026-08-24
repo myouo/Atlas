@@ -10,21 +10,15 @@ if (!projectName) {
 }
 
 await run("pnpm", ["build:pages"]);
-await run("pnpm", [
-  "exec",
-  "wrangler",
-  "pages",
-  "deploy",
-  "apps/web/out",
-  "--project-name",
-  projectName,
-  "--branch",
-  branch
-]);
+await run(
+  "pnpm",
+  ["exec", "wrangler", "pages", "deploy", "out", "--project-name", projectName, "--branch", branch],
+  { cwd: "apps/web" }
+);
 
-function run(command, args) {
+function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "inherit" });
+    const child = spawn(command, args, { ...options, stdio: "inherit" });
     child.once("error", reject);
     child.once("exit", (code) => {
       if (code === 0) resolve();

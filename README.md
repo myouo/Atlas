@@ -220,7 +220,7 @@ pnpm d1:migrate:remote
 pnpm d1:seed:remote
 
 NEXT_PUBLIC_DASHBOARD_SOURCE=api \
-NEXT_PUBLIC_API_BASE_URL=<api-worker-origin> \
+NEXT_PUBLIC_API_BASE_URL=<pages-origin>/api \
 CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 ```
 
@@ -234,6 +234,8 @@ CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 See [ADR 0016](docs/adr/0016-cloudflare-d1-worker-queue-adapter.md) and the [Cloudflare adapter guide](infra/providers/cloudflare/README.md).
 
 The public homepage intentionally has no administration chrome. Open `/settings` directly to authenticate as Owner; the display/edit controls, Provider status, sync actions, API information, and Settings link appear on the homepage only after the API reports an Owner session.
+
+Cloudflare Pages Functions proxies `/api/*` to the API Worker through a Service Binding. OAuth callback and Session cookies therefore stay on the Pages origin instead of relying on cross-site `pages.dev` → `workers.dev` cookies.
 
 ## Security
 

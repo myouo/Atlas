@@ -98,7 +98,12 @@ for (const file of files) {
     findings.push(`${file}: HTTP transport imports a database implementation.`);
   }
 
-  if (/apps\/web\//.test(file) && !isTestFile && /\bfetch\s*\(/.test(source)) {
+  if (
+    /apps\/web\//.test(file) &&
+    !/apps\/web\/functions\//.test(file) &&
+    !isTestFile &&
+    /\bfetch\s*\(/.test(source)
+  ) {
     findings.push(`${file}: Web performs a direct fetch instead of using @nivalis/api-client.`);
   }
 
