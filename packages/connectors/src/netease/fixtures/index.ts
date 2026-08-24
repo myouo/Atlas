@@ -26,7 +26,7 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
     level: 10,
     listenSongs: 6_421,
     profile: {
-      avatarUrl: "https://p1.music.126.net/sanitized-fixture/avatar.jpg",
+      avatarUrl: "http://p1.music.126.net/sanitized-fixture/avatar.jpg",
       nickname: "Nivalis Fixture",
       userId: 10001
     }
@@ -40,7 +40,7 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       avatarDetail: {
         identityIconUrl: "https://p1.music.126.net/sanitized-fixture/avatar-frame.png"
       },
-      avatarUrl: "https://p1.music.126.net/sanitized-fixture/avatar.jpg",
+      avatarUrl: "http://p1.music.126.net/sanitized-fixture/avatar.jpg",
       eventCount: 18,
       followeds: 128,
       follows: 36,

@@ -132,7 +132,11 @@ describe("NetEase Provider module", () => {
     const projections = await new NeteaseProjector().project(normalized, targets);
     const identity = projections[0]!.data as JsonObject;
     expect(identity).toMatchObject({
-      profile: { displayName: "Nivalis Fixture", level: 10 },
+      profile: {
+        avatarUrl: "https://p1.music.126.net/sanitized-fixture/avatar.jpg",
+        displayName: "Nivalis Fixture",
+        level: 10
+      },
       vip: { availability: "available", redVipLevel: 6 }
     });
     expect(JSON.stringify(identity)).not.toContain("Music is the place");

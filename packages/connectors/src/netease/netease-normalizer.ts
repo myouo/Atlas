@@ -396,10 +396,21 @@ function safeArtworkUrl(value: string | undefined | null) {
   if (!value) return null;
   try {
     const url = new URL(value);
+    if (url.protocol === "http:" && isNeteaseArtworkHost(url.hostname)) {
+      url.protocol = "https:";
+    }
     return url.protocol === "https:" ? url.toString() : null;
   } catch {
     return null;
   }
+}
+
+function isNeteaseArtworkHost(hostname: string) {
+  return (
+    hostname === "music.163.com" ||
+    hostname.endsWith(".music.163.com") ||
+    hostname.endsWith(".music.126.net")
+  );
 }
 
 function timestamp(value: number | undefined) {
