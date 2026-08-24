@@ -142,6 +142,7 @@ Application startup never creates tables. Seed is idempotent, development-only, 
 - `003`: projection extraction, SyncRun, Raw Snapshot, and pg-boss runtime.
 - `004`: Owner Auth/session, AEAD credentials, NetEase native tables, `source_kind`, config split, and NetEase Widget v2 upgrade.
 - `005`: encrypted, expiring Provider AuthAttempt state for QR and SMS login.
+- `006`: Owner-only Provider data catalog plus total-duration native metric support.
 
 Migration rollback and user-facing Revision Restore are unrelated operations. Migration `004` preserves v1 history and creates immutable `schema_upgrade` successors for current NetEase Widget configurations.
 
@@ -174,7 +175,9 @@ NETEASE_INTEGRATION_MUSIC_U=
 pnpm test:provider
 ```
 
-The NetEase integration is deliberately small: account validation, user-detail listen total, weekly records, recent songs, and weekly listening report. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
+The NetEase integration is deliberately read-only but now covers account/profile identity, level progress, VIP tiers, Provider-reported cumulative listening duration, weekly and all-time rankings, recent songs, weekly listening reports, bounded following/follower lists, created playlists, social status, and obtained/worn badges. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
+
+After one successful sync, Settings exposes an authenticated **网易云完整数据** catalog. This is a normalized allowlist—not Raw Snapshot data—and never includes credentials, headers, login IPs, or other private Provider fields. Owner edit mode offers semantic public policies for NetEase identity, listening, ranking, social, playlist, and showcase cards. Public scope is enforced while building the Projection; display-only switches are not treated as privacy controls.
 
 ## Test database and quality gates
 
@@ -225,10 +228,10 @@ CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 ```
 
 - D1 has independent SQLite migrations and an idempotent fixture Seed.
-- `/health`, `/ready`, public Profile/Dashboard, GitHub OAuth, D1 Session, Owner reads, and Provider connection resources are implemented.
+- `/health`, `/ready`, public Profile/Dashboard, GitHub OAuth/D1 Session, immutable Draft save/Publish, Owner reads, Provider connection resources, and `GET /v1/me/providers/netease/data` are implemented.
 - Cloudflare Queues carries both SyncRun and Provider AuthAttempt UUID envelopes with explicit per-message ack/retry behavior.
-- D1 stores AEAD-encrypted NetEase credentials, ephemeral QR/SMS state, SyncRuns, sync state, sanitized Raw Snapshots, account-native metadata, and Last Known Good projections.
-- Immutable Revision write/CAS routes and the full NetEase native history/replay adapter remain incomplete on D1 and continue to return Problem Details where applicable.
+- D1 stores AEAD-encrypted NetEase credentials, ephemeral QR/SMS state, SyncRuns, sync state, sanitized Raw Snapshots, the Owner-only data catalog, and Last Known Good projections.
+- Revision history/detail/restore, granular Widget routes, and the full NetEase relational native history/replay adapter remain incomplete on D1 and continue to return Problem Details where applicable.
 - The PostgreSQL/Fastify/pg-boss implementation remains available and fully tested.
 - No Cloudflare account, domain, project endpoint, or secret is committed.
 
@@ -236,7 +239,7 @@ See [ADR 0016](docs/adr/0016-cloudflare-d1-worker-queue-adapter.md) and the [Clo
 
 The public homepage intentionally has no administration chrome. Open `/settings` directly to authenticate as Owner; the display/edit controls, Provider status, sync actions, API information, and Settings link appear on the homepage only after the API reports an Owner session.
 
-In Owner edit mode, every registered card exposes a shared display-field control. Toggle/select choices update only the local Draft `presentationConfig`; use **Save Draft** to create an immutable server revision and **Publish Layout** to update the public view. Display choices do not trigger Provider synchronization or change Projection Keys.
+In Owner edit mode, every registered card uses the shared configuration surface. Presentation choices update only `presentationConfig`; NetEase semantic public policies update `dataConfig` and are enforced by the Projector before data reaches a public payload. Use **Save Draft**, sync data-affecting policy changes, then **Publish Layout**. Presentation choices do not change Projection Keys; public policy and selected resources do.
 
 Cloudflare Pages Functions proxies `/api/*` to the API Worker through a Service Binding. OAuth callback and Session cookies therefore stay on the Pages origin instead of relying on cross-site `pages.dev` → `workers.dev` cookies.
 

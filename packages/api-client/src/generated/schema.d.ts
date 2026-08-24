@@ -336,6 +336,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/providers/netease/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Owner-only sanitized NetEase data catalog
+         * @description Returns the latest normalized Provider data available for composition. It never returns MUSIC_U, request headers, private Raw Snapshot fields, or unvalidated Provider payloads. Public Dashboard cards are separately projected from explicit dataConfig allowlists.
+         */
+        get: operations["getNeteaseProviderDataCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/providers/netease/connect": {
         parameters: {
             query?: never;
@@ -646,7 +666,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            type: "profile.hero" | "system.stats" | "music.netease.overview" | "github.profile" | "bilibili.profile" | "steam.profile" | "bangumi.collection";
+            type: "profile.hero" | "system.stats" | "music.netease.overview" | "music.netease.identity" | "music.netease.listening" | "music.netease.ranking" | "music.netease.social" | "music.netease.playlists" | "music.netease.showcase" | "github.profile" | "bilibili.profile" | "steam.profile" | "bangumi.collection";
             provider: components["schemas"]["Provider"];
             schemaVersion: number;
             title: string;
@@ -710,7 +730,7 @@ export interface components {
             /** @constant */
             availability: "unavailable";
             /** @enum {string} */
-            reason: "not_synced" | "provider_omitted" | "unsupported" | "insufficient_coverage" | "schema_unavailable";
+            reason: "not_synced" | "provider_omitted" | "unsupported" | "insufficient_coverage" | "schema_unavailable" | "not_public" | "resource_not_found";
         };
         NeteaseTrackSummaryV2: {
             providerTrackId: string;
@@ -795,6 +815,306 @@ export interface components {
             listeningDuration: components["schemas"]["NeteaseMetricAvailableV2"] | components["schemas"]["DataUnavailable"];
             trend: components["schemas"]["NeteaseTrendAvailableV2"] | components["schemas"]["DataUnavailable"];
         };
+        NeteaseUserSummaryV1: {
+            providerUserId: string;
+            displayName: string;
+            /** Format: uri */
+            avatarUrl: string | null;
+            /** Format: uri */
+            avatarDecorationUrl: string | null;
+            signature: string | null;
+            vipType: number | null;
+        };
+        NeteasePlaylistSummaryV1: {
+            providerPlaylistId: string;
+            name: string;
+            /** Format: uri */
+            coverUrl: string | null;
+            trackCount: number;
+            playCount: number;
+            subscribedCount: number;
+            tags: string[];
+        };
+        NeteaseMedalSummaryV1: {
+            providerMedalCode: string;
+            name: string;
+            description: string | null;
+            /** Format: uri */
+            iconUrl: string | null;
+            level: number | null;
+            worn: boolean;
+        };
+        NeteaseMembershipSummaryV1: {
+            /** @enum {string} */
+            kind: "associator" | "music_package" | "red_plus" | "voice_book" | "album";
+            vipCode: number | null;
+            level: number | null;
+        };
+        NeteaseRankingItemV1: {
+            rank: number;
+            playCount: number;
+            score: number;
+            track: components["schemas"]["NeteaseTrackSummaryV2"];
+        };
+        NeteaseIdentityDataV1: {
+            /** @constant */
+            provider: "netease";
+            publicFields: ("display_name" | "avatar" | "avatar_decoration" | "signature" | "level" | "vip" | "following_count" | "follower_count" | "playlist_count" | "event_count" | "medals" | "social_status" | "provider_user_id")[];
+            profile: {
+                /** @constant */
+                availability: "available";
+                providerUserId?: string;
+                displayName?: string | null;
+                /** Format: uri */
+                avatarUrl?: string | null;
+                /** Format: uri */
+                avatarDecorationUrl?: string | null;
+                signature?: string | null;
+                level?: number | null;
+                followingCount?: number;
+                followerCount?: number;
+                playlistCount?: number;
+                eventCount?: number;
+            };
+            vip: {
+                /** @constant */
+                availability: "available";
+                active: boolean;
+                redVipLevel: number | null;
+                redVipAnnualCount: number | null;
+                memberships: components["schemas"]["NeteaseMembershipSummaryV1"][];
+            } | components["schemas"]["DataUnavailable"];
+            medals: {
+                /** @constant */
+                availability: "available";
+                obtainedCount: number;
+                items: components["schemas"]["NeteaseMedalSummaryV1"][];
+            } | components["schemas"]["DataUnavailable"];
+            socialStatus: {
+                /** @constant */
+                availability: "available";
+                providerStatusId: string;
+                name: string;
+                /** Format: uri */
+                iconUrl: string | null;
+            } | components["schemas"]["DataUnavailable"];
+        };
+        NeteaseListeningDataV1: {
+            /** @constant */
+            provider: "netease";
+            publicFields: ("total_count" | "total_duration" | "weekly_duration" | "trend")[];
+            totalListenCount: components["schemas"]["NeteaseMetricAvailableV3"] | components["schemas"]["DataUnavailable"];
+            totalListeningDuration: components["schemas"]["NeteaseMetricAvailableV3"] | components["schemas"]["DataUnavailable"];
+            weeklyListeningDuration: components["schemas"]["NeteaseMetricAvailableV3"] | components["schemas"]["DataUnavailable"];
+            trend: components["schemas"]["NeteaseTrendAvailableV2"] | components["schemas"]["DataUnavailable"];
+        };
+        NeteaseMetricAvailableV3: {
+            /** @constant */
+            availability: "available";
+            value: number;
+            /** @enum {string} */
+            unit: "plays" | "seconds" | "minutes";
+            /** @enum {string} */
+            period: "all_time" | "provider_week";
+            /** @constant */
+            provenance: "provider_reported";
+        };
+        NeteaseRankingDataV1: {
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            provider: "netease";
+            /** @enum {string} */
+            range: "week" | "all_time";
+            /** @constant */
+            coverage: "provider_top_100";
+            publicLimit: number;
+            totalAvailable: number;
+            items: components["schemas"]["NeteaseRankingItemV1"][];
+        };
+        NeteasePeopleListV1: {
+            /** @constant */
+            availability: "available";
+            complete: boolean;
+            items: components["schemas"]["NeteaseUserSummaryV1"][];
+        };
+        NeteaseSocialDataV1: {
+            /** @constant */
+            provider: "netease";
+            followingCount: number;
+            followerCount: number;
+            publicLists: ("following" | "followers")[];
+            publicLimit: number;
+            following: components["schemas"]["NeteasePeopleListV1"] | components["schemas"]["DataUnavailable"];
+            followers: components["schemas"]["NeteasePeopleListV1"] | components["schemas"]["DataUnavailable"];
+        };
+        NeteasePlaylistsDataV1: {
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            provider: "netease";
+            complete: boolean;
+            providerTotal: number | null;
+            publicLimit: number;
+            items: components["schemas"]["NeteasePlaylistSummaryV1"][];
+        };
+        NeteaseShowcaseDataV1: {
+            /** @enum {string} */
+            availability: "available" | "unavailable";
+            /** @constant */
+            provider: "netease";
+            /** @enum {string} */
+            source: "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "provider_music_card";
+            /** @enum {string} */
+            reason?: "resource_not_found";
+            card?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        NeteaseOwnerAccountV1: {
+            providerUserId: string;
+            displayName: string | null;
+            /** Format: uri */
+            avatarUrl: string | null;
+            /** Format: uri */
+            avatarFrameUrl: string | null;
+            /** Format: date-time */
+            createdAt: string | null;
+            eventCount: number;
+            followerCount: number;
+            followingCount: number;
+            level: number | null;
+            playlistCount: number;
+            signature: string | null;
+            vipType: number | null;
+        };
+        NeteaseOwnerPersonV1: {
+            providerUserId: string;
+            displayName: string;
+            /** Format: uri */
+            avatarUrl: string | null;
+            /** Format: uri */
+            avatarFrameUrl: string | null;
+            signature: string | null;
+            vipType: number | null;
+        };
+        NeteaseOwnerPeopleCollectionV1: {
+            complete: boolean;
+            providerTotal: number | null;
+            items: components["schemas"]["NeteaseOwnerPersonV1"][];
+        };
+        NeteaseOwnerPlaylistV1: {
+            providerPlaylistId: string;
+            name: string;
+            /** Format: uri */
+            coverUrl: string | null;
+            /** Format: date-time */
+            createdAt: string | null;
+            description: string | null;
+            playCount: number;
+            subscribedCount: number;
+            tags: string[];
+            totalDurationMs: number | null;
+            trackCount: number;
+        };
+        NeteaseOwnerPlaylistCollectionV1: {
+            complete: boolean;
+            providerTotal: number | null;
+            items: components["schemas"]["NeteaseOwnerPlaylistV1"][];
+        };
+        NeteaseOwnerMedalV1: {
+            providerMedalCode: string;
+            name: string;
+            description: string | null;
+            /** Format: uri */
+            iconUrl: string | null;
+            level: number | null;
+            /** Format: date-time */
+            obtainedAt: string | null;
+            worn: boolean;
+        };
+        NeteaseOwnerMembershipV1: {
+            /** @enum {string} */
+            kind: "associator" | "music_package" | "red_plus" | "voice_book" | "album";
+            active: boolean;
+            /** Format: date-time */
+            expiresAt: string | null;
+            level: number | null;
+            vipCode: number | null;
+        };
+        NeteaseOwnerMusicCardV1: {
+            providerCardId: string;
+            /** @enum {string} */
+            cardKind: "album" | "duration" | "medal" | "playlist" | "song" | "unknown";
+            title: string;
+            description: string | null;
+            /** Format: uri */
+            coverUrl: string | null;
+            resourceId: string | null;
+        };
+        NeteaseDataCatalog: {
+            /** @constant */
+            provider: "netease";
+            /** @constant */
+            schemaVersion: 1;
+            /** Format: uuid */
+            dataVersion: string;
+            /** Format: date-time */
+            generatedAt: string;
+            catalog: {
+                account: components["schemas"]["NeteaseOwnerAccountV1"];
+                levelProgress: {
+                    currentLoginCount: number | null;
+                    currentPlayCount: number | null;
+                    nextLoginCount: number | null;
+                    nextPlayCount: number | null;
+                    progress: number | null;
+                };
+                listening: {
+                    totalDurationSeconds: number | null;
+                    totalListenCount: number;
+                    weeklyDurationMinutes: number | null;
+                    weeklyTrend: {
+                        label: string;
+                        minutes: number;
+                    }[];
+                };
+                weeklyRanking: components["schemas"]["NeteaseRankingItemV1"][];
+                allTimeRanking: components["schemas"]["NeteaseRankingItemV1"][];
+                recentListening: {
+                    /** Format: date-time */
+                    playedAt: string;
+                    track: components["schemas"]["NeteaseTrackSummaryV2"];
+                }[];
+                following: components["schemas"]["NeteaseOwnerPeopleCollectionV1"];
+                followers: components["schemas"]["NeteaseOwnerPeopleCollectionV1"];
+                createdPlaylists: components["schemas"]["NeteaseOwnerPlaylistCollectionV1"];
+                medals: {
+                    obtainedCount: number;
+                    items: components["schemas"]["NeteaseOwnerMedalV1"][];
+                };
+                memberships: components["schemas"]["NeteaseOwnerMembershipV1"][];
+                musicCards: {
+                    /** @enum {string} */
+                    sourceAvailability: "available" | "provider_omitted";
+                    items: components["schemas"]["NeteaseOwnerMusicCardV1"][];
+                };
+                redVipLevel: number | null;
+                redVipAnnualCount: number | null;
+                socialStatus: null | {
+                    providerStatusId: string;
+                    name: string;
+                    /** Format: uri */
+                    iconUrl: string | null;
+                };
+                /** @constant */
+                provider: "netease";
+                /** @constant */
+                schemaVersion: 1;
+            };
+        };
         GithubProfileData: {
             handle: string;
             repositories: number;
@@ -853,6 +1173,60 @@ export interface components {
             provider?: "netease";
             data: components["schemas"]["NeteaseOverviewDataV2"];
         };
+        NeteaseIdentityWidgetV1: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.identity";
+            /** @constant */
+            schemaVersion: 1;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseIdentityDataV1"];
+        };
+        NeteaseListeningWidgetV1: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.listening";
+            /** @constant */
+            schemaVersion: 1;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseListeningDataV1"];
+        };
+        NeteaseRankingWidgetV1: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.ranking";
+            /** @constant */
+            schemaVersion: 1;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseRankingDataV1"];
+        };
+        NeteaseSocialWidgetV1: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.social";
+            /** @constant */
+            schemaVersion: 1;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseSocialDataV1"];
+        };
+        NeteasePlaylistsWidgetV1: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.playlists";
+            /** @constant */
+            schemaVersion: 1;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteasePlaylistsDataV1"];
+        };
+        NeteaseShowcaseWidgetV1: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.showcase";
+            /** @constant */
+            schemaVersion: 1;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseShowcaseDataV1"];
+        };
         GithubProfileWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
             type: "github.profile";
@@ -881,7 +1255,7 @@ export interface components {
             schemaVersion: 1;
             data: components["schemas"]["BangumiCollectionData"];
         };
-        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
+        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["NeteaseIdentityWidgetV1"] | components["schemas"]["NeteaseListeningWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV1"] | components["schemas"]["NeteaseSocialWidgetV1"] | components["schemas"]["NeteasePlaylistsWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV1"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
         CreateWidgetInput: {
             widget: components["schemas"]["WidgetConfiguration"];
             placement: components["schemas"]["WidgetPlacement"];
@@ -1106,6 +1480,8 @@ export interface components {
         ViewETag: string;
         /** @description Strong validator for the hydrated current-Draft live data representation. */
         DataETag: string;
+        /** @description Strong validator for the latest immutable Provider data catalog version. */
+        CatalogETag: string;
     };
     pathItems: never;
 }
@@ -1651,6 +2027,31 @@ export interface operations {
             };
             401: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getNeteaseProviderDataCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest complete sanitized NetEase data catalog */
+            200: {
+                headers: {
+                    ETag: components["headers"]["CatalogETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeteaseDataCatalog"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };

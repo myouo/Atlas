@@ -116,6 +116,85 @@ export const mockDashboardSource: DashboardDataSource = {
     await Promise.resolve();
     return structuredClone(mockNeteaseConnection);
   },
+  async getNeteaseDataCatalog() {
+    return {
+      catalog: {
+        account: {
+          avatarFrameUrl: null,
+          avatarUrl: "/images/mock-avatar-profile.webp",
+          createdAt: "2020-01-01T00:00:00.000Z",
+          displayName: "Nivalis Fixture",
+          eventCount: 18,
+          followerCount: 128,
+          followingCount: 36,
+          level: 10,
+          playlistCount: 8,
+          providerUserId: "10001",
+          signature: "Sanitized fixture profile",
+          vipType: 11
+        },
+        allTimeRanking: [
+          {
+            playCount: 420,
+            rank: 1,
+            score: 100,
+            track: {
+              albumName: "Fixture Album",
+              artists: [{ name: "Aimer", providerArtistId: "30001" }],
+              coverUrl: "https://p1.music.126.net/sanitized-fixture/20001.jpg",
+              durationMs: 240000,
+              name: "Snow Light",
+              providerTrackId: "20001"
+            }
+          }
+        ],
+        createdPlaylists: { complete: true, items: [], providerTotal: 0 },
+        followers: { complete: true, items: [], providerTotal: 128 },
+        following: { complete: true, items: [], providerTotal: 36 },
+        levelProgress: {
+          currentLoginCount: 2_300,
+          currentPlayCount: 14_230,
+          nextLoginCount: null,
+          nextPlayCount: 20_000,
+          progress: 71
+        },
+        listening: {
+          totalDurationSeconds: 582420,
+          totalListenCount: 6421,
+          weeklyDurationMinutes: 91,
+          weeklyTrend: []
+        },
+        medals: { items: [], obtainedCount: 0 },
+        memberships: [],
+        musicCards: { items: [], sourceAvailability: "provider_omitted" },
+        provider: "netease",
+        recentListening: [],
+        redVipAnnualCount: 1,
+        redVipLevel: 6,
+        schemaVersion: 1,
+        socialStatus: null,
+        weeklyRanking: [
+          {
+            playCount: 12,
+            rank: 1,
+            score: 100,
+            track: {
+              albumName: "Fixture Album",
+              artists: [{ name: "Aimer", providerArtistId: "30001" }],
+              coverUrl: "https://p1.music.126.net/sanitized-fixture/20001.jpg",
+              durationMs: 240000,
+              name: "Snow Light",
+              providerTrackId: "20001"
+            }
+          }
+        ]
+      },
+      dataVersion: "00000000-0000-4000-8000-000000000901",
+      generatedAt: "2026-08-24T00:00:00.000Z",
+      provider: "netease" as const,
+      schemaVersion: 1 as const
+    };
+  },
   async startNeteaseQrAuth() {
     throw mockProviderAuthUnavailable();
   },

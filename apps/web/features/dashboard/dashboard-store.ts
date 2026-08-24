@@ -67,6 +67,7 @@ interface DashboardStore {
   resetDraft: () => void;
   setMode: (mode: DashboardMode) => void;
   updateBreakpointLayout: (breakpoint: DashboardBreakpoint, layout: DashboardLayoutItem[]) => void;
+  updateWidgetDataConfig: (widgetId: string, config: WidgetProjection["dataConfig"]) => void;
   updateWidgetPresentationConfig: (
     widgetId: string,
     config: WidgetProjection["presentationConfig"]
@@ -183,6 +184,21 @@ export const useDashboardStore = create<DashboardStore>()(
             widgets: draft.widgets.map((widget) =>
               widget.id === widgetId
                 ? ({ ...widget, presentationConfig: structuredClone(config) } as WidgetProjection)
+                : widget
+            )
+          }
+        });
+      },
+      updateWidgetDataConfig: (widgetId, config) => {
+        const draft = get().draft;
+        if (!draft) return;
+        set({
+          dirty: true,
+          draft: {
+            ...draft,
+            widgets: draft.widgets.map((widget) =>
+              widget.id === widgetId
+                ? ({ ...widget, dataConfig: structuredClone(config) } as WidgetProjection)
                 : widget
             )
           }

@@ -3,9 +3,18 @@ import process from "node:process";
 
 const projectName = process.env.CLOUDFLARE_PAGES_PROJECT?.trim();
 const branch = process.env.CLOUDFLARE_PAGES_BRANCH?.trim() || "master";
+const dashboardSource = process.env.NEXT_PUBLIC_DASHBOARD_SOURCE?.trim();
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 
 if (!projectName) {
   console.error("CLOUDFLARE_PAGES_PROJECT is required.");
+  process.exit(1);
+}
+
+if (dashboardSource !== "api" || !apiBaseUrl) {
+  console.error(
+    "Pages deployment requires NEXT_PUBLIC_DASHBOARD_SOURCE=api and NEXT_PUBLIC_API_BASE_URL. Use build:pages:mock only for an explicit local Mock artifact."
+  );
   process.exit(1);
 }
 

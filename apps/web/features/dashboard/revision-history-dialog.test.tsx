@@ -82,6 +82,9 @@ function historySource(): DashboardDataSource {
     async getNeteaseConnection() {
       throw new Error("not needed");
     },
+    async getNeteaseDataCatalog() {
+      throw new Error("not needed");
+    },
     async getNeteaseAuthAttempt() {
       throw new Error("not needed");
     },

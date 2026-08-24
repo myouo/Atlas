@@ -159,6 +159,14 @@ export class ProviderConnectionNotFoundError extends NivalisError {
   }
 }
 
+export class ProviderDataNotFoundError extends NivalisError {
+  readonly code = "provider-data-not-found";
+
+  constructor(readonly provider: string) {
+    super(`Provider data for '${provider}' has not been synchronized.`);
+  }
+}
+
 export class ProviderAuthAttemptNotFoundError extends NivalisError {
   readonly code = "provider-auth-attempt-not-found";
 

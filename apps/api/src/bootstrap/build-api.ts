@@ -6,6 +6,7 @@ import {
   DashboardService,
   ProviderAuthService,
   ProviderConnectionService,
+  ProviderDataService,
   SyncService
 } from "@nivalis/application";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
@@ -31,6 +32,7 @@ import {
 } from "../infrastructure/repositories/kysely-provider-credential-repository";
 import { KyselySyncRepository } from "../infrastructure/repositories/kysely-sync-repository";
 import { KyselyProviderAuthAttemptRepository } from "../infrastructure/repositories/kysely-provider-auth-repository";
+import { KyselyProviderDataCatalogReader } from "../infrastructure/repositories/kysely-provider-data-repository";
 import {
   KyselyProviderAuthEnqueueUnitOfWork,
   KyselySyncEnqueueUnitOfWork,
@@ -167,6 +169,9 @@ export function buildApi(options: BuildApiOptions) {
     clock,
     (context, provider) => syncService.enqueue(context, provider)
   );
+  const providerDataService = new ProviderDataService(
+    new KyselyProviderDataCatalogReader(database)
+  );
   const providerAuthService = new ProviderAuthService(
     new KyselyProviderAuthAttemptRepository(database),
     new KyselyProviderAuthEnqueueUnitOfWork(database, queueRuntime.boss),
@@ -212,6 +217,7 @@ export function buildApi(options: BuildApiOptions) {
     dashboardService,
     providerAuthService,
     providerConnectionService,
+    providerDataService,
     readService,
     syncService
   };

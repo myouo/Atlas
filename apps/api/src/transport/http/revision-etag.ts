@@ -27,6 +27,10 @@ export function formatDataEtag(dataVersion: string) {
   return `"data:${dataVersion}"`;
 }
 
+export function formatCatalogEtag(dataVersion: string) {
+  return `"catalog:${dataVersion}"`;
+}
+
 export function parseRequiredRevisionEtag(value: string | string[] | undefined) {
   if (value === undefined) throw new PreconditionRequiredHttpError();
   if (Array.isArray(value)) throw new InvalidRevisionEtagHttpError();

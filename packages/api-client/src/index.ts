@@ -16,6 +16,7 @@ export type ProviderStatus = components["schemas"]["ProviderStatus"];
 export type ProviderConnection = components["schemas"]["ProviderConnection"];
 export type ProviderConnectAccepted = components["schemas"]["ProviderConnectAccepted"];
 export type ProviderAuthAttempt = components["schemas"]["ProviderAuthAttempt"];
+export type NeteaseDataCatalog = components["schemas"]["NeteaseDataCatalog"];
 export type SyncJob = components["schemas"]["SyncJob"];
 export type ResponsiveLayout = components["schemas"]["ResponsiveLayout"];
 export type WidgetProjection = components["schemas"]["WidgetProjection"];

@@ -20,8 +20,12 @@ import { NeteaseClient } from "./netease-client";
 import { NeteaseAuthClient } from "./netease-auth-client";
 import { NeteaseConnector, sanitizeNeteasePayload } from "./netease-connector";
 import { NeteaseNormalizer } from "./netease-normalizer";
-import { NeteaseProjector } from "./netease-projector";
-import { NETEASE_SOURCE, type NeteaseSourceKind } from "./netease-types";
+import { NeteaseProjector, buildNeteaseOwnerDataCatalog } from "./netease-projector";
+import {
+  NETEASE_SOURCE,
+  type NeteaseNormalizedPayload,
+  type NeteaseSourceKind
+} from "./netease-types";
 
 const fetchedAt = new Date("2026-08-24T04:00:00.000Z");
 const connectionId = "00000000-0000-4000-8000-000000000501";
@@ -110,6 +114,54 @@ describe("NetEase Provider module", () => {
     });
   });
 
+  it("builds semantic cards and enforces public dataConfig allowlists server-side", async () => {
+    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
+    const targets: ProjectionTarget[] = [
+      targetFor("music.netease.identity", {
+        medalLimit: 0,
+        publicFields: ["display_name", "avatar", "level", "vip"]
+      }),
+      targetFor("music.netease.listening", {
+        publicFields: ["total_count", "total_duration"]
+      }),
+      targetFor("music.netease.ranking", { publicLimit: 10, range: "all_time" }),
+      targetFor("music.netease.social", { publicLimit: 0, publicLists: [] }),
+      targetFor("music.netease.playlists", { publicLimit: 2 }),
+      targetFor("music.netease.showcase", { source: "all_time_track" })
+    ];
+    const projections = await new NeteaseProjector().project(normalized, targets);
+    const identity = projections[0]!.data as JsonObject;
+    expect(identity).toMatchObject({
+      profile: { displayName: "Nivalis Fixture", level: 10 },
+      vip: { availability: "available", redVipLevel: 6 }
+    });
+    expect(JSON.stringify(identity)).not.toContain("Music is the place");
+    expect(JSON.stringify(identity)).not.toContain("providerUserId");
+    expect(projections[1]!.data).toMatchObject({
+      totalListeningDuration: { availability: "available", unit: "seconds", value: 582420 }
+    });
+    expect(projections[2]!.data).toMatchObject({ range: "all_time", totalAvailable: 2 });
+    expect(projections[3]!.data).toMatchObject({
+      followers: { availability: "unavailable", reason: "not_public" },
+      following: { availability: "unavailable", reason: "not_public" }
+    });
+    expect(projections[4]!.data).toMatchObject({ items: [{ name: "Snow Archive" }] });
+    expect(projections[5]!.data).toMatchObject({
+      availability: "available",
+      card: { kind: "track", track: { name: "Snow Light" } }
+    });
+
+    const catalog = buildNeteaseOwnerDataCatalog(normalized.payload as NeteaseNormalizedPayload);
+    expect(catalog.listening).toMatchObject({ totalDurationSeconds: 582420 });
+    expect(catalog.allTimeRanking).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rank: 1 })])
+    );
+    expect(catalog.weeklyRanking).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rank: 1 })])
+    );
+    expect(JSON.stringify(catalog)).not.toMatch(/lastLoginIP|MUSIC_U|authorization/i);
+  });
+
   it("distinguishes a valid empty account from partial availability", async () => {
     const empty = await new NeteaseNormalizer().normalize(snapshots(emptyNeteaseFixture));
     const [emptyProjection] = await new NeteaseProjector().project(empty, [target("7d")]);
@@ -125,6 +177,28 @@ describe("NetEase Provider module", () => {
       listeningDuration: { availability: "unavailable", reason: "provider_omitted" },
       weeklyListening: { availability: "unavailable", reason: "insufficient_coverage" }
     });
+  });
+
+  it("deduplicates repeated Provider list pages and never marks partial coverage complete", async () => {
+    const fixture = {
+      ...normalNeteaseFixture,
+      [NETEASE_SOURCE.followers]: {
+        ...normalNeteaseFixture[NETEASE_SOURCE.followers],
+        more: true,
+        size: 128
+      }
+    };
+    const raw = snapshots(fixture);
+    raw.push({
+      ...raw.find((snapshot) => snapshot.sourceKind === NETEASE_SOURCE.followers)!,
+      id: "00000000-0000-4000-8000-000000000699",
+      sourceKind: `${NETEASE_SOURCE.followers}.page.1`
+    });
+    const normalized = await new NeteaseNormalizer().normalize(raw);
+    const payload = normalized.payload as NeteaseNormalizedPayload;
+    expect(payload.followers.items).toHaveLength(1);
+    expect(payload.followers.providerTotal).toBe(128);
+    expect(payload.followers.complete).toBe(false);
   });
 
   it.each([
@@ -162,12 +236,22 @@ describe("NetEase Provider module", () => {
     expect(results.map((result) => result.sourceKind)).toEqual([
       NETEASE_SOURCE.account,
       NETEASE_SOURCE.userDetail,
+      NETEASE_SOURCE.profileHome,
+      NETEASE_SOURCE.userLevel,
+      NETEASE_SOURCE.vipInfo,
+      NETEASE_SOURCE.listenTotal,
       NETEASE_SOURCE.weeklyRecord,
+      NETEASE_SOURCE.allTimeRecord,
       NETEASE_SOURCE.recentSongs,
-      NETEASE_SOURCE.listenReportWeek
+      NETEASE_SOURCE.listenReportWeek,
+      NETEASE_SOURCE.following,
+      NETEASE_SOURCE.followers,
+      NETEASE_SOURCE.createdPlaylists,
+      NETEASE_SOURCE.medals,
+      NETEASE_SOURCE.socialStatus
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
-    expect(requests).toHaveLength(5);
+    expect(requests).toHaveLength(15);
     for (const request of requests) {
       expect(request.method).toBe("POST");
       expect(["music.163.com", "interface.music.163.com"]).toContain(new URL(request.url).hostname);
@@ -304,6 +388,20 @@ function target(range: "7d" | "30d"): ProjectionTarget {
   };
 }
 
+function targetFor(type: ProjectionTarget["type"], dataConfig: JsonObject): ProjectionTarget {
+  return {
+    dataConfig,
+    enabled: true,
+    id: `00000000-0000-4000-8000-${String(720 + type.length).padStart(12, "0")}`,
+    presentationConfig: {},
+    projectionKey: type.padEnd(64, "a").slice(0, 64),
+    provider: "netease",
+    schemaVersion: 1,
+    title: type,
+    type
+  };
+}
+
 function syncRun(): SyncRun {
   return {
     attemptCount: 0,
@@ -322,11 +420,36 @@ function syncRun(): SyncRun {
 
 function payloadForPath(pathname: string) {
   if (pathname.includes("account/get")) return normalNeteaseFixture[NETEASE_SOURCE.account];
-  if (pathname.includes("user/detail")) return normalNeteaseFixture[NETEASE_SOURCE.userDetail];
+  if (pathname.includes("w/v1/user/detail")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.profileHome];
+  }
+  if (pathname.includes("v1/user/detail")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.userDetail];
+  }
+  if (pathname.includes("user/level")) return normalNeteaseFixture[NETEASE_SOURCE.userLevel];
+  if (pathname.includes("music-vip-membership")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.vipInfo];
+  }
+  if (pathname.includes("listen/data/total")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.listenTotal];
+  }
   if (pathname.includes("play/record")) return normalNeteaseFixture[NETEASE_SOURCE.weeklyRecord];
   if (pathname.includes("song/list")) return normalNeteaseFixture[NETEASE_SOURCE.recentSongs];
   if (pathname.includes("realtime/report")) {
     return normalNeteaseFixture[NETEASE_SOURCE.listenReportWeek];
+  }
+  if (pathname.includes("user/getfollows/")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.following];
+  }
+  if (pathname.includes("user/getfolloweds/")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.followers];
+  }
+  if (pathname.includes("user/playlist/create")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.createdPlaylists];
+  }
+  if (pathname.includes("medal/user/page")) return normalNeteaseFixture[NETEASE_SOURCE.medals];
+  if (pathname.includes("social/user/status")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.socialStatus];
   }
   return { code: 404 };
 }

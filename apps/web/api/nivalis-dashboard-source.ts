@@ -54,6 +54,12 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
         "The NetEase connection could not be loaded."
       );
     },
+    async getNeteaseDataCatalog() {
+      return requireData(
+        await client.GET("/v1/me/providers/netease/data"),
+        "The NetEase data catalog could not be loaded."
+      );
+    },
     async startNeteaseQrAuth() {
       return requireData(
         await client.POST("/v1/me/providers/netease/auth-attempts/qr"),

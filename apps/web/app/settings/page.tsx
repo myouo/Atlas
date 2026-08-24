@@ -1,6 +1,11 @@
 "use client";
 
-import type { ProviderAuthAttempt, ProviderConnection, SyncJob } from "@nivalis/api-client";
+import type {
+  NeteaseDataCatalog,
+  ProviderAuthAttempt,
+  ProviderConnection,
+  SyncJob
+} from "@nivalis/api-client";
 import {
   ArrowLeft,
   Check,
@@ -8,6 +13,7 @@ import {
   Eye,
   GithubLogo,
   ImageSquare,
+  ListMagnifyingGlass,
   LinkBreak,
   MusicNotes,
   Palette,
@@ -57,6 +63,12 @@ function SettingsContent() {
     queryKey: ["provider-connection", "netease", dashboardSource.kind],
     refetchInterval: (query) =>
       query.state.data?.credentialStatus === "pending_validation" ? 1_000 : false,
+    retry: false
+  });
+  const catalogQuery = useQuery({
+    enabled: Boolean(owner && connectionQuery.data?.configured),
+    queryFn: () => dashboardSource.getNeteaseDataCatalog(),
+    queryKey: ["provider-data", "netease", dashboardSource.kind],
     retry: false
   });
   const loginMutation = useMutation({
@@ -115,6 +127,7 @@ function SettingsContent() {
             await queryClient.invalidateQueries({
               queryKey: ["provider-connection", "netease"]
             });
+            await queryClient.invalidateQueries({ queryKey: ["provider-data", "netease"] });
           }
         })
         .catch(() => undefined);
@@ -333,6 +346,14 @@ function SettingsContent() {
           </section>
         </div>
 
+        {owner && connectionQuery.data?.configured ? (
+          <NeteaseDataExplorer
+            catalog={catalogQuery.data}
+            error={catalogQuery.isError}
+            loading={catalogQuery.isLoading}
+          />
+        ) : null}
+
         <div className="mt-6 flex justify-end">
           <button
             className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-xs font-extrabold text-white shadow-lg transition hover:bg-blue-700"
@@ -346,6 +367,309 @@ function SettingsContent() {
       </div>
     </main>
   );
+}
+
+function NeteaseDataExplorer({
+  catalog,
+  error,
+  loading
+}: {
+  readonly catalog: NeteaseDataCatalog | undefined;
+  readonly error: boolean;
+  readonly loading: boolean;
+}) {
+  if (loading) {
+    return <div className="glass-surface mt-5 h-56 animate-pulse rounded-[26px]" />;
+  }
+  if (error || !catalog) {
+    return (
+      <section className="glass-surface mt-5 rounded-[26px] p-5">
+        <p className="text-sm font-extrabold text-ink">网易云完整数据</p>
+        <p className="mt-2 text-[10px] text-amber-700">
+          尚无完整数据目录。完成一次同步后，这里会显示已验证、已清洗的 Owner-only 数据。
+        </p>
+      </section>
+    );
+  }
+
+  const data = catalog.catalog;
+  const account = objectValue(data.account);
+  const listening = objectValue(data.listening);
+  const following = objectValue(data.following);
+  const followers = objectValue(data.followers);
+  const playlists = objectValue(data.createdPlaylists);
+  const medals = objectValue(data.medals);
+  const musicCards = objectValue(data.musicCards);
+  const socialStatus = objectValue(data.socialStatus);
+  const memberships = objectArray(data.memberships);
+  const followingItems = objectArray(following?.items);
+  const followerItems = objectArray(followers?.items);
+  const playlistItems = objectArray(playlists?.items);
+  const medalItems = objectArray(medals?.items);
+
+  return (
+    <section className="glass-surface mt-5 rounded-[26px] p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ff4668] text-white">
+            <ListMagnifyingGlass aria-hidden size={21} weight="duotone" />
+          </span>
+          <div>
+            <h2 className="text-base font-extrabold text-ink">网易云完整数据</h2>
+            <p className="text-[10px] text-ink-muted">
+              Owner-only Sanitized Catalog · {formatTimestamp(catalog.generatedAt)}
+            </p>
+          </div>
+        </div>
+        <Link
+          className="rounded-full bg-blue-600 px-4 py-2 text-[10px] font-extrabold text-white"
+          href="/"
+        >
+          前往编辑视图设置公开范围
+        </Link>
+      </div>
+
+      <p className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 text-[10px] leading-relaxed font-semibold text-emerald-800">
+        此入口显示完整但经过白名单清洗的数据。Raw Snapshot、Cookie、登录 IP 与 Provider
+        私有字段不会进入这里；首页卡片只收到其 dataConfig 明确允许的公开子集。
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-4 rounded-[22px] border border-white/85 bg-white/45 p-4">
+        <div className="relative">
+          <span
+            aria-label="网易云账号头像"
+            className="block h-20 w-20 rounded-[22px] border-2 border-white bg-gradient-to-br from-rose-100 to-blue-100 bg-cover bg-center shadow-md"
+            role="img"
+            style={backgroundImage(account?.avatarUrl)}
+          />
+          {stringValue(account?.avatarFrameUrl) ? (
+            <span
+              aria-label="网易云头像标识"
+              className="absolute -right-2 -bottom-2 h-9 w-9 rounded-full border-2 border-white bg-white bg-contain bg-center bg-no-repeat shadow-md"
+              role="img"
+              style={backgroundImage(account?.avatarFrameUrl)}
+            />
+          ) : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xl font-black tracking-[-0.03em] text-ink">
+            {stringValue(account?.displayName) ?? "网易云用户"}
+          </p>
+          {stringValue(account?.signature) ? (
+            <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-ink-muted">
+              {stringValue(account?.signature)}
+            </p>
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[9px] font-extrabold text-blue-700">
+              {numberLabel(account?.level, "Lv.")}
+            </span>
+            {memberships.map((membership, index) => (
+              <span
+                className={
+                  membership.active === true
+                    ? "rounded-full bg-rose-100 px-2.5 py-1 text-[9px] font-extrabold text-rose-700"
+                    : "rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-bold text-slate-500"
+                }
+                key={`${stringValue(membership.kind) ?? "membership"}-${index}`}
+              >
+                {membershipLabel(membership)}
+              </span>
+            ))}
+            {socialStatus ? (
+              <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[9px] font-bold text-violet-700">
+                乐迷状态 · {stringValue(socialStatus.name) ?? "未命名"}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <CatalogMetric label="等级" value={numberLabel(account?.level, "Lv.")} />
+        <CatalogMetric label="黑胶 VIP 等级" value={numberLabel(data.redVipLevel, "Lv.")} />
+        <CatalogMetric
+          label="累计听歌"
+          value={numberLabel(listening?.totalListenCount, "", " 首")}
+        />
+        <CatalogMetric
+          label="累计播放时间"
+          value={durationLabel(listening?.totalDurationSeconds)}
+        />
+        <CatalogMetric label="关注" value={numberLabel(account?.followingCount)} />
+        <CatalogMetric label="粉丝" value={numberLabel(account?.followerCount)} />
+        <CatalogMetric label="创建歌单" value={String(playlistItems.length)} />
+        <CatalogMetric label="已获得徽章" value={numberLabel(medals?.obtainedCount)} />
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <CatalogList
+          description={coverageLabel(following, followingItems.length)}
+          items={followingItems}
+          label="关注列表"
+          nameKey="displayName"
+        />
+        <CatalogList
+          description={coverageLabel(followers, followerItems.length)}
+          items={followerItems}
+          label="粉丝列表"
+          nameKey="displayName"
+        />
+        <CatalogList
+          description={coverageLabel(playlists, playlistItems.length)}
+          items={playlistItems}
+          label="创建的歌单"
+          nameKey="name"
+        />
+        <CatalogList
+          description={`已获得 ${numberLabel(medals?.obtainedCount)} 枚；含佩戴状态`}
+          items={medalItems}
+          label="乐迷徽章 / 身份"
+          nameKey="name"
+        />
+      </div>
+
+      <details className="mt-3 rounded-2xl border border-white/85 bg-white/45 p-4">
+        <summary className="cursor-pointer text-xs font-extrabold text-ink">
+          听歌排行与音乐名片资源
+        </summary>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <CatalogRanking label="最近一周 Top 100" items={data.weeklyRanking} />
+          <CatalogRanking label="全部时间 Top 100" items={data.allTimeRanking} />
+        </div>
+        <p className="mt-3 text-[9px] leading-relaxed text-ink-muted">
+          Provider 原生音乐卡片：
+          {musicCards?.sourceAvailability === "available" ? "可用" : "当前接口未返回"}。Nivalis
+          音乐名片仍可从真实歌曲、创建歌单与徽章中选择，并标记为 Nivalis 编排，不冒充 Provider
+          原生卡片。
+        </p>
+      </details>
+    </section>
+  );
+}
+
+function CatalogMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/80 bg-white/48 p-3">
+      <p className="text-[9px] font-semibold text-ink-muted">{label}</p>
+      <p className="mt-1 text-base font-black text-ink">{value}</p>
+    </div>
+  );
+}
+
+function CatalogList({
+  description,
+  items,
+  label,
+  nameKey
+}: {
+  description: string;
+  items: readonly Record<string, unknown>[];
+  label: string;
+  nameKey: string;
+}) {
+  return (
+    <details className="rounded-2xl border border-white/85 bg-white/45 p-4">
+      <summary className="cursor-pointer text-xs font-extrabold text-ink">{label}</summary>
+      <p className="mt-1 text-[9px] text-ink-muted">{description}</p>
+      <div className="mt-3 max-h-56 space-y-1.5 overflow-y-auto pr-1">
+        {items.length > 0 ? (
+          items.map((item, index) => (
+            <div
+              className="rounded-xl bg-white/55 px-3 py-2 text-[10px] font-bold text-ink"
+              key={`${stringValue(item.providerUserId ?? item.providerPlaylistId ?? item.providerMedalCode) ?? index}`}
+            >
+              {stringValue(item[nameKey]) ?? "未命名"}
+            </div>
+          ))
+        ) : (
+          <p className="text-[9px] text-ink-muted">有效空数据集</p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function CatalogRanking({
+  items,
+  label
+}: {
+  items: NeteaseDataCatalog["catalog"]["weeklyRanking"];
+  label: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-white/45 p-3">
+      <p className="text-[10px] font-extrabold text-ink">{label}</p>
+      <div className="mt-2 max-h-60 space-y-1.5 overflow-y-auto">
+        {items.map((item) => (
+          <div
+            className="flex items-center gap-2 text-[9px]"
+            key={`${label}-${item.track.providerTrackId}`}
+          >
+            <span className="w-5 text-center font-black text-[#ff4668]">{item.rank}</span>
+            <span className="min-w-0 flex-1 truncate font-bold text-ink">{item.track.name}</span>
+            <span className="shrink-0 text-ink-muted">{item.playCount} 次</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function objectArray(value: unknown): readonly Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => objectValue(item) !== null)
+    : [];
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function numberLabel(value: unknown, prefix = "", suffix = "") {
+  const number = numberValue(value);
+  return number === null ? "暂不可用" : `${prefix}${number.toLocaleString("zh-CN")}${suffix}`;
+}
+
+function durationLabel(value: unknown) {
+  const seconds = numberValue(value);
+  return seconds === null
+    ? "暂不可用"
+    : `${Math.round(seconds / 3600).toLocaleString("zh-CN")} 小时`;
+}
+
+function coverageLabel(value: Record<string, unknown> | null, shown: number) {
+  const total = numberValue(value?.providerTotal);
+  const complete = value?.complete === true;
+  return `${shown} 条已同步${total === null ? "" : ` / Provider ${total} 条`} · ${complete ? "完整" : "仍有后续页"}`;
+}
+
+function backgroundImage(value: unknown) {
+  const url = stringValue(value);
+  return url ? { backgroundImage: `url(${JSON.stringify(url)})` } : undefined;
+}
+
+function membershipLabel(value: Record<string, unknown>) {
+  const labels: Record<string, string> = {
+    album: "数字专辑 VIP",
+    associator: "黑胶 VIP",
+    music_package: "音乐包",
+    red_plus: "Red+",
+    voice_book: "有声书 VIP"
+  };
+  const kind = stringValue(value.kind) ?? "membership";
+  const level = numberValue(value.level);
+  return `${labels[kind] ?? kind}${level === null ? "" : ` Lv.${level}`}${value.active === true ? "" : " · 未生效"}`;
 }
 
 interface ProviderSettingsProps {

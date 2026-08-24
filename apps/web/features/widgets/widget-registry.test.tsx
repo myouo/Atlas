@@ -1,5 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createMockWidget, mockWidgets } from "../dashboard/mock-dashboard";
@@ -10,8 +12,9 @@ describe("WidgetRegistry", () => {
   it("resolves renderers by type + schemaVersion", () => {
     expect(widgetRegistry.resolve("music.netease.overview", 1)?.name).toBe("网易云音乐");
     expect(widgetRegistry.resolve("music.netease.overview", 2)?.name).toBe("网易云音乐");
+    expect(widgetRegistry.resolve("music.netease.identity", 1)?.name).toBe("网易云 · 身份档案");
     expect(widgetRegistry.preferred("music.netease.overview")?.schemaVersion).toBe(2);
-    expect(widgetRegistry.list()).toHaveLength(7);
+    expect(widgetRegistry.list()).toHaveLength(13);
   });
 
   it("rejects duplicate registrations", () => {
@@ -23,7 +26,7 @@ describe("WidgetRegistry", () => {
   });
 
   it("renders a graceful fallback for an unknown runtime Widget", () => {
-    render(
+    renderWidget(
       <WidgetCard
         editable={false}
         onRemove={() => undefined}
@@ -45,7 +48,7 @@ describe("WidgetRegistry", () => {
   it("labels unconnected Provider projections as Fixture", () => {
     const github = mockWidgets.find((widget) => widget.type === "github.profile");
     expect(github).toBeDefined();
-    render(<WidgetCard editable={false} onRemove={() => undefined} widget={github!} />);
+    renderWidget(<WidgetCard editable={false} onRemove={() => undefined} widget={github!} />);
     expect(screen.getByText(/Fixture · @nivalis/)).toBeInTheDocument();
   });
 
@@ -56,7 +59,7 @@ describe("WidgetRegistry", () => {
       2
     );
     const onPresentationConfigChange = vi.fn();
-    render(
+    renderWidget(
       <WidgetCard
         editable
         onPresentationConfigChange={onPresentationConfigChange}
@@ -71,4 +74,61 @@ describe("WidgetRegistry", () => {
       expect.objectContaining({ showArtists: false })
     );
   });
+
+  it("applies semantic public-data presets without exposing raw Provider fields", async () => {
+    const identity = createMockWidget(
+      "music.netease.identity",
+      "00000000-0000-4000-8000-000000001007"
+    );
+    const onDataConfigChange = vi.fn();
+    renderWidget(
+      <WidgetCard
+        editable
+        onDataConfigChange={onDataConfigChange}
+        onRemove={() => undefined}
+        widget={identity}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /设置 网易云 · 身份档案/ }));
+    await userEvent.click(screen.getByRole("button", { name: /完整公开档案/ }));
+    expect(onDataConfigChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        medalLimit: 8,
+        publicFields: expect.arrayContaining(["signature", "provider_user_id"])
+      })
+    );
+  });
+
+  it("selects an exact showcase resource from the Owner-only data catalog", async () => {
+    const showcase = createMockWidget(
+      "music.netease.showcase",
+      "00000000-0000-4000-8000-000000001008"
+    );
+    const onDataConfigChange = vi.fn();
+    renderWidget(
+      <WidgetCard
+        editable
+        onDataConfigChange={onDataConfigChange}
+        onRemove={() => undefined}
+        widget={showcase}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /设置 网易云 · 音乐名片/ }));
+    await screen.findAllByRole("option", { name: "Snow Light" });
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "选择展示资源" }),
+      "all_time_track:20001"
+    );
+    expect(onDataConfigChange).toHaveBeenLastCalledWith({
+      resourceId: "20001",
+      source: "all_time_track"
+    });
+  });
 });
+
+function renderWidget(element: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
+}

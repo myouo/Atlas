@@ -7,6 +7,14 @@ import type { ModuleShellKind, WidgetAccent } from "../../design-system/module-s
 import type { WidgetGridSizes } from "../dashboard/layout-engine";
 import { NeteaseOverviewWidget } from "./renderers/netease-overview-widget";
 import {
+  NeteaseIdentityWidget,
+  NeteaseListeningWidget,
+  NeteasePlaylistsWidget,
+  NeteaseRankingWidget,
+  NeteaseShowcaseWidget,
+  NeteaseSocialWidget
+} from "./renderers/netease-data-widgets";
+import {
   BangumiCollectionWidget,
   BilibiliProfileWidget,
   GithubProfileWidget,
@@ -27,6 +35,7 @@ export interface WidgetDefinition {
   readonly allowMultiple: boolean;
   readonly catalogVisible?: boolean;
   readonly description: string;
+  readonly dataPresets?: readonly WidgetDataPreset[];
   readonly Icon: ComponentType<RegistryIconProps>;
   readonly kind: ModuleShellKind;
   readonly name: string;
@@ -35,7 +44,15 @@ export interface WidgetDefinition {
   readonly sizes: WidgetGridSizes;
   readonly subtitle?: (widget: WidgetProjection) => string | undefined;
   readonly presentationControls?: readonly WidgetPresentationControl[];
+  readonly resourcePicker?: "netease-showcase";
   readonly type: WidgetType;
+}
+
+export interface WidgetDataPreset {
+  readonly dataConfig: WidgetProjection["dataConfig"];
+  readonly description: string;
+  readonly id: string;
+  readonly label: string;
 }
 
 function adaptRenderer<TType extends WidgetType>(
@@ -188,6 +205,274 @@ export const widgetRegistry = new WidgetRegistry()
     },
     subtitle: () => "Legacy Fixture Projection",
     Renderer: adaptRenderer(NeteaseOverviewWidget)
+  })
+  .register({
+    type: "music.netease.identity",
+    schemaVersion: 1,
+    name: "网易云 · 身份档案",
+    description: "头像、等级、VIP、徽章与公开社交计数",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 5, h: 5, minW: 4, minH: 4 },
+      md: { w: 4, h: 5, minW: 4, minH: 4 },
+      sm: { w: 4, h: 7, minW: 4, minH: 6 }
+    },
+    dataPresets: [
+      {
+        id: "identity-minimal",
+        label: "轻量身份",
+        description: "只公开头像、昵称、等级与 VIP 状态",
+        dataConfig: {
+          medalLimit: 0,
+          publicFields: ["display_name", "avatar", "level", "vip"]
+        }
+      },
+      {
+        id: "identity-social",
+        label: "社交名片",
+        description: "增加关注、粉丝、歌单计数和佩戴徽章",
+        dataConfig: {
+          medalLimit: 3,
+          publicFields: [
+            "display_name",
+            "avatar",
+            "avatar_decoration",
+            "level",
+            "vip",
+            "following_count",
+            "follower_count",
+            "playlist_count",
+            "medals",
+            "social_status"
+          ]
+        }
+      },
+      {
+        id: "identity-full",
+        label: "完整公开档案",
+        description: "公开签名、事件数、UID 与最多 8 枚徽章",
+        dataConfig: {
+          medalLimit: 8,
+          publicFields: [
+            "display_name",
+            "avatar",
+            "avatar_decoration",
+            "signature",
+            "level",
+            "vip",
+            "following_count",
+            "follower_count",
+            "playlist_count",
+            "event_count",
+            "medals",
+            "social_status",
+            "provider_user_id"
+          ]
+        }
+      }
+    ],
+    subtitle: () => "账号身份 · 服务端公开白名单",
+    Renderer: adaptRenderer(NeteaseIdentityWidget)
+  })
+  .register({
+    type: "music.netease.listening",
+    schemaVersion: 1,
+    name: "网易云 · 收听足迹",
+    description: "累计听歌、官方总时长、本周时长与趋势",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 7, h: 4, minW: 5, minH: 4 },
+      md: { w: 4, h: 4, minW: 4, minH: 4 },
+      sm: { w: 4, h: 6, minW: 4, minH: 5 }
+    },
+    dataPresets: [
+      {
+        id: "listening-summary",
+        label: "核心统计",
+        description: "公开累计听歌、累计时长和本周时长",
+        dataConfig: { publicFields: ["total_count", "total_duration", "weekly_duration"] }
+      },
+      {
+        id: "listening-story",
+        label: "完整足迹",
+        description: "增加官方周期趋势，适合宽卡片",
+        dataConfig: {
+          publicFields: ["total_count", "total_duration", "weekly_duration", "trend"]
+        }
+      },
+      {
+        id: "listening-duration",
+        label: "只展示时长",
+        description: "不公开累计听歌首数，只展示累计与本周时长",
+        dataConfig: { publicFields: ["total_duration", "weekly_duration"] }
+      }
+    ],
+    subtitle: () => "官方听歌足迹",
+    Renderer: adaptRenderer(NeteaseListeningWidget)
+  })
+  .register({
+    type: "music.netease.ranking",
+    schemaVersion: 1,
+    name: "网易云 · 听歌排行",
+    description: "最近一周或全部时间 Top 100 中的公开范围",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 5, h: 6, minW: 4, minH: 5 },
+      md: { w: 4, h: 6, minW: 4, minH: 5 },
+      sm: { w: 4, h: 9, minW: 4, minH: 7 }
+    },
+    dataPresets: [
+      {
+        id: "ranking-week-5",
+        label: "本周 Top 5",
+        description: "公开最近一周前 5 首",
+        dataConfig: { publicLimit: 5, range: "week" }
+      },
+      {
+        id: "ranking-week-10",
+        label: "本周 Top 10",
+        description: "公开最近一周前 10 首",
+        dataConfig: { publicLimit: 10, range: "week" }
+      },
+      {
+        id: "ranking-all-10",
+        label: "全部时间 Top 10",
+        description: "公开全部时间前 10 首",
+        dataConfig: { publicLimit: 10, range: "all_time" }
+      }
+    ],
+    subtitle: (widget) =>
+      widget.type === "music.netease.ranking" && widget.data.range === "all_time"
+        ? "全部时间 · Provider Top 100"
+        : "最近一周 · Provider Top 100",
+    Renderer: adaptRenderer(NeteaseRankingWidget)
+  })
+  .register({
+    type: "music.netease.social",
+    schemaVersion: 1,
+    name: "网易云 · 乐友关系",
+    description: "关注/粉丝计数，并可显式公开部分列表",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 5, h: 5, minW: 4, minH: 4 },
+      md: { w: 4, h: 5, minW: 4, minH: 4 },
+      sm: { w: 4, h: 8, minW: 4, minH: 6 }
+    },
+    dataPresets: [
+      {
+        id: "social-counts",
+        label: "仅公开计数",
+        description: "列表保持私有，只展示关注与粉丝数量",
+        dataConfig: { publicLimit: 0, publicLists: [] }
+      },
+      {
+        id: "social-following",
+        label: "公开关注",
+        description: "公开最多 8 个关注账号；粉丝列表保持私有",
+        dataConfig: { publicLimit: 8, publicLists: ["following"] }
+      },
+      {
+        id: "social-both",
+        label: "双向社交预览",
+        description: "关注和粉丝各公开最多 8 个账号",
+        dataConfig: { publicLimit: 8, publicLists: ["following", "followers"] }
+      }
+    ],
+    subtitle: () => "列表默认私有",
+    Renderer: adaptRenderer(NeteaseSocialWidget)
+  })
+  .register({
+    type: "music.netease.playlists",
+    schemaVersion: 1,
+    name: "网易云 · 创建歌单",
+    description: "公开自己创建的歌单，不混入收藏歌单",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 7, h: 5, minW: 5, minH: 4 },
+      md: { w: 4, h: 5, minW: 4, minH: 4 },
+      sm: { w: 4, h: 8, minW: 4, minH: 6 }
+    },
+    dataPresets: [
+      {
+        id: "playlists-2",
+        label: "精选 2 个",
+        description: "适合紧凑主页",
+        dataConfig: { publicLimit: 2 }
+      },
+      {
+        id: "playlists-6",
+        label: "歌单橱窗",
+        description: "公开前 6 个创建歌单",
+        dataConfig: { publicLimit: 6 }
+      },
+      {
+        id: "playlists-private",
+        label: "暂不公开列表",
+        description: "保留卡片与计数语义，不返回歌单条目",
+        dataConfig: { publicLimit: 0 }
+      }
+    ],
+    subtitle: () => "仅创建歌单",
+    Renderer: adaptRenderer(NeteasePlaylistsWidget)
+  })
+  .register({
+    type: "music.netease.showcase",
+    schemaVersion: 1,
+    name: "网易云 · 音乐名片",
+    description: "从真实歌曲、歌单、徽章或 Provider 原生卡片中选择一个焦点",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 6, h: 4, minW: 4, minH: 4 },
+      md: { w: 4, h: 4, minW: 4, minH: 4 },
+      sm: { w: 4, h: 6, minW: 4, minH: 5 }
+    },
+    dataPresets: [
+      {
+        id: "showcase-all",
+        label: "长期最爱",
+        description: "展示全部时间排名第一的歌曲",
+        dataConfig: { source: "all_time_track" }
+      },
+      {
+        id: "showcase-week",
+        label: "本周最爱",
+        description: "展示最近一周排名第一的歌曲",
+        dataConfig: { source: "weekly_track" }
+      },
+      {
+        id: "showcase-playlist",
+        label: "创建歌单",
+        description: "展示第一个创建歌单；可在完整数据入口继续精确选择",
+        dataConfig: { source: "created_playlist" }
+      },
+      {
+        id: "showcase-medal",
+        label: "乐迷徽章",
+        description: "展示最近获得或正在佩戴的徽章",
+        dataConfig: { source: "medal" }
+      }
+    ],
+    resourcePicker: "netease-showcase",
+    subtitle: () => "Nivalis 可编排音乐名片",
+    Renderer: adaptRenderer(NeteaseShowcaseWidget)
   })
   .register({
     type: "music.netease.overview",

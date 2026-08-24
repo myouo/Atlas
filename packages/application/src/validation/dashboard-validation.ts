@@ -10,6 +10,12 @@ const supportedSchemaVersions: Record<WidgetType, readonly number[]> = {
   "profile.hero": [1],
   "system.stats": [1],
   "music.netease.overview": [1, 2],
+  "music.netease.identity": [1],
+  "music.netease.listening": [1],
+  "music.netease.ranking": [1],
+  "music.netease.social": [1],
+  "music.netease.playlists": [1],
+  "music.netease.showcase": [1],
   "github.profile": [1],
   "bilibili.profile": [1],
   "steam.profile": [1],
@@ -50,11 +56,11 @@ export function validateDashboardDraft(input: DashboardDraftInput): void {
       issues.push("Every Widget requires a stable ID and title.");
     }
     if (
-      widget.type === "music.netease.overview" &&
-      widget.schemaVersion === 2 &&
+      widget.type.startsWith("music.netease.") &&
+      widget.schemaVersion >= 1 &&
       widget.provider !== "netease"
     ) {
-      issues.push("music.netease.overview@2 requires the netease Provider.");
+      issues.push(`${widget.type}@${widget.schemaVersion} requires the netease Provider.`);
     }
   }
 

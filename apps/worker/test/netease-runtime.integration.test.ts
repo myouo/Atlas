@@ -105,6 +105,16 @@ describe("NetEase encrypted Provider runtime", () => {
     );
     expect(await nativeCounts()).toEqual({ artists: 2, recent: 2, tracks: 3 });
     expect(await projectedTotal()).toBe(6_421);
+    const catalog = await database
+      .selectFrom("provider_data_catalogs")
+      .select(["data", "schema_version"])
+      .where("provider_connection_id", "=", PHASE_FIVE_NETEASE_CONNECTION_ID)
+      .executeTakeFirstOrThrow();
+    expect(catalog.schema_version).toBe(1);
+    expect(catalog.data).toMatchObject({
+      listening: { totalDurationSeconds: 582_420 },
+      provider: "netease"
+    });
 
     const second = await createRun();
     await worker(runtime).process(second.id);
@@ -168,7 +178,7 @@ describe("NetEase encrypted Provider runtime", () => {
       lastErrorCode: "provider-schema-mismatch",
       status: "failed"
     });
-    expect(await rawCount(run.id)).toBe(5);
+    expect(await rawCount(run.id)).toBe(Object.keys(NETEASE_SOURCE).length);
     expect(await currentProjection()).toEqual(before);
     expect(await nativeCounts()).toEqual({ artists: 0, recent: 0, tracks: 0 });
   });
@@ -193,7 +203,7 @@ describe("NetEase encrypted Provider runtime", () => {
     const run = await createRun();
     const failed = await worker(runtime).process(run.id);
     expect(failed).toMatchObject({ lastErrorCode: "projection-error", status: "failed" });
-    expect(await rawCount(run.id)).toBe(5);
+    expect(await rawCount(run.id)).toBe(Object.keys(NETEASE_SOURCE).length);
     expect(await currentProjection()).toEqual(before);
     expect(await nativeCounts()).toEqual({ artists: 0, recent: 0, tracks: 0 });
   });
@@ -261,7 +271,7 @@ describe("NetEase encrypted Provider runtime", () => {
       lastErrorCode: "permanent-provider-error",
       status: "failed"
     });
-    expect(await rawCount(run.id)).toBe(5);
+    expect(await rawCount(run.id)).toBe(Object.keys(NETEASE_SOURCE).length);
     expect(await currentProjection()).toEqual(before);
   });
 });
@@ -353,18 +363,47 @@ class NativeRegistry implements ProviderNativeStoreRegistry {
 }
 
 function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
+  let playRecordRequests = 0;
   return async (input) => {
     const pathname = new URL(input instanceof Request ? input.url : input.toString()).pathname;
     if (pathname.includes("account/get")) return Response.json(fixture[NETEASE_SOURCE.account]);
-    if (pathname.includes("user/detail")) {
+    if (pathname.includes("w/v1/user/detail")) {
+      return Response.json(fixture[NETEASE_SOURCE.profileHome]);
+    }
+    if (pathname.includes("v1/user/detail")) {
       return Response.json(fixture[NETEASE_SOURCE.userDetail]);
     }
+    if (pathname.includes("user/level")) return Response.json(fixture[NETEASE_SOURCE.userLevel]);
+    if (pathname.includes("music-vip-membership")) {
+      return Response.json(fixture[NETEASE_SOURCE.vipInfo]);
+    }
+    if (pathname.includes("listen/data/total")) {
+      return Response.json(fixture[NETEASE_SOURCE.listenTotal]);
+    }
     if (pathname.includes("play/record")) {
-      return Response.json(fixture[NETEASE_SOURCE.weeklyRecord]);
+      playRecordRequests += 1;
+      return Response.json(
+        playRecordRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.allTimeRecord]
+          : fixture[NETEASE_SOURCE.weeklyRecord]
+      );
     }
     if (pathname.includes("song/list")) return Response.json(fixture[NETEASE_SOURCE.recentSongs]);
     if (pathname.includes("realtime/report")) {
       return Response.json(fixture[NETEASE_SOURCE.listenReportWeek]);
+    }
+    if (pathname.includes("user/getfollows/")) {
+      return Response.json(fixture[NETEASE_SOURCE.following]);
+    }
+    if (pathname.includes("user/getfolloweds/")) {
+      return Response.json(fixture[NETEASE_SOURCE.followers]);
+    }
+    if (pathname.includes("user/playlist/create")) {
+      return Response.json(fixture[NETEASE_SOURCE.createdPlaylists]);
+    }
+    if (pathname.includes("medal/user/page")) return Response.json(fixture[NETEASE_SOURCE.medals]);
+    if (pathname.includes("social/user/status")) {
+      return Response.json(fixture[NETEASE_SOURCE.socialStatus]);
     }
     return Response.json({ code: 404 }, { status: 404 });
   };

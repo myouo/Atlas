@@ -74,6 +74,30 @@ describe("DashboardDataSource composition", () => {
       if (path === "/v1/me/providers/netease" && request.method === "GET") {
         return json(neteaseConnection(), 200, {});
       }
+      if (path === "/v1/me/providers/netease/data" && request.method === "GET") {
+        return json(
+          {
+            catalog: {
+              account: {},
+              allTimeRanking: [],
+              createdPlaylists: {},
+              followers: {},
+              following: {},
+              listening: {},
+              medals: {},
+              memberships: [],
+              musicCards: {},
+              weeklyRanking: []
+            },
+            dataVersion: "00000000-0000-4000-8000-000000000902",
+            generatedAt: "2026-08-24T00:00:00.000Z",
+            provider: "netease",
+            schemaVersion: 1
+          },
+          200,
+          { etag: '"catalog:00000000-0000-4000-8000-000000000902"' }
+        );
+      }
       if (path === "/v1/me/providers/netease/connect" && request.method === "POST") {
         return json(
           {
@@ -212,6 +236,7 @@ describe("DashboardDataSource composition", () => {
     expect((await source.refreshProjections()).draftWidgets).toHaveLength(10);
     expect(await source.getProviderConnections()).toHaveLength(1);
     expect(await source.getNeteaseConnection()).toMatchObject({ configured: false });
+    expect(await source.getNeteaseDataCatalog()).toMatchObject({ provider: "netease" });
     const credential = "adapter-private-cookie-value";
     expect(await source.connectNetease(credential)).toMatchObject({
       connection: { credentialStatus: "pending_validation" },

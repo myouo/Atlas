@@ -208,6 +208,8 @@ function projectTarget(payload: JsonObject, target: ProjectionTarget) {
       return requiredObject(payload, "steam");
     case "bangumi.collection":
       return requiredObject(payload, "bangumi");
+    default:
+      throw new ProjectionError(`Fixture target '${target.type}' is unsupported.`);
   }
 }
 

@@ -163,6 +163,12 @@ const WidgetTypeSchema = Type.Union([
   Type.Literal("profile.hero"),
   Type.Literal("system.stats"),
   Type.Literal("music.netease.overview"),
+  Type.Literal("music.netease.identity"),
+  Type.Literal("music.netease.listening"),
+  Type.Literal("music.netease.ranking"),
+  Type.Literal("music.netease.social"),
+  Type.Literal("music.netease.playlists"),
+  Type.Literal("music.netease.showcase"),
   Type.Literal("github.profile"),
   Type.Literal("bilibili.profile"),
   Type.Literal("steam.profile"),
@@ -239,7 +245,9 @@ const DataUnavailableSchema = Type.Object(
       Type.Literal("provider_omitted"),
       Type.Literal("unsupported"),
       Type.Literal("insufficient_coverage"),
-      Type.Literal("schema_unavailable")
+      Type.Literal("schema_unavailable"),
+      Type.Literal("not_public"),
+      Type.Literal("resource_not_found")
     ])
   },
   { additionalProperties: false }
@@ -443,6 +451,36 @@ export const NeteaseOverviewWidgetV2Schema = Type.Object(
   { additionalProperties: false }
 );
 
+const neteaseWidget = (type: string) =>
+  Type.Object(
+    {
+      ...widgetEnvelopeProperties,
+      type: Type.Literal(type),
+      provider: Type.Literal("netease"),
+      schemaVersion: Type.Literal(1),
+      data: JsonObjectSchema
+    },
+    { additionalProperties: false }
+  );
+
+export const NeteaseIdentityWidgetV1Schema = neteaseWidget("music.netease.identity");
+export const NeteaseListeningWidgetV1Schema = neteaseWidget("music.netease.listening");
+export const NeteaseRankingWidgetV1Schema = neteaseWidget("music.netease.ranking");
+export const NeteaseSocialWidgetV1Schema = neteaseWidget("music.netease.social");
+export const NeteasePlaylistsWidgetV1Schema = neteaseWidget("music.netease.playlists");
+export const NeteaseShowcaseWidgetV1Schema = neteaseWidget("music.netease.showcase");
+
+export const NeteaseDataCatalogSchema = Type.Object(
+  {
+    catalog: JsonObjectSchema,
+    dataVersion: Type.String({ format: "uuid" }),
+    generatedAt: Type.String({ format: "date-time" }),
+    provider: Type.Literal("netease"),
+    schemaVersion: Type.Literal(1)
+  },
+  { additionalProperties: false }
+);
+
 export const GithubProfileWidgetSchema = Type.Object(
   {
     ...widgetEnvelopeProperties,
@@ -488,6 +526,12 @@ export const WidgetProjectionSchema = Type.Union([
   SystemStatsWidgetSchema,
   NeteaseOverviewWidgetSchema,
   NeteaseOverviewWidgetV2Schema,
+  NeteaseIdentityWidgetV1Schema,
+  NeteaseListeningWidgetV1Schema,
+  NeteaseRankingWidgetV1Schema,
+  NeteaseSocialWidgetV1Schema,
+  NeteasePlaylistsWidgetV1Schema,
+  NeteaseShowcaseWidgetV1Schema,
   GithubProfileWidgetSchema,
   BilibiliProfileWidgetSchema,
   SteamProfileWidgetSchema,

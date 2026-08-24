@@ -11,10 +11,61 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
     code: 200,
     profile: { nickname: "Nivalis Fixture", userId: 10001 }
   },
+  [NETEASE_SOURCE.profileHome]: {
+    code: 200,
+    data: {
+      musicCards: [
+        {
+          cardId: "fixture-card-1",
+          cardType: "song",
+          resource: track(20001, "Snow Light", 30001, "Aimer"),
+          title: "最近最爱"
+        }
+      ]
+    },
+    level: 10,
+    listenSongs: 6_421,
+    profile: {
+      avatarUrl: "https://p1.music.126.net/sanitized-fixture/avatar.jpg",
+      nickname: "Nivalis Fixture",
+      userId: 10001
+    }
+  },
   [NETEASE_SOURCE.userDetail]: {
     code: 200,
     listenSongs: 6_421,
-    profile: { nickname: "Nivalis Fixture", userId: 10001 }
+    level: 10,
+    profile: {
+      artistIdentity: [{ id: 30001, name: "Aimer 乐迷" }],
+      avatarDetail: {
+        identityIconUrl: "https://p1.music.126.net/sanitized-fixture/avatar-frame.png"
+      },
+      avatarUrl: "https://p1.music.126.net/sanitized-fixture/avatar.jpg",
+      eventCount: 18,
+      followeds: 128,
+      follows: 36,
+      nickname: "Nivalis Fixture",
+      playlistCount: 8,
+      signature: "Music is the place where memory becomes light.",
+      userId: 10001,
+      vipType: 11
+    }
+  },
+  [NETEASE_SOURCE.userLevel]: {
+    code: 200,
+    data: { level: 10, nextPlayCount: 20_000, nowPlayCount: 14_230, progress: 0.71 }
+  },
+  [NETEASE_SOURCE.vipInfo]: {
+    code: 200,
+    data: {
+      associator: { expireTime: 1_806_220_800_000, vipCode: 100 },
+      musicPackage: { expireTime: 1_806_220_800_000, vipCode: 220 },
+      redVipLevel: 6
+    }
+  },
+  [NETEASE_SOURCE.listenTotal]: {
+    code: 200,
+    data: { totalDuration: 582_420 }
   },
   [NETEASE_SOURCE.weeklyRecord]: {
     code: 200,
@@ -23,6 +74,13 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       { playCount: 7, score: 74, song: track(20002, "Blue Hour", 30002, "Mizuki") },
       { playCount: 3, score: 42, song: track(20003, "Morning", 30001, "Aimer") }
     ]
+  },
+  [NETEASE_SOURCE.allTimeRecord]: {
+    allData: [
+      { playCount: 420, score: 100, song: track(20001, "Snow Light", 30001, "Aimer") },
+      { playCount: 260, score: 86, song: track(20002, "Blue Hour", 30002, "Mizuki") }
+    ],
+    code: 200
   },
   [NETEASE_SOURCE.recentSongs]: {
     code: 200,
@@ -57,6 +115,75 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       },
       startTime: 1_776_568_000_000,
       type: "week"
+    }
+  },
+  [NETEASE_SOURCE.following]: {
+    code: 200,
+    follow: [
+      {
+        avatarUrl: "https://p1.music.126.net/sanitized-fixture/following-1.jpg",
+        nickname: "Snow Listener",
+        signature: "fixture following",
+        userId: 11001
+      }
+    ],
+    more: false,
+    size: 1
+  },
+  [NETEASE_SOURCE.followers]: {
+    code: 200,
+    followeds: [
+      {
+        avatarUrl: "https://p1.music.126.net/sanitized-fixture/follower-1.jpg",
+        nickname: "Blue Listener",
+        signature: "fixture follower",
+        userId: 12001
+      }
+    ],
+    more: false,
+    size: 1
+  },
+  [NETEASE_SOURCE.createdPlaylists]: {
+    code: 200,
+    data: {
+      count: 1,
+      more: false,
+      playlist: [
+        {
+          coverImgUrl: "https://p1.music.126.net/sanitized-fixture/playlist-1.jpg",
+          createTime: 1_700_000_000_000,
+          id: 13001,
+          name: "Snow Archive",
+          playCount: 820,
+          subscribed: false,
+          trackCount: 48,
+          userId: 10001
+        }
+      ]
+    }
+  },
+  [NETEASE_SOURCE.medals]: {
+    code: 200,
+    data: {
+      medalNum: 1,
+      obtainMedals: [
+        {
+          descriptionText: "连续聆听的纪念",
+          medalCode: "medal-1",
+          medalName: "雪夜聆听者",
+          medalPicUrl: "https://p1.music.126.net/sanitized-fixture/medal-1.png",
+          obtainTime: 1_700_000_000_000,
+          wear: true
+        }
+      ]
+    }
+  },
+  [NETEASE_SOURCE.socialStatus]: {
+    code: 200,
+    data: {
+      iconUrl: "https://p1.music.126.net/sanitized-fixture/status-1.png",
+      id: "status-1",
+      name: "深夜听歌中"
     }
   }
 };
@@ -130,6 +257,7 @@ export function createNeteaseHttpFixtureFetcher(
   const fixture = scenario === "schema_drift" ? schemaDriftFixture : normalNeteaseFixture;
   let qrChecks = 0;
   let qrGeneration = 0;
+  let playRecordRequests = 0;
   return async (input) => {
     const url = new URL(input instanceof Request ? input.url : input.toString());
     if (url.pathname.includes("login/qrcode/unikey")) {
@@ -160,17 +288,49 @@ export function createNeteaseHttpFixtureFetcher(
     if (url.pathname.includes("account/get")) {
       return Response.json(fixture[NETEASE_SOURCE.account]);
     }
-    if (url.pathname.includes("user/detail")) {
+    if (url.pathname.includes("w/v1/user/detail")) {
+      return Response.json(fixture[NETEASE_SOURCE.profileHome]);
+    }
+    if (url.pathname.includes("v1/user/detail")) {
       return Response.json(fixture[NETEASE_SOURCE.userDetail]);
     }
+    if (url.pathname.includes("user/level")) {
+      return Response.json(fixture[NETEASE_SOURCE.userLevel]);
+    }
+    if (url.pathname.includes("music-vip-membership")) {
+      return Response.json(fixture[NETEASE_SOURCE.vipInfo]);
+    }
+    if (url.pathname.includes("listen/data/total")) {
+      return Response.json(fixture[NETEASE_SOURCE.listenTotal]);
+    }
     if (url.pathname.includes("play/record")) {
-      return Response.json(fixture[NETEASE_SOURCE.weeklyRecord]);
+      playRecordRequests += 1;
+      return Response.json(
+        playRecordRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.allTimeRecord]
+          : fixture[NETEASE_SOURCE.weeklyRecord]
+      );
     }
     if (url.pathname.includes("song/list")) {
       return Response.json(fixture[NETEASE_SOURCE.recentSongs]);
     }
     if (url.pathname.includes("realtime/report")) {
       return Response.json(fixture[NETEASE_SOURCE.listenReportWeek]);
+    }
+    if (url.pathname.includes("user/getfollows/")) {
+      return Response.json(fixture[NETEASE_SOURCE.following]);
+    }
+    if (url.pathname.includes("user/getfolloweds/")) {
+      return Response.json(fixture[NETEASE_SOURCE.followers]);
+    }
+    if (url.pathname.includes("user/playlist/create")) {
+      return Response.json(fixture[NETEASE_SOURCE.createdPlaylists]);
+    }
+    if (url.pathname.includes("medal/user/page")) {
+      return Response.json(fixture[NETEASE_SOURCE.medals]);
+    }
+    if (url.pathname.includes("social/user/status")) {
+      return Response.json(fixture[NETEASE_SOURCE.socialStatus]);
     }
     return Response.json({ code: 404 }, { status: 404 });
   };

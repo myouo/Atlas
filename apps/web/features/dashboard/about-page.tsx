@@ -411,6 +411,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
             editable={isOwner && effectiveMode === "edit"}
             layout={snapshot.layout}
             onLayoutChange={store.updateBreakpointLayout}
+            onDataConfigChange={store.updateWidgetDataConfig}
             onPresentationConfigChange={store.updateWidgetPresentationConfig}
             onRemoveWidget={(widgetId) => {
               store.removeWidget(widgetId);

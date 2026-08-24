@@ -260,6 +260,185 @@ export function createMockWidget(
       updatedAt
     };
   }
+  if (type === "music.netease.identity") {
+    return {
+      data: {
+        medals: { availability: "available", items: [], obtainedCount: 0 },
+        profile: {
+          availability: "available",
+          avatarUrl: "/images/mock-avatar-profile.webp",
+          displayName: "Nivalis Fixture",
+          followerCount: 128,
+          followingCount: 36,
+          level: 10,
+          playlistCount: 8
+        },
+        provider: "netease",
+        publicFields: [
+          "display_name",
+          "avatar",
+          "level",
+          "vip",
+          "following_count",
+          "follower_count",
+          "playlist_count"
+        ],
+        socialStatus: { availability: "unavailable", reason: "provider_omitted" },
+        vip: {
+          active: true,
+          availability: "available",
+          memberships: [],
+          redVipAnnualCount: 1,
+          redVipLevel: 6
+        }
+      },
+      dataConfig: {
+        medalLimit: 3,
+        publicFields: [
+          "display_name",
+          "avatar",
+          "level",
+          "vip",
+          "following_count",
+          "follower_count",
+          "playlist_count"
+        ]
+      },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "netease",
+      schemaVersion: 1,
+      stale: true,
+      title: "网易云 · 身份档案",
+      type,
+      updatedAt
+    } as WidgetOf<"music.netease.identity">;
+  }
+  if (type === "music.netease.listening") {
+    const metric = (
+      value: number,
+      unit: "plays" | "seconds" | "minutes",
+      period: "all_time" | "provider_week"
+    ) => ({
+      availability: "available" as const,
+      period,
+      provenance: "provider_reported" as const,
+      unit,
+      value
+    });
+    return {
+      data: {
+        provider: "netease",
+        publicFields: ["total_count", "total_duration", "weekly_duration", "trend"],
+        totalListenCount: metric(6421, "plays", "all_time"),
+        totalListeningDuration: metric(582420, "seconds", "all_time"),
+        trend: { availability: "unavailable", reason: "not_synced" },
+        weeklyListeningDuration: metric(91, "minutes", "provider_week")
+      },
+      dataConfig: {
+        publicFields: ["total_count", "total_duration", "weekly_duration", "trend"]
+      },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "netease",
+      schemaVersion: 1,
+      stale: true,
+      title: "网易云 · 收听足迹",
+      type,
+      updatedAt
+    } as WidgetOf<"music.netease.listening">;
+  }
+  if (type === "music.netease.ranking") {
+    return {
+      data: {
+        availability: "available",
+        coverage: "provider_top_100",
+        items: [],
+        provider: "netease",
+        publicLimit: 10,
+        range: "week",
+        totalAvailable: 0
+      },
+      dataConfig: { publicLimit: 10, range: "week" },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "netease",
+      schemaVersion: 1,
+      stale: true,
+      title: "网易云 · 听歌排行",
+      type,
+      updatedAt
+    } as WidgetOf<"music.netease.ranking">;
+  }
+  if (type === "music.netease.social") {
+    const hidden = { availability: "unavailable" as const, reason: "not_public" as const };
+    return {
+      data: {
+        followerCount: 128,
+        followers: hidden,
+        following: hidden,
+        followingCount: 36,
+        provider: "netease",
+        publicLimit: 0,
+        publicLists: []
+      },
+      dataConfig: { publicLimit: 0, publicLists: [] },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "netease",
+      schemaVersion: 1,
+      stale: true,
+      title: "网易云 · 乐友关系",
+      type,
+      updatedAt
+    } as WidgetOf<"music.netease.social">;
+  }
+  if (type === "music.netease.playlists") {
+    return {
+      data: {
+        availability: "available",
+        complete: true,
+        items: [],
+        provider: "netease",
+        providerTotal: 0,
+        publicLimit: 6
+      },
+      dataConfig: { publicLimit: 6 },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "netease",
+      schemaVersion: 1,
+      stale: true,
+      title: "网易云 · 创建歌单",
+      type,
+      updatedAt
+    } as WidgetOf<"music.netease.playlists">;
+  }
+  if (type === "music.netease.showcase") {
+    return {
+      data: {
+        availability: "unavailable",
+        provider: "netease",
+        reason: "resource_not_found",
+        source: "all_time_track"
+      },
+      dataConfig: { source: "all_time_track" },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "netease",
+      schemaVersion: 1,
+      stale: true,
+      title: "网易云 · 音乐名片",
+      type,
+      updatedAt
+    } as WidgetOf<"music.netease.showcase">;
+  }
   if (type === "system.stats") {
     const metrics: WidgetOf<"system.stats">["data"]["metric"][] = [
       "uptime_days",

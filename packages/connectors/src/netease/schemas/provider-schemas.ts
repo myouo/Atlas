@@ -16,6 +16,48 @@ const AlbumSchema = Type.Object(
   { additionalProperties: true }
 );
 
+const AvatarDetailSchema = Type.Union([
+  Type.Null(),
+  Type.Object(
+    {
+      identityIconUrl: Type.Optional(Type.String()),
+      identityLevel: Type.Optional(Type.Integer({ minimum: 0 })),
+      userType: Type.Optional(Type.Integer())
+    },
+    { additionalProperties: true }
+  )
+]);
+
+const UserSummarySchema = Type.Object(
+  {
+    avatarDetail: Type.Optional(AvatarDetailSchema),
+    avatarUrl: Type.Optional(Type.String()),
+    nickname: Type.String({ minLength: 1 }),
+    signature: Type.Optional(Type.Union([Type.Null(), Type.String()])),
+    userId: ProviderIdSchema,
+    vipType: Type.Optional(Type.Integer({ minimum: 0 }))
+  },
+  { additionalProperties: true }
+);
+
+const PlaylistSchema = Type.Object(
+  {
+    coverImgUrl: Type.Optional(Type.String()),
+    createTime: Type.Optional(Type.Integer({ minimum: 0 })),
+    description: Type.Optional(Type.Union([Type.Null(), Type.String()])),
+    id: ProviderIdSchema,
+    name: Type.String({ minLength: 1 }),
+    playCount: Type.Optional(Type.Integer({ minimum: 0 })),
+    subscribed: Type.Optional(Type.Boolean()),
+    subscribedCount: Type.Optional(Type.Integer({ minimum: 0 })),
+    tags: Type.Optional(Type.Array(Type.String())),
+    totalDuration: Type.Optional(Type.Integer({ minimum: 0 })),
+    trackCount: Type.Optional(Type.Integer({ minimum: 0 })),
+    userId: Type.Optional(ProviderIdSchema)
+  },
+  { additionalProperties: true }
+);
+
 export const NeteaseTrackSchema = Type.Object(
   {
     id: ProviderIdSchema,
@@ -47,12 +89,89 @@ export const NeteaseAccountResponseSchema = Type.Object(
 export const NeteaseUserDetailResponseSchema = Type.Object(
   {
     code: Type.Literal(200),
+    level: Type.Optional(Type.Integer({ minimum: 0 })),
     listenSongs: Type.Integer({ minimum: 0 }),
     profile: Type.Object(
       {
+        artistIdentity: Type.Optional(Type.Array(Type.Unknown())),
+        avatarDetail: Type.Optional(AvatarDetailSchema),
+        avatarUrl: Type.Optional(Type.String()),
+        createTime: Type.Optional(Type.Integer({ minimum: 0 })),
+        eventCount: Type.Optional(Type.Integer({ minimum: 0 })),
+        followeds: Type.Optional(Type.Integer({ minimum: 0 })),
+        follows: Type.Optional(Type.Integer({ minimum: 0 })),
         nickname: Type.Optional(Type.String()),
+        playlistCount: Type.Optional(Type.Integer({ minimum: 0 })),
+        signature: Type.Optional(Type.String()),
+        userType: Type.Optional(Type.Integer()),
+        vipType: Type.Optional(Type.Integer({ minimum: 0 })),
         userId: Type.Optional(ProviderIdSchema)
       },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseProfileHomeResponseSchema = NeteaseUserDetailResponseSchema;
+
+export const NeteaseUserLevelResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        info: Type.Optional(Type.String()),
+        level: Type.Integer({ minimum: 0 }),
+        nextLoginCount: Type.Optional(Type.Integer({ minimum: 0 })),
+        nextPlayCount: Type.Optional(Type.Integer({ minimum: 0 })),
+        nowLoginCount: Type.Optional(Type.Integer({ minimum: 0 })),
+        nowPlayCount: Type.Optional(Type.Integer({ minimum: 0 })),
+        progress: Type.Optional(Type.Number({ minimum: 0 }))
+      },
+      { additionalProperties: true }
+    ),
+    full: Type.Optional(Type.Boolean())
+  },
+  { additionalProperties: true }
+);
+
+const MembershipSchema = Type.Union([
+  Type.Null(),
+  Type.Object(
+    {
+      expireTime: Type.Optional(Type.Integer({ minimum: 0 })),
+      vipCode: Type.Optional(Type.Integer({ minimum: 0 })),
+      vipLevel: Type.Optional(Type.Integer({ minimum: 0 }))
+    },
+    { additionalProperties: true }
+  )
+]);
+
+export const NeteaseVipInfoResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        albumVip: Type.Optional(MembershipSchema),
+        associator: Type.Optional(MembershipSchema),
+        musicPackage: Type.Optional(MembershipSchema),
+        now: Type.Optional(Type.Integer({ minimum: 0 })),
+        redplus: Type.Optional(MembershipSchema),
+        redVipAnnualCount: Type.Optional(Type.Integer({ minimum: -1 })),
+        redVipLevel: Type.Optional(Type.Integer({ minimum: 0 })),
+        voiceBookVip: Type.Optional(MembershipSchema)
+      },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseListenTotalResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      { totalDuration: Type.Integer({ minimum: 0 }) },
       { additionalProperties: true }
     )
   },
@@ -72,6 +191,94 @@ export const NeteaseWeeklyRecordResponseSchema = Type.Object(
         { additionalProperties: true }
       )
     )
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseAllTimeRecordResponseSchema = Type.Object(
+  {
+    allData: Type.Array(
+      Type.Object(
+        {
+          playCount: Type.Integer({ minimum: 0 }),
+          score: Type.Number({ minimum: 0 }),
+          song: NeteaseTrackSchema
+        },
+        { additionalProperties: true }
+      )
+    ),
+    code: Type.Literal(200)
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseFollowingResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    follow: Type.Array(UserSummarySchema),
+    more: Type.Optional(Type.Boolean()),
+    touchCount: Type.Optional(Type.Integer({ minimum: 0 }))
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseFollowersResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    followeds: Type.Array(UserSummarySchema),
+    more: Type.Optional(Type.Boolean()),
+    size: Type.Optional(Type.Integer({ minimum: 0 }))
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseCreatedPlaylistsResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        count: Type.Optional(Type.Integer({ minimum: 0 })),
+        more: Type.Optional(Type.Boolean()),
+        playlist: Type.Array(PlaylistSchema),
+        subCount: Type.Optional(Type.Integer({ minimum: 0 }))
+      },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
+const MedalSchema = Type.Object(
+  {
+    descriptionText: Type.Optional(Type.Union([Type.Null(), Type.String()])),
+    medalCode: Type.String({ minLength: 1 }),
+    medalLevel: Type.Optional(Type.Union([Type.Null(), Type.Integer({ minimum: 0 })])),
+    medalName: Type.String({ minLength: 1 }),
+    medalPicUrl: Type.Optional(Type.String()),
+    obtainTime: Type.Optional(Type.Union([Type.Null(), Type.Integer({ minimum: 0 })])),
+    wear: Type.Optional(Type.Boolean())
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseMedalsResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        medalNum: Type.Optional(Type.Integer({ minimum: 0 })),
+        obtainMedals: Type.Optional(Type.Array(MedalSchema))
+      },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseSocialStatusResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object({}, { additionalProperties: true })
   },
   { additionalProperties: true }
 );

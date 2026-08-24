@@ -265,13 +265,13 @@ export interface NeteaseTrackPlaySnapshotsTable {
 
 export interface NeteaseMetricSnapshotsTable {
   id: string;
-  metric: "total_listen_count" | "listening_duration";
+  metric: "total_listen_count" | "listening_duration" | "listening_duration_total";
   observed_at: Timestamp;
   period: string;
   provenance: "provider_reported" | "nivalis_derived";
   provider_connection_id: string;
   source_snapshot_id: string;
-  unit: "plays" | "minutes";
+  unit: "plays" | "minutes" | "seconds";
   value: Numeric;
 }
 
@@ -287,6 +287,15 @@ export interface WidgetProjectionsTable {
   source_snapshot_id: string | null;
   stale: boolean;
   widget_id: string;
+}
+
+export interface ProviderDataCatalogsTable {
+  data: JSONColumnType<JsonObject>;
+  data_version_id: string;
+  generated_at: Timestamp;
+  provider: "netease";
+  provider_connection_id: string;
+  schema_version: number;
 }
 
 export interface Database {
@@ -307,6 +316,7 @@ export interface Database {
   provider_connections: ProviderConnectionsTable;
   provider_auth_attempts: ProviderAuthAttemptsTable;
   provider_credentials: ProviderCredentialsTable;
+  provider_data_catalogs: ProviderDataCatalogsTable;
   provider_raw_snapshots: ProviderRawSnapshotsTable;
   provider_sync_runs: ProviderSyncRunsTable;
   provider_sync_states: ProviderSyncStatesTable;

@@ -1,14 +1,18 @@
 import { PuzzlePiece } from "@phosphor-icons/react";
-import type { WidgetProjection } from "@nivalis/api-client";
+import type { NeteaseDataCatalog, WidgetProjection } from "@nivalis/api-client";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { dashboardSource } from "../../api/dashboard-source-factory";
 import { ModuleShell } from "../../design-system/module-shell";
 import { WidgetDisplaySettingsDialog } from "./widget-display-settings-dialog";
+import type { WidgetDataResourceOption } from "./widget-display-settings-dialog";
 import { widgetRegistry } from "./widget-registry";
 import type { RuntimeWidgetProjection } from "./widget-types";
 
 interface WidgetCardProps {
   readonly editable: boolean;
+  readonly onDataConfigChange?: (config: WidgetProjection["dataConfig"]) => void;
   readonly onPresentationConfigChange?: (config: WidgetProjection["presentationConfig"]) => void;
   readonly onRemove: () => void;
   readonly widget: RuntimeWidgetProjection;
@@ -16,12 +20,19 @@ interface WidgetCardProps {
 
 export function WidgetCard({
   editable,
+  onDataConfigChange,
   onPresentationConfigChange,
   onRemove,
   widget
 }: WidgetCardProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const definition = widgetRegistry.resolve(widget.type, widget.schemaVersion);
+  const catalogQuery = useQuery({
+    enabled: Boolean(settingsOpen && definition?.resourcePicker === "netease-showcase"),
+    queryFn: () => dashboardSource.getNeteaseDataCatalog(),
+    queryKey: ["provider-data", "netease", dashboardSource.kind],
+    retry: false
+  });
 
   if (!definition) {
     return (
@@ -44,6 +55,7 @@ export function WidgetCard({
   const { Icon, Renderer } = definition;
   const subtitle = definition.subtitle?.(widget as never);
   const controls = definition.presentationControls ?? [];
+  const dataPresets = definition.dataPresets ?? [];
   return (
     <>
       <ModuleShell
@@ -51,7 +63,9 @@ export function WidgetCard({
         editable={editable}
         icon={<Icon aria-hidden size={19} />}
         kind={definition.kind}
-        {...(editable && controls.length > 0 ? { onConfigure: () => setSettingsOpen(true) } : {})}
+        {...(editable && (controls.length > 0 || dataPresets.length > 0)
+          ? { onConfigure: () => setSettingsOpen(true) }
+          : {})}
         onRemove={onRemove}
         stale={widget.stale}
         {...(subtitle ? { subtitle } : {})}
@@ -59,16 +73,82 @@ export function WidgetCard({
       >
         <Renderer widget={widget as never} />
       </ModuleShell>
-      {controls.length > 0 && "presentationConfig" in widget ? (
+      {(controls.length > 0 || dataPresets.length > 0) && "presentationConfig" in widget ? (
         <WidgetDisplaySettingsDialog
           controls={controls}
+          dataConfig={widget.dataConfig}
+          dataPresets={dataPresets}
           name={definition.name}
+          onDataConfigChange={(config) => onDataConfigChange?.(config)}
           onChange={(config) => onPresentationConfigChange?.(config)}
           onOpenChange={setSettingsOpen}
           open={settingsOpen}
           presentationConfig={widget.presentationConfig}
+          resourceOptions={neteaseResourceOptions(catalogQuery.data)}
         />
       ) : null}
     </>
   );
+}
+
+function neteaseResourceOptions(
+  catalog: NeteaseDataCatalog | undefined
+): readonly WidgetDataResourceOption[] {
+  if (!catalog) return [];
+  const options: WidgetDataResourceOption[] = [];
+  for (const item of catalog.catalog.weeklyRanking) {
+    options.push({
+      label: `本周歌曲 · ${item.track.name}`,
+      resourceId: item.track.providerTrackId,
+      source: "weekly_track"
+    });
+  }
+  for (const item of catalog.catalog.allTimeRanking) {
+    options.push({
+      label: `长期歌曲 · ${item.track.name}`,
+      resourceId: item.track.providerTrackId,
+      source: "all_time_track"
+    });
+  }
+  const playlists = objectArray(catalog.catalog.createdPlaylists.items);
+  for (const item of playlists) {
+    const resourceId = stringValue(item.providerPlaylistId);
+    const name = stringValue(item.name);
+    if (resourceId && name) {
+      options.push({ label: `创建歌单 · ${name}`, resourceId, source: "created_playlist" });
+    }
+  }
+  const medals = objectArray(catalog.catalog.medals.items);
+  for (const item of medals) {
+    const resourceId = stringValue(item.providerMedalCode);
+    const name = stringValue(item.name);
+    if (resourceId && name)
+      options.push({ label: `乐迷徽章 · ${name}`, resourceId, source: "medal" });
+  }
+  const musicCards = objectArray(catalog.catalog.musicCards.items);
+  for (const item of musicCards) {
+    const resourceId = stringValue(item.providerCardId);
+    const title = stringValue(item.title);
+    if (resourceId && title) {
+      options.push({
+        label: `Provider 音乐卡片 · ${title}`,
+        resourceId,
+        source: "provider_music_card"
+      });
+    }
+  }
+  return options;
+}
+
+function objectArray(value: unknown): readonly Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          item !== null && typeof item === "object" && !Array.isArray(item)
+      )
+    : [];
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : null;
 }

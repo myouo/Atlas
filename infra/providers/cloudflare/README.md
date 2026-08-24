@@ -67,7 +67,7 @@ OAuth state/PKCE material is short-lived and AEAD-encrypted in D1. Session cooki
 
 ## NetEase Provider runtime
 
-Cloudflare D1 stores Provider connection metadata, encrypted credentials, ephemeral AuthAttempts, SyncRuns, sanitized Raw Snapshots, sync state, and the latest NetEase account projection. `MUSIC_U`, QR private state, phone numbers, and submitted SMS codes are protected with AES-256-GCM and contextual associated data. Terminal or cancelled AuthAttempts erase their encrypted state.
+Cloudflare D1 stores Provider connection metadata, encrypted credentials, ephemeral AuthAttempts, SyncRuns, sanitized Raw Snapshots, sync state, Last Known Good Widget projections, and an Owner-only normalized NetEase data catalog. `MUSIC_U`, QR private state, phone numbers, and submitted SMS codes are protected with AES-256-GCM and contextual associated data. Terminal or cancelled AuthAttempts erase their encrypted state.
 
 Provider authentication remains owned by `ProviderAuthWorkerService`: the API persists an AuthAttempt, returns `202` immediately, and starts its first step with `ExecutionContext.waitUntil()`. QR polling, retry fallback, and credential extraction use the Cloudflare Queue adapter, whose messages contain only the attempt UUID. The consumer uses single-message batches with zero batch wait so interactive work is delivered immediately; the browser polls only Nivalis. The Connector uses manual redirect inspection because edge Fetch implementations do not universally implement `redirect: "error"`, and the default transport is wrapped through `globalThis.fetch` to preserve the required runtime receiver.
 
@@ -96,7 +96,7 @@ pnpm d1:seed:remote
 
 Wrangler automatic provisioning creates and links the D1/Queue resources without committed instance IDs. `CORS_ORIGINS` is injected as a deployment variable.
 
-Build Pages in API Mode by injecting the Worker origin at build time:
+Build Pages in API Mode by injecting the same-origin Pages Function gateway at build time. The deployment script now fails closed when either API-mode variable is absent, preventing an accidental Mock deployment:
 
 ```bash
 NEXT_PUBLIC_DASHBOARD_SOURCE=api \

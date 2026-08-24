@@ -7,6 +7,7 @@ import {
   InvalidDashboardError,
   InvalidProviderCredentialError,
   ProviderConnectionNotFoundError,
+  ProviderDataNotFoundError,
   ProviderAuthAttemptNotFoundError,
   ProviderAuthAttemptStateError,
   ProviderNotConfiguredError,
@@ -75,6 +76,7 @@ export function registerProblemHandlers(app: FastifyInstance) {
       error instanceof DashboardNotFoundError ||
       error instanceof DashboardRevisionNotFoundError ||
       error instanceof ProviderConnectionNotFoundError ||
+      error instanceof ProviderDataNotFoundError ||
       error instanceof ProviderAuthAttemptNotFoundError ||
       error instanceof SyncRunNotFoundError ||
       error instanceof WidgetNotFoundError
@@ -91,11 +93,13 @@ export function registerProblemHandlers(app: FastifyInstance) {
                 ? "Dashboard revision not found"
                 : error instanceof ProviderConnectionNotFoundError
                   ? "Provider connection not found"
-                  : error instanceof ProviderAuthAttemptNotFoundError
-                    ? "Provider authentication attempt not found"
-                    : error instanceof SyncRunNotFoundError
-                      ? "Sync job not found"
-                      : "Widget not found",
+                  : error instanceof ProviderDataNotFoundError
+                    ? "Provider data not found"
+                    : error instanceof ProviderAuthAttemptNotFoundError
+                      ? "Provider authentication attempt not found"
+                      : error instanceof SyncRunNotFoundError
+                        ? "Sync job not found"
+                        : "Widget not found",
           type: `urn:nivalis:problem:${error.code}`
         })
       );

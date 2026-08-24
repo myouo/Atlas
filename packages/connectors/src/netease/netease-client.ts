@@ -46,12 +46,80 @@ export class NeteaseClient {
     return this.weapi(`/api/v1/user/detail/${encodeURIComponent(userId)}`, {}, credential);
   }
 
+  getProfileHome(credential: string, userId: string) {
+    return this.eapi(
+      `/api/w/v1/user/detail/${encodeURIComponent(userId)}`,
+      { all: "true", userId },
+      credential
+    );
+  }
+
+  getUserLevel(credential: string) {
+    return this.weapi("/api/user/level", {}, credential);
+  }
+
+  getVipInfo(credential: string, userId: string) {
+    return this.weapi("/api/music-vip-membership/client/vip/info", { userId }, credential);
+  }
+
   getWeeklyRecord(credential: string, userId: string) {
     return this.weapi(
       "/api/v1/play/record",
       { limit: 100, offset: 0, total: true, type: 1, uid: userId },
       credential
     );
+  }
+
+  getAllTimeRecord(credential: string, userId: string) {
+    return this.weapi(
+      "/api/v1/play/record",
+      { limit: 100, offset: 0, total: true, type: 0, uid: userId },
+      credential
+    );
+  }
+
+  getFollowing(credential: string, userId: string, offset = 0, limit = 100) {
+    return this.weapi(
+      `/api/user/getfollows/${encodeURIComponent(userId)}`,
+      { limit, offset, order: true },
+      credential
+    );
+  }
+
+  getFollowers(credential: string, userId: string, offset = 0, limit = 100) {
+    return this.eapi(
+      `/api/user/getfolloweds/${encodeURIComponent(userId)}`,
+      { getcounts: "true", limit, offset, time: "0", userId },
+      credential,
+      "/api/user/getfolloweds"
+    );
+  }
+
+  getCreatedPlaylists(credential: string, userId: string, offset = 0, limit = 100) {
+    return this.eapi(
+      "/api/user/playlist/create",
+      {
+        includeRedHeart: "true",
+        includeTop: "true",
+        isWebview: "true",
+        limit: String(limit),
+        offset: String(offset),
+        userId
+      },
+      credential
+    );
+  }
+
+  getUserMedals(credential: string, userId: string) {
+    return this.eapi("/api/medal/user/page", { uid: userId }, credential);
+  }
+
+  getUserSocialStatus(credential: string, userId: string) {
+    return this.eapi("/api/social/user/status", { visitorId: userId }, credential);
+  }
+
+  getTotalListenData(credential: string) {
+    return this.eapi("/api/content/activity/listen/data/total", {}, credential);
   }
 
   getRecentSongs(credential: string) {
@@ -86,7 +154,8 @@ export class NeteaseClient {
     path: string,
     data: JsonObject,
     credential = "",
-    acceptedProviderCodes: ReadonlySet<number> = new Set([200])
+    acceptedProviderCodes: ReadonlySet<number> = new Set([200]),
+    signingPath = path
   ) {
     const header = {
       __csrf: "",
@@ -97,7 +166,7 @@ export class NeteaseClient {
       osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
       ...(credential ? { MUSIC_U: credential } : {})
     };
-    const encrypted = encryptEapi(path, { ...data, header });
+    const encrypted = encryptEapi(signingPath, { ...data, header });
     return this.request(
       new URL(path.replace("/api/", "/eapi/"), INTERFACE_ORIGIN),
       encrypted,
@@ -111,8 +180,8 @@ export class NeteaseClient {
     return (await this.weapiResponse(path, data, credential)).payload;
   }
 
-  private async eapi(path: string, data: JsonObject, credential: string) {
-    return (await this.eapiResponse(path, data, credential)).payload;
+  private async eapi(path: string, data: JsonObject, credential: string, signingPath = path) {
+    return (await this.eapiResponse(path, data, credential, new Set([200]), signingPath)).payload;
   }
 
   private async request(

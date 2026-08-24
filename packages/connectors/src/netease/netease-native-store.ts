@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import type { ProviderNativeStore } from "@nivalis/application";
 import { ProjectionError } from "@nivalis/domain";
+import type { JsonObject } from "@nivalis/domain";
 import type { ColumnType, Kysely, Transaction } from "kysely";
 
 import { isNeteaseNormalizedPayload } from "./netease-normalizer";
+import { buildNeteaseOwnerDataCatalog } from "./netease-projector";
 import {
   NETEASE_SOURCE,
   type NeteaseNormalizedPayload,
@@ -14,6 +16,14 @@ import {
 type Timestamp = ColumnType<Date, Date, Date>;
 
 export interface NeteaseNativeDatabase {
+  provider_data_catalogs: {
+    data: ColumnType<JsonObject, string, string>;
+    data_version_id: string;
+    generated_at: Timestamp;
+    provider: "netease";
+    provider_connection_id: string;
+    schema_version: number;
+  };
   netease_accounts: {
     created_at: Timestamp;
     display_name: string | null;
@@ -32,13 +42,13 @@ export interface NeteaseNativeDatabase {
   };
   netease_metric_snapshots: {
     id: string;
-    metric: "total_listen_count" | "listening_duration";
+    metric: "total_listen_count" | "listening_duration" | "listening_duration_total";
     observed_at: Timestamp;
     period: string;
     provenance: "provider_reported" | "nivalis_derived";
     provider_connection_id: string;
     source_snapshot_id: string;
-    unit: "plays" | "minutes";
+    unit: "plays" | "minutes" | "seconds";
     value: number | string;
   };
   netease_recent_listens: {
@@ -121,6 +131,26 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
       .where("id", "=", input.providerConnectionId)
       .execute();
 
+    await this.database
+      .insertInto("provider_data_catalogs")
+      .values({
+        data: JSON.stringify(buildNeteaseOwnerDataCatalog(payload)),
+        data_version_id: randomUUID(),
+        generated_at: now,
+        provider: "netease",
+        provider_connection_id: input.providerConnectionId,
+        schema_version: 1
+      })
+      .onConflict((conflict) =>
+        conflict.column("provider_connection_id").doUpdateSet((excluded) => ({
+          data: excluded.ref("excluded.data"),
+          data_version_id: excluded.ref("excluded.data_version_id"),
+          generated_at: excluded.ref("excluded.generated_at"),
+          schema_version: excluded.ref("excluded.schema_version")
+        }))
+      )
+      .execute();
+
     const tracks = uniqueTracks(payload);
     const trackIds = new Map<string, string>();
     for (const track of tracks) {
@@ -145,6 +175,29 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
           provider_connection_id: input.providerConnectionId,
           score: record.score,
           source_snapshot_id: weeklySource,
+          track_id: trackIds.get(record.track.providerTrackId)!
+        })
+        .onConflict((conflict) =>
+          conflict.columns(["source_snapshot_id", "track_id", "period"]).doNothing()
+        )
+        .execute();
+    }
+
+    const allTimeSource = requiredSource(
+      input.normalized.sourceSnapshotIds,
+      NETEASE_SOURCE.allTimeRecord
+    );
+    for (const record of payload.allTimeRecords) {
+      await this.database
+        .insertInto("netease_track_play_snapshots")
+        .values({
+          id: randomUUID(),
+          observed_at: now,
+          period: "all_time",
+          play_count: record.playCount,
+          provider_connection_id: input.providerConnectionId,
+          score: record.score,
+          source_snapshot_id: allTimeSource,
           track_id: trackIds.get(record.track.providerTrackId)!
         })
         .onConflict((conflict) =>
@@ -191,6 +244,17 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
         "minutes",
         "week",
         requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.listenReportWeek),
+        now
+      );
+    }
+    if (payload.listeningDurationTotalSeconds !== null) {
+      await this.insertMetric(
+        input.providerConnectionId,
+        "listening_duration_total",
+        payload.listeningDurationTotalSeconds,
+        "seconds",
+        "all_time",
+        requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.listenTotal),
         now
       );
     }
@@ -256,9 +320,9 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
 
   private async insertMetric(
     connectionId: string,
-    metric: "total_listen_count" | "listening_duration",
+    metric: "total_listen_count" | "listening_duration" | "listening_duration_total",
     value: number,
-    unit: "plays" | "minutes",
+    unit: "plays" | "minutes" | "seconds",
     period: string,
     sourceSnapshotId: string,
     observedAt: Date
@@ -286,6 +350,9 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
 function uniqueTracks(payload: NeteaseNormalizedPayload) {
   const tracks = new Map<string, NeteaseNormalizedTrack>();
   for (const record of payload.weeklyRecords) {
+    tracks.set(record.track.providerTrackId, record.track);
+  }
+  for (const record of payload.allTimeRecords) {
     tracks.set(record.track.providerTrackId, record.track);
   }
   for (const listen of payload.recentListens) {

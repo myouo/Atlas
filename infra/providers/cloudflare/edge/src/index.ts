@@ -314,6 +314,29 @@ const worker = {
             );
           }
 
+          if (requestUrl.pathname === "/v1/me/providers/netease/data" && request.method === "GET") {
+            const catalog = await providers.sync.getOwnerDataCatalog(session.actor.id);
+            if (!catalog) {
+              return problem(
+                404,
+                "provider-data-not-found",
+                "NetEase data has not been synchronized yet",
+                requestUrl.pathname,
+                requestId,
+                corsHeaders
+              );
+            }
+            return json(
+              {
+                ...catalog,
+                generatedAt: catalog.generatedAt.toISOString()
+              },
+              200,
+              corsHeaders,
+              { ETag: `"catalog:${catalog.dataVersion}"` }
+            );
+          }
+
           if (requestUrl.pathname === "/v1/me/providers/netease" && request.method === "GET") {
             return json(
               serializeProviderConnection(await providers.connections.getNetease(context)),

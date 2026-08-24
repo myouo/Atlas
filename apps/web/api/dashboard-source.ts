@@ -4,6 +4,7 @@ import type {
   DashboardRevisionDetail,
   DashboardRevisionList,
   DashboardState,
+  NeteaseDataCatalog,
   Provider,
   ProviderAuthAttempt,
   ProviderConnectAccepted,
@@ -51,6 +52,7 @@ export interface DashboardDataSource {
   cancelNeteaseAuthAttempt(attemptId: string): Promise<void>;
   disconnectNetease(): Promise<void>;
   getNeteaseConnection(): Promise<ProviderConnection>;
+  getNeteaseDataCatalog(): Promise<NeteaseDataCatalog>;
   getNeteaseAuthAttempt(attemptId: string): Promise<ProviderAuthAttempt>;
   getProviderConnections(): Promise<readonly ProviderConnection[]>;
   logout(): Promise<void>;

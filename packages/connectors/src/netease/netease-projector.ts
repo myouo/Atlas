@@ -27,18 +27,380 @@ export class NeteaseProjector implements ProviderProjector {
       normalized.sourceSnapshotIds[NETEASE_SOURCE.account];
     if (!sourceSnapshotId) throw new ProjectionError("NetEase source snapshot is missing.");
     return targets.map((target) => {
-      if (target.type !== "music.netease.overview" || target.schemaVersion !== 2) {
-        throw new ProjectionError("NetEase target schema is unsupported.");
+      if (target.type === "music.netease.overview" && target.schemaVersion === 2) {
+        return built(target, overview(payload, target.dataConfig), 2, sourceSnapshotId);
       }
-      return {
-        data: overview(payload, target.dataConfig),
-        projectionKey: target.projectionKey,
-        projectionSchemaVersion: 2,
-        sourceSnapshotId,
-        widgetId: target.id
-      };
+      if (target.schemaVersion !== 1) throw unsupported();
+      switch (target.type) {
+        case "music.netease.identity":
+          return built(target, identity(payload, target.dataConfig), 1, sourceSnapshotId);
+        case "music.netease.listening":
+          return built(target, listening(payload, target.dataConfig), 1, sourceSnapshotId);
+        case "music.netease.ranking":
+          return built(target, ranking(payload, target.dataConfig), 1, sourceSnapshotId);
+        case "music.netease.social":
+          return built(target, social(payload, target.dataConfig), 1, sourceSnapshotId);
+        case "music.netease.playlists":
+          return built(target, playlists(payload, target.dataConfig), 1, sourceSnapshotId);
+        case "music.netease.showcase":
+          return built(target, showcase(payload, target.dataConfig), 1, sourceSnapshotId);
+        default:
+          throw unsupported();
+      }
     });
   }
+}
+
+function built(
+  target: ProjectionTarget,
+  data: JsonObject,
+  projectionSchemaVersion: number,
+  sourceSnapshotId: string
+): BuiltWidgetProjection {
+  return {
+    data,
+    projectionKey: target.projectionKey,
+    projectionSchemaVersion,
+    sourceSnapshotId,
+    widgetId: target.id
+  };
+}
+
+function unsupported() {
+  return new ProjectionError("NetEase target schema is unsupported.");
+}
+
+const IDENTITY_FIELDS = [
+  "display_name",
+  "avatar",
+  "avatar_decoration",
+  "signature",
+  "level",
+  "vip",
+  "following_count",
+  "follower_count",
+  "playlist_count",
+  "event_count",
+  "medals",
+  "social_status",
+  "provider_user_id"
+] as const;
+
+function identity(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const fields = publicFields(dataConfig, IDENTITY_FIELDS, [
+    "display_name",
+    "avatar",
+    "avatar_decoration",
+    "level",
+    "vip",
+    "following_count",
+    "follower_count",
+    "playlist_count",
+    "medals",
+    "social_status"
+  ]);
+  const has = (field: (typeof IDENTITY_FIELDS)[number]) => fields.includes(field);
+  const medalLimit = boundedInteger(dataConfig.medalLimit, 3, 0, 12);
+  const activeMemberships = payload.memberships.filter((membership) => membership.active);
+  return {
+    provider: "netease",
+    publicFields: fields,
+    profile: {
+      availability: "available",
+      ...(has("display_name") ? { displayName: payload.account.displayName } : {}),
+      ...(has("avatar") ? { avatarUrl: payload.account.avatarUrl } : {}),
+      ...(has("avatar_decoration") ? { avatarDecorationUrl: payload.account.avatarFrameUrl } : {}),
+      ...(has("signature") ? { signature: payload.account.signature } : {}),
+      ...(has("level") ? { level: payload.account.level } : {}),
+      ...(has("following_count") ? { followingCount: payload.account.followingCount } : {}),
+      ...(has("follower_count") ? { followerCount: payload.account.followerCount } : {}),
+      ...(has("playlist_count") ? { playlistCount: payload.account.playlistCount } : {}),
+      ...(has("event_count") ? { eventCount: payload.account.eventCount } : {}),
+      ...(has("provider_user_id") ? { providerUserId: payload.account.providerUserId } : {})
+    },
+    vip: has("vip")
+      ? {
+          active: activeMemberships.length > 0 || (payload.account.vipType ?? 0) > 0,
+          availability: "available",
+          memberships: activeMemberships.map((membership) => ({
+            kind: membership.kind,
+            level: membership.level,
+            vipCode: membership.vipCode
+          })),
+          redVipAnnualCount: payload.redVipAnnualCount,
+          redVipLevel: payload.redVipLevel
+        }
+      : { availability: "unavailable", reason: "not_public" },
+    medals: has("medals")
+      ? {
+          availability: "available",
+          items: payload.medals.items.slice(0, medalLimit).map((medal) => ({
+            description: medal.description,
+            iconUrl: medal.iconUrl,
+            level: medal.level,
+            name: medal.name,
+            providerMedalCode: medal.providerMedalCode,
+            worn: medal.worn
+          })),
+          obtainedCount: payload.medals.obtainedCount
+        }
+      : { availability: "unavailable", reason: "not_public" },
+    socialStatus:
+      has("social_status") && payload.socialStatus
+        ? { availability: "available", ...payload.socialStatus }
+        : {
+            availability: "unavailable",
+            reason: has("social_status") ? "provider_omitted" : "not_public"
+          }
+  };
+}
+
+const LISTENING_FIELDS = ["total_count", "total_duration", "weekly_duration", "trend"] as const;
+
+function listening(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const fields = publicFields(dataConfig, LISTENING_FIELDS, [...LISTENING_FIELDS]);
+  const has = (field: (typeof LISTENING_FIELDS)[number]) => fields.includes(field);
+  return {
+    provider: "netease",
+    publicFields: fields,
+    totalListenCount: has("total_count")
+      ? metric(payload.totalListenCount, "plays", "all_time")
+      : { availability: "unavailable", reason: "not_public" },
+    totalListeningDuration: has("total_duration")
+      ? metric(payload.listeningDurationTotalSeconds, "seconds", "all_time")
+      : { availability: "unavailable", reason: "not_public" },
+    weeklyListeningDuration: has("weekly_duration")
+      ? metric(payload.listeningDurationMinutes, "minutes", "provider_week")
+      : { availability: "unavailable", reason: "not_public" },
+    trend: has("trend")
+      ? payload.reportPoints.length > 0
+        ? {
+            availability: "available",
+            coverage: "provider_report",
+            points: payload.reportPoints,
+            provenance: "provider_reported"
+          }
+        : { availability: "unavailable", reason: "provider_omitted" }
+      : { availability: "unavailable", reason: "not_public" }
+  };
+}
+
+function ranking(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const range = dataConfig.range === "all_time" ? "all_time" : "week";
+  const records = range === "all_time" ? payload.allTimeRecords : payload.weeklyRecords;
+  const limit = boundedInteger(dataConfig.publicLimit, 10, 1, 50);
+  return {
+    availability: "available",
+    coverage: "provider_top_100",
+    items: records.slice(0, limit).map((record, index) => ({
+      playCount: record.playCount,
+      rank: index + 1,
+      score: record.score,
+      track: trackSummary(record.track)
+    })),
+    provider: "netease",
+    publicLimit: limit,
+    range,
+    totalAvailable: records.length
+  };
+}
+
+function social(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const lists = publicFields(dataConfig, ["following", "followers"] as const, []);
+  const limit = boundedInteger(dataConfig.publicLimit, 8, 0, 30);
+  return {
+    followerCount: payload.account.followerCount,
+    followers: lists.includes("followers")
+      ? people(payload.followers.items.slice(0, limit), payload.followers.complete)
+      : { availability: "unavailable", reason: "not_public" },
+    following: lists.includes("following")
+      ? people(payload.following.items.slice(0, limit), payload.following.complete)
+      : { availability: "unavailable", reason: "not_public" },
+    followingCount: payload.account.followingCount,
+    provider: "netease",
+    publicLists: lists,
+    publicLimit: limit
+  };
+}
+
+function playlists(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const limit = boundedInteger(dataConfig.publicLimit, 6, 0, 20);
+  return {
+    availability: "available",
+    complete: payload.createdPlaylists.complete,
+    items: payload.createdPlaylists.items.slice(0, limit).map(playlistSummary),
+    provider: "netease",
+    providerTotal: payload.createdPlaylists.providerTotal,
+    publicLimit: limit
+  };
+}
+
+function showcase(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const source = showcaseSource(dataConfig.source);
+  const resourceId = typeof dataConfig.resourceId === "string" ? dataConfig.resourceId : null;
+  const card = selectShowcase(payload, source, resourceId);
+  return card
+    ? { availability: "available", card, provider: "netease", source }
+    : { availability: "unavailable", provider: "netease", reason: "resource_not_found", source };
+}
+
+function selectShowcase(
+  payload: NeteaseNormalizedPayload,
+  source: ReturnType<typeof showcaseSource>,
+  resourceId: string | null
+): JsonObject | null {
+  if (source === "created_playlist") {
+    const item = selectById(payload.createdPlaylists.items, resourceId, "providerPlaylistId");
+    return item ? { kind: "playlist", ...playlistSummary(item) } : null;
+  }
+  if (source === "medal") {
+    const item = selectById(payload.medals.items, resourceId, "providerMedalCode");
+    return item
+      ? {
+          description: item.description,
+          iconUrl: item.iconUrl,
+          kind: "medal",
+          level: item.level,
+          name: item.name,
+          providerMedalCode: item.providerMedalCode,
+          worn: item.worn
+        }
+      : null;
+  }
+  if (source === "provider_music_card") {
+    const item = selectById(payload.musicCards, resourceId, "providerCardId");
+    return item ? { ...item, kind: "provider_music_card" } : null;
+  }
+  const records = source === "weekly_track" ? payload.weeklyRecords : payload.allTimeRecords;
+  const item = resourceId
+    ? records.find((record) => record.track.providerTrackId === resourceId)
+    : records[0];
+  return item
+    ? {
+        kind: "track",
+        playCount: item.playCount,
+        score: item.score,
+        track: trackSummary(item.track)
+      }
+    : null;
+}
+
+function showcaseSource(value: unknown) {
+  return [
+    "weekly_track",
+    "all_time_track",
+    "created_playlist",
+    "medal",
+    "provider_music_card"
+  ].includes(typeof value === "string" ? value : "")
+    ? (value as
+        "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "provider_music_card")
+    : "all_time_track";
+}
+
+function publicFields<T extends string>(
+  config: JsonObject,
+  allowed: readonly T[],
+  defaults: readonly T[]
+): readonly T[] {
+  if (!Array.isArray(config.publicFields) && !Array.isArray(config.publicLists)) return defaults;
+  const input = (
+    Array.isArray(config.publicFields) ? config.publicFields : config.publicLists
+  ) as readonly unknown[];
+  return [
+    ...new Set(
+      input.filter((value): value is T => typeof value === "string" && allowed.includes(value as T))
+    )
+  ];
+}
+
+function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number) {
+  return typeof value === "number" && Number.isInteger(value)
+    ? Math.min(maximum, Math.max(minimum, value))
+    : fallback;
+}
+
+function metric(value: number | null, unit: string, period: string): JsonObject {
+  return value === null
+    ? { availability: "unavailable", reason: "provider_omitted" }
+    : { availability: "available", period, provenance: "provider_reported", unit, value };
+}
+
+function people(
+  items: NeteaseNormalizedPayload["following"]["items"],
+  complete: boolean
+): JsonObject {
+  return {
+    availability: "available",
+    complete,
+    items: items.map((item) => ({
+      avatarDecorationUrl: item.avatarFrameUrl,
+      avatarUrl: item.avatarUrl,
+      displayName: item.displayName,
+      providerUserId: item.providerUserId,
+      signature: item.signature,
+      vipType: item.vipType
+    }))
+  };
+}
+
+function playlistSummary(item: NeteaseNormalizedPayload["createdPlaylists"]["items"][number]) {
+  return {
+    coverUrl: item.coverUrl,
+    name: item.name,
+    playCount: item.playCount,
+    providerPlaylistId: item.providerPlaylistId,
+    subscribedCount: item.subscribedCount,
+    tags: item.tags,
+    trackCount: item.trackCount
+  };
+}
+
+function selectById<T, K extends keyof T>(items: readonly T[], id: string | null, key: K) {
+  return id ? items.find((item) => String(item[key]) === id) : items[0];
+}
+
+export function buildNeteaseOwnerDataCatalog(payload: NeteaseNormalizedPayload): JsonObject {
+  return {
+    account: payload.account,
+    allTimeRanking: payload.allTimeRecords.map((record, index) => ({
+      playCount: record.playCount,
+      rank: index + 1,
+      score: record.score,
+      track: trackSummary(record.track)
+    })),
+    createdPlaylists: payload.createdPlaylists,
+    followers: payload.followers,
+    following: payload.following,
+    levelProgress: payload.levelProgress,
+    listening: {
+      totalDurationSeconds: payload.listeningDurationTotalSeconds,
+      totalListenCount: payload.totalListenCount,
+      weeklyDurationMinutes: payload.listeningDurationMinutes,
+      weeklyTrend: payload.reportPoints
+    },
+    medals: payload.medals,
+    memberships: payload.memberships,
+    musicCards: {
+      items: payload.musicCards,
+      sourceAvailability: payload.musicCards.length > 0 ? "available" : "provider_omitted"
+    },
+    provider: "netease",
+    redVipAnnualCount: payload.redVipAnnualCount,
+    redVipLevel: payload.redVipLevel,
+    recentListening: payload.recentListens.map((item) => ({
+      playedAt: item.playedAt,
+      track: trackSummary(item.track)
+    })),
+    schemaVersion: 1,
+    socialStatus: payload.socialStatus,
+    weeklyRanking: payload.weeklyRecords.map((record, index) => ({
+      playCount: record.playCount,
+      rank: index + 1,
+      score: record.score,
+      track: trackSummary(record.track)
+    }))
+  };
 }
 
 function overview(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {

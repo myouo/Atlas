@@ -1,4 +1,8 @@
-import { NeteaseProviderRuntime, isNeteaseNormalizedPayload } from "@nivalis/connectors";
+import {
+  NeteaseProviderRuntime,
+  buildNeteaseOwnerDataCatalog,
+  isNeteaseNormalizedPayload
+} from "@nivalis/connectors";
 import {
   ProviderAuthenticationError,
   ProviderCredentialError,
@@ -71,6 +75,13 @@ interface ProviderStatusRow {
     | "failed"
     | "credential_invalid"
     | null;
+}
+
+interface ProviderDataCatalogRow {
+  readonly data_json: string;
+  readonly data_version_id: string;
+  readonly generated_at: string;
+  readonly schema_version: number;
 }
 
 export class D1NeteaseSyncRuntime {
@@ -159,6 +170,30 @@ export class D1NeteaseSyncRuntime {
       netease,
       ...(["github", "bangumi", "steam", "bilibili"] as const).map(disconnectedStatus)
     ];
+  }
+
+  async getOwnerDataCatalog(ownerId: string) {
+    const row = await this.database
+      .prepare(
+        `SELECT catalog.schema_version, catalog.data_version_id,
+                catalog.data_json, catalog.generated_at
+           FROM provider_data_catalogs AS catalog
+           JOIN provider_connections AS connection
+             ON connection.id = catalog.provider_connection_id
+          WHERE connection.owner_id = ? AND connection.provider = 'netease'
+            AND catalog.provider = 'netease'
+          LIMIT 1`
+      )
+      .bind(ownerId)
+      .first<ProviderDataCatalogRow>();
+    if (!row) return null;
+    return {
+      catalog: JSON.parse(row.data_json) as JsonObject,
+      dataVersion: row.data_version_id,
+      generatedAt: new Date(row.generated_at),
+      provider: "netease" as const,
+      schemaVersion: row.schema_version
+    };
   }
 
   async process(runId: string) {
@@ -254,6 +289,24 @@ export class D1NeteaseSyncRuntime {
       );
       if (isNeteaseNormalizedPayload(normalized.payload)) {
         statements.push(
+          this.database
+            .prepare(
+              `INSERT INTO provider_data_catalogs
+                (provider_connection_id, provider, schema_version,
+                 data_version_id, data_json, generated_at)
+               VALUES (?, 'netease', 1, ?, ?, ?)
+               ON CONFLICT(provider_connection_id) DO UPDATE SET
+                 schema_version = excluded.schema_version,
+                 data_version_id = excluded.data_version_id,
+                 data_json = excluded.data_json,
+                 generated_at = excluded.generated_at`
+            )
+            .bind(
+              run.providerConnectionId,
+              projectionVersionId,
+              JSON.stringify(buildNeteaseOwnerDataCatalog(normalized.payload)),
+              completedAt.toISOString()
+            ),
           this.database
             .prepare(
               `INSERT INTO netease_accounts

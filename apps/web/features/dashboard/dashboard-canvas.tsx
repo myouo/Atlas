@@ -15,6 +15,7 @@ interface DashboardCanvasProps {
   readonly editable: boolean;
   readonly layout: ResponsiveLayout;
   readonly onLayoutChange: (breakpoint: DashboardBreakpoint, layout: DashboardLayoutItem[]) => void;
+  readonly onDataConfigChange: (widgetId: string, config: WidgetProjection["dataConfig"]) => void;
   readonly onPresentationConfigChange: (
     widgetId: string,
     config: WidgetProjection["presentationConfig"]
@@ -52,6 +53,7 @@ export function DashboardCanvas({
   editable,
   layout,
   onLayoutChange,
+  onDataConfigChange,
   onPresentationConfigChange,
   onRemoveWidget,
   widgets
@@ -97,6 +99,7 @@ export function DashboardCanvas({
             <div key={widget.id}>
               <WidgetCard
                 editable={editable}
+                onDataConfigChange={(config) => onDataConfigChange(widget.id, config)}
                 onPresentationConfigChange={(config) =>
                   onPresentationConfigChange(widget.id, config)
                 }

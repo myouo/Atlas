@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nivalis API
-  version: 0.5.0
+  version: 0.6.0
   description: >-
     Frontend-independent contract for profiles and composable Dashboard state.
     Phase 5 adds API-owned Owner authentication, encrypted Provider credential lifecycle,
@@ -551,6 +551,33 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/providers/netease/data:
+    get:
+      operationId: getNeteaseProviderDataCatalog
+      summary: Read the Owner-only sanitized NetEase data catalog
+      description: >-
+        Returns the latest normalized Provider data available for composition. It never returns
+        MUSIC_U, request headers, private Raw Snapshot fields, or unvalidated Provider payloads.
+        Public Dashboard cards are separately projected from explicit dataConfig allowlists.
+      tags: [Provider]
+      responses:
+        "200":
+          description: Latest complete sanitized NetEase data catalog
+          headers:
+            ETag:
+              $ref: "#/components/headers/CatalogETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NeteaseDataCatalog"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/providers/netease/connect:
     post:
       operationId: connectNeteaseProvider
@@ -931,6 +958,11 @@ components:
       schema:
         type: string
         pattern: '^"data:[0-9a-f]{64}"$'
+    CatalogETag:
+      description: Strong validator for the latest immutable Provider data catalog version.
+      schema:
+        type: string
+        pattern: '^"catalog:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}"$'
   responses:
     Problem:
       description: RFC 9457 Problem Details
@@ -1222,6 +1254,12 @@ components:
             - profile.hero
             - system.stats
             - music.netease.overview
+            - music.netease.identity
+            - music.netease.listening
+            - music.netease.ranking
+            - music.netease.social
+            - music.netease.playlists
+            - music.netease.showcase
             - github.profile
             - bilibili.profile
             - steam.profile
@@ -1372,6 +1410,8 @@ components:
             - unsupported
             - insufficient_coverage
             - schema_unavailable
+            - not_public
+            - resource_not_found
     NeteaseTrackSummaryV2:
       type: object
       additionalProperties: false
@@ -1569,6 +1609,764 @@ components:
           oneOf:
             - $ref: "#/components/schemas/NeteaseTrendAvailableV2"
             - $ref: "#/components/schemas/DataUnavailable"
+    NeteaseUserSummaryV1:
+      type: object
+      additionalProperties: false
+      required: [providerUserId, displayName, avatarUrl, avatarDecorationUrl, signature, vipType]
+      properties:
+        providerUserId:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: [string, "null"]
+          format: uri
+        avatarDecorationUrl:
+          type: [string, "null"]
+          format: uri
+        signature:
+          type: [string, "null"]
+        vipType:
+          type: [integer, "null"]
+          minimum: 0
+    NeteasePlaylistSummaryV1:
+      type: object
+      additionalProperties: false
+      required: [providerPlaylistId, name, coverUrl, trackCount, playCount, subscribedCount, tags]
+      properties:
+        providerPlaylistId:
+          type: string
+        name:
+          type: string
+        coverUrl:
+          type: [string, "null"]
+          format: uri
+        trackCount:
+          type: integer
+          minimum: 0
+        playCount:
+          type: integer
+          minimum: 0
+        subscribedCount:
+          type: integer
+          minimum: 0
+        tags:
+          type: array
+          items:
+            type: string
+    NeteaseMedalSummaryV1:
+      type: object
+      additionalProperties: false
+      required: [providerMedalCode, name, description, iconUrl, level, worn]
+      properties:
+        providerMedalCode:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        iconUrl:
+          type: [string, "null"]
+          format: uri
+        level:
+          type: [integer, "null"]
+          minimum: 0
+        worn:
+          type: boolean
+    NeteaseMembershipSummaryV1:
+      type: object
+      additionalProperties: false
+      required: [kind, vipCode, level]
+      properties:
+        kind:
+          type: string
+          enum: [associator, music_package, red_plus, voice_book, album]
+        vipCode:
+          type: [integer, "null"]
+          minimum: 0
+        level:
+          type: [integer, "null"]
+          minimum: 0
+    NeteaseRankingItemV1:
+      type: object
+      additionalProperties: false
+      required: [rank, playCount, score, track]
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        playCount:
+          type: integer
+          minimum: 0
+        score:
+          type: number
+          minimum: 0
+        track:
+          $ref: "#/components/schemas/NeteaseTrackSummaryV2"
+    NeteaseIdentityDataV1:
+      type: object
+      additionalProperties: false
+      required: [provider, publicFields, profile, vip, medals, socialStatus]
+      properties:
+        provider:
+          type: string
+          const: netease
+        publicFields:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - display_name
+              - avatar
+              - avatar_decoration
+              - signature
+              - level
+              - vip
+              - following_count
+              - follower_count
+              - playlist_count
+              - event_count
+              - medals
+              - social_status
+              - provider_user_id
+        profile:
+          type: object
+          additionalProperties: false
+          required: [availability]
+          properties:
+            availability:
+              type: string
+              const: available
+            providerUserId:
+              type: string
+            displayName:
+              type: [string, "null"]
+            avatarUrl:
+              type: [string, "null"]
+              format: uri
+            avatarDecorationUrl:
+              type: [string, "null"]
+              format: uri
+            signature:
+              type: [string, "null"]
+            level:
+              type: [integer, "null"]
+              minimum: 0
+            followingCount:
+              type: integer
+              minimum: 0
+            followerCount:
+              type: integer
+              minimum: 0
+            playlistCount:
+              type: integer
+              minimum: 0
+            eventCount:
+              type: integer
+              minimum: 0
+        vip:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [availability, active, redVipLevel, redVipAnnualCount, memberships]
+              properties:
+                availability:
+                  type: string
+                  const: available
+                active:
+                  type: boolean
+                redVipLevel:
+                  type: [integer, "null"]
+                  minimum: 0
+                redVipAnnualCount:
+                  type: [integer, "null"]
+                  minimum: 0
+                memberships:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/NeteaseMembershipSummaryV1"
+            - $ref: "#/components/schemas/DataUnavailable"
+        medals:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [availability, obtainedCount, items]
+              properties:
+                availability:
+                  type: string
+                  const: available
+                obtainedCount:
+                  type: integer
+                  minimum: 0
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/NeteaseMedalSummaryV1"
+            - $ref: "#/components/schemas/DataUnavailable"
+        socialStatus:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [availability, providerStatusId, name, iconUrl]
+              properties:
+                availability:
+                  type: string
+                  const: available
+                providerStatusId:
+                  type: string
+                name:
+                  type: string
+                iconUrl:
+                  type: [string, "null"]
+                  format: uri
+            - $ref: "#/components/schemas/DataUnavailable"
+    NeteaseListeningDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          provider,
+          publicFields,
+          totalListenCount,
+          totalListeningDuration,
+          weeklyListeningDuration,
+          trend
+        ]
+      properties:
+        provider:
+          type: string
+          const: netease
+        publicFields:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [total_count, total_duration, weekly_duration, trend]
+        totalListenCount:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseMetricAvailableV3"
+            - $ref: "#/components/schemas/DataUnavailable"
+        totalListeningDuration:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseMetricAvailableV3"
+            - $ref: "#/components/schemas/DataUnavailable"
+        weeklyListeningDuration:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseMetricAvailableV3"
+            - $ref: "#/components/schemas/DataUnavailable"
+        trend:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseTrendAvailableV2"
+            - $ref: "#/components/schemas/DataUnavailable"
+    NeteaseMetricAvailableV3:
+      type: object
+      additionalProperties: false
+      required: [availability, value, unit, period, provenance]
+      properties:
+        availability:
+          type: string
+          const: available
+        value:
+          type: number
+          minimum: 0
+        unit:
+          type: string
+          enum: [plays, seconds, minutes]
+        period:
+          type: string
+          enum: [all_time, provider_week]
+        provenance:
+          type: string
+          const: provider_reported
+    NeteaseRankingDataV1:
+      type: object
+      additionalProperties: false
+      required: [availability, provider, range, coverage, publicLimit, totalAvailable, items]
+      properties:
+        availability:
+          type: string
+          const: available
+        provider:
+          type: string
+          const: netease
+        range:
+          type: string
+          enum: [week, all_time]
+        coverage:
+          type: string
+          const: provider_top_100
+        publicLimit:
+          type: integer
+          minimum: 1
+          maximum: 50
+        totalAvailable:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NeteaseRankingItemV1"
+    NeteasePeopleListV1:
+      type: object
+      additionalProperties: false
+      required: [availability, complete, items]
+      properties:
+        availability:
+          type: string
+          const: available
+        complete:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NeteaseUserSummaryV1"
+    NeteaseSocialDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        [provider, followingCount, followerCount, publicLists, publicLimit, following, followers]
+      properties:
+        provider:
+          type: string
+          const: netease
+        followingCount:
+          type: integer
+          minimum: 0
+        followerCount:
+          type: integer
+          minimum: 0
+        publicLists:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [following, followers]
+        publicLimit:
+          type: integer
+          minimum: 0
+          maximum: 30
+        following:
+          oneOf:
+            - $ref: "#/components/schemas/NeteasePeopleListV1"
+            - $ref: "#/components/schemas/DataUnavailable"
+        followers:
+          oneOf:
+            - $ref: "#/components/schemas/NeteasePeopleListV1"
+            - $ref: "#/components/schemas/DataUnavailable"
+    NeteasePlaylistsDataV1:
+      type: object
+      additionalProperties: false
+      required: [availability, provider, complete, providerTotal, publicLimit, items]
+      properties:
+        availability:
+          type: string
+          const: available
+        provider:
+          type: string
+          const: netease
+        complete:
+          type: boolean
+        providerTotal:
+          type: [integer, "null"]
+          minimum: 0
+        publicLimit:
+          type: integer
+          minimum: 0
+          maximum: 20
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NeteasePlaylistSummaryV1"
+    NeteaseShowcaseDataV1:
+      type: object
+      additionalProperties: true
+      required: [availability, provider, source]
+      properties:
+        availability:
+          type: string
+          enum: [available, unavailable]
+        provider:
+          type: string
+          const: netease
+        source:
+          type: string
+          enum: [weekly_track, all_time_track, created_playlist, medal, provider_music_card]
+        reason:
+          type: string
+          enum: [resource_not_found]
+        card:
+          type: object
+          additionalProperties: true
+    NeteaseOwnerAccountV1:
+      type: object
+      additionalProperties: false
+      required:
+        - providerUserId
+        - displayName
+        - avatarUrl
+        - avatarFrameUrl
+        - createdAt
+        - eventCount
+        - followerCount
+        - followingCount
+        - level
+        - playlistCount
+        - signature
+        - vipType
+      properties:
+        providerUserId:
+          type: string
+        displayName:
+          type: [string, "null"]
+        avatarUrl:
+          type: [string, "null"]
+          format: uri
+        avatarFrameUrl:
+          type: [string, "null"]
+          format: uri
+        createdAt:
+          type: [string, "null"]
+          format: date-time
+        eventCount:
+          type: integer
+          minimum: 0
+        followerCount:
+          type: integer
+          minimum: 0
+        followingCount:
+          type: integer
+          minimum: 0
+        level:
+          type: [integer, "null"]
+          minimum: 0
+        playlistCount:
+          type: integer
+          minimum: 0
+        signature:
+          type: [string, "null"]
+        vipType:
+          type: [integer, "null"]
+          minimum: 0
+    NeteaseOwnerPersonV1:
+      type: object
+      additionalProperties: false
+      required: [providerUserId, displayName, avatarUrl, avatarFrameUrl, signature, vipType]
+      properties:
+        providerUserId:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: [string, "null"]
+          format: uri
+        avatarFrameUrl:
+          type: [string, "null"]
+          format: uri
+        signature:
+          type: [string, "null"]
+        vipType:
+          type: [integer, "null"]
+          minimum: 0
+    NeteaseOwnerPeopleCollectionV1:
+      type: object
+      additionalProperties: false
+      required: [complete, providerTotal, items]
+      properties:
+        complete:
+          type: boolean
+        providerTotal:
+          type: [integer, "null"]
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NeteaseOwnerPersonV1"
+    NeteaseOwnerPlaylistV1:
+      type: object
+      additionalProperties: false
+      required:
+        - providerPlaylistId
+        - name
+        - coverUrl
+        - createdAt
+        - description
+        - playCount
+        - subscribedCount
+        - tags
+        - totalDurationMs
+        - trackCount
+      properties:
+        providerPlaylistId:
+          type: string
+        name:
+          type: string
+        coverUrl:
+          type: [string, "null"]
+          format: uri
+        createdAt:
+          type: [string, "null"]
+          format: date-time
+        description:
+          type: [string, "null"]
+        playCount:
+          type: integer
+          minimum: 0
+        subscribedCount:
+          type: integer
+          minimum: 0
+        tags:
+          type: array
+          items:
+            type: string
+        totalDurationMs:
+          type: [integer, "null"]
+          minimum: 0
+        trackCount:
+          type: integer
+          minimum: 0
+    NeteaseOwnerPlaylistCollectionV1:
+      type: object
+      additionalProperties: false
+      required: [complete, providerTotal, items]
+      properties:
+        complete:
+          type: boolean
+        providerTotal:
+          type: [integer, "null"]
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NeteaseOwnerPlaylistV1"
+    NeteaseOwnerMedalV1:
+      type: object
+      additionalProperties: false
+      required: [providerMedalCode, name, description, iconUrl, level, obtainedAt, worn]
+      properties:
+        providerMedalCode:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        iconUrl:
+          type: [string, "null"]
+          format: uri
+        level:
+          type: [integer, "null"]
+          minimum: 0
+        obtainedAt:
+          type: [string, "null"]
+          format: date-time
+        worn:
+          type: boolean
+    NeteaseOwnerMembershipV1:
+      type: object
+      additionalProperties: false
+      required: [kind, active, expiresAt, level, vipCode]
+      properties:
+        kind:
+          type: string
+          enum: [associator, music_package, red_plus, voice_book, album]
+        active:
+          type: boolean
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+        level:
+          type: [integer, "null"]
+          minimum: 0
+        vipCode:
+          type: [integer, "null"]
+          minimum: 0
+    NeteaseOwnerMusicCardV1:
+      type: object
+      additionalProperties: false
+      required: [providerCardId, cardKind, title, description, coverUrl, resourceId]
+      properties:
+        providerCardId:
+          type: string
+        cardKind:
+          type: string
+          enum: [album, duration, medal, playlist, song, unknown]
+        title:
+          type: string
+        description:
+          type: [string, "null"]
+        coverUrl:
+          type: [string, "null"]
+          format: uri
+        resourceId:
+          type: [string, "null"]
+    NeteaseDataCatalog:
+      type: object
+      additionalProperties: false
+      required: [provider, schemaVersion, dataVersion, generatedAt, catalog]
+      properties:
+        provider:
+          type: string
+          const: netease
+        schemaVersion:
+          type: integer
+          const: 1
+        dataVersion:
+          type: string
+          format: uuid
+        generatedAt:
+          type: string
+          format: date-time
+        catalog:
+          type: object
+          additionalProperties: false
+          required:
+            - account
+            - levelProgress
+            - listening
+            - weeklyRanking
+            - allTimeRanking
+            - recentListening
+            - following
+            - followers
+            - createdPlaylists
+            - medals
+            - memberships
+            - musicCards
+            - redVipLevel
+            - redVipAnnualCount
+            - socialStatus
+            - provider
+            - schemaVersion
+          properties:
+            account:
+              $ref: "#/components/schemas/NeteaseOwnerAccountV1"
+            levelProgress:
+              type: object
+              additionalProperties: false
+              required:
+                [currentLoginCount, currentPlayCount, nextLoginCount, nextPlayCount, progress]
+              properties:
+                currentLoginCount:
+                  type: [integer, "null"]
+                  minimum: 0
+                currentPlayCount:
+                  type: [integer, "null"]
+                  minimum: 0
+                nextLoginCount:
+                  type: [integer, "null"]
+                  minimum: 0
+                nextPlayCount:
+                  type: [integer, "null"]
+                  minimum: 0
+                progress:
+                  type: [number, "null"]
+                  minimum: 0
+            listening:
+              type: object
+              additionalProperties: false
+              required: [totalDurationSeconds, totalListenCount, weeklyDurationMinutes, weeklyTrend]
+              properties:
+                totalDurationSeconds:
+                  type: [number, "null"]
+                  minimum: 0
+                totalListenCount:
+                  type: integer
+                  minimum: 0
+                weeklyDurationMinutes:
+                  type: [number, "null"]
+                  minimum: 0
+                weeklyTrend:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [label, minutes]
+                    properties:
+                      label:
+                        type: string
+                      minutes:
+                        type: number
+                        minimum: 0
+            weeklyRanking:
+              type: array
+              items:
+                $ref: "#/components/schemas/NeteaseRankingItemV1"
+            allTimeRanking:
+              type: array
+              items:
+                $ref: "#/components/schemas/NeteaseRankingItemV1"
+            recentListening:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [playedAt, track]
+                properties:
+                  playedAt:
+                    type: string
+                    format: date-time
+                  track:
+                    $ref: "#/components/schemas/NeteaseTrackSummaryV2"
+            following:
+              $ref: "#/components/schemas/NeteaseOwnerPeopleCollectionV1"
+            followers:
+              $ref: "#/components/schemas/NeteaseOwnerPeopleCollectionV1"
+            createdPlaylists:
+              $ref: "#/components/schemas/NeteaseOwnerPlaylistCollectionV1"
+            medals:
+              type: object
+              additionalProperties: false
+              required: [obtainedCount, items]
+              properties:
+                obtainedCount:
+                  type: integer
+                  minimum: 0
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/NeteaseOwnerMedalV1"
+            memberships:
+              type: array
+              items:
+                $ref: "#/components/schemas/NeteaseOwnerMembershipV1"
+            musicCards:
+              type: object
+              additionalProperties: false
+              required: [sourceAvailability, items]
+              properties:
+                sourceAvailability:
+                  type: string
+                  enum: [available, provider_omitted]
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/NeteaseOwnerMusicCardV1"
+            redVipLevel:
+              type: [integer, "null"]
+              minimum: 0
+            redVipAnnualCount:
+              type: [integer, "null"]
+              minimum: 0
+            socialStatus:
+              oneOf:
+                - type: "null"
+                - type: object
+                  additionalProperties: false
+                  required: [providerStatusId, name, iconUrl]
+                  properties:
+                    providerStatusId:
+                      type: string
+                    name:
+                      type: string
+                    iconUrl:
+                      type: [string, "null"]
+                      format: uri
+            provider:
+              type: string
+              const: netease
+            schemaVersion:
+              type: integer
+              const: 1
     GithubProfileData:
       type: object
       additionalProperties: false
@@ -1702,6 +2500,96 @@ components:
               const: netease
             data:
               $ref: "#/components/schemas/NeteaseOverviewDataV2"
+    NeteaseIdentityWidgetV1:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.identity
+            schemaVersion:
+              const: 1
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseIdentityDataV1"
+    NeteaseListeningWidgetV1:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.listening
+            schemaVersion:
+              const: 1
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseListeningDataV1"
+    NeteaseRankingWidgetV1:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.ranking
+            schemaVersion:
+              const: 1
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseRankingDataV1"
+    NeteaseSocialWidgetV1:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.social
+            schemaVersion:
+              const: 1
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseSocialDataV1"
+    NeteasePlaylistsWidgetV1:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.playlists
+            schemaVersion:
+              const: 1
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteasePlaylistsDataV1"
+    NeteaseShowcaseWidgetV1:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.showcase
+            schemaVersion:
+              const: 1
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseShowcaseDataV1"
     GithubProfileWidget:
       unevaluatedProperties: false
       allOf:
@@ -1760,6 +2648,12 @@ components:
         - $ref: "#/components/schemas/SystemStatsWidget"
         - $ref: "#/components/schemas/NeteaseOverviewWidget"
         - $ref: "#/components/schemas/NeteaseOverviewWidgetV2"
+        - $ref: "#/components/schemas/NeteaseIdentityWidgetV1"
+        - $ref: "#/components/schemas/NeteaseListeningWidgetV1"
+        - $ref: "#/components/schemas/NeteaseRankingWidgetV1"
+        - $ref: "#/components/schemas/NeteaseSocialWidgetV1"
+        - $ref: "#/components/schemas/NeteasePlaylistsWidgetV1"
+        - $ref: "#/components/schemas/NeteaseShowcaseWidgetV1"
         - $ref: "#/components/schemas/GithubProfileWidget"
         - $ref: "#/components/schemas/BilibiliProfileWidget"
         - $ref: "#/components/schemas/SteamProfileWidget"

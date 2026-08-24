@@ -226,5 +226,68 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
       weeklyListening: unavailable
     };
   }
+  if (configuration.type === "music.netease.identity") {
+    const unavailable = { availability: "unavailable", reason: "not_synced" };
+    return {
+      medals: unavailable,
+      profile: { availability: "available" },
+      provider: "netease",
+      publicFields: [],
+      socialStatus: unavailable,
+      vip: unavailable
+    };
+  }
+  if (configuration.type === "music.netease.listening") {
+    const unavailable = { availability: "unavailable", reason: "not_synced" };
+    return {
+      provider: "netease",
+      publicFields: [],
+      totalListenCount: unavailable,
+      totalListeningDuration: unavailable,
+      trend: unavailable,
+      weeklyListeningDuration: unavailable
+    };
+  }
+  if (configuration.type === "music.netease.ranking") {
+    return {
+      availability: "available",
+      coverage: "provider_top_100",
+      items: [],
+      provider: "netease",
+      publicLimit: 10,
+      range: configuration.dataConfig.range === "all_time" ? "all_time" : "week",
+      totalAvailable: 0
+    };
+  }
+  if (configuration.type === "music.netease.social") {
+    const hidden = { availability: "unavailable", reason: "not_public" };
+    return {
+      followerCount: 0,
+      followers: hidden,
+      following: hidden,
+      followingCount: 0,
+      provider: "netease",
+      publicLimit: 0,
+      publicLists: []
+    };
+  }
+  if (configuration.type === "music.netease.playlists") {
+    return {
+      availability: "available",
+      complete: false,
+      items: [],
+      provider: "netease",
+      providerTotal: null,
+      publicLimit: 0
+    };
+  }
+  if (configuration.type === "music.netease.showcase") {
+    return {
+      availability: "unavailable",
+      provider: "netease",
+      reason: "resource_not_found",
+      source: "all_time_track"
+    };
+  }
   return {};
 }

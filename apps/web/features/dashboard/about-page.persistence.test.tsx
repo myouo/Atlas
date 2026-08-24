@@ -68,6 +68,7 @@ describe("API persistence failure UX", () => {
       getAuthSession: async () => anonymousSession,
       getNeteaseAuthAttempt: unsupported,
       getNeteaseConnection: unsupported,
+      getNeteaseDataCatalog: unsupported,
       getProviderConnections: unsupported,
       getRevision: unsupported,
       getSyncJob: unsupported,
@@ -122,6 +123,9 @@ describe("API persistence failure UX", () => {
         throw new Error("offline");
       },
       async getNeteaseConnection() {
+        throw new Error("offline");
+      },
+      async getNeteaseDataCatalog() {
         throw new Error("offline");
       },
       async getNeteaseAuthAttempt() {
@@ -225,6 +229,9 @@ describe("API persistence failure UX", () => {
         throw new Error("not needed");
       },
       async getNeteaseConnection() {
+        throw new Error("not needed");
+      },
+      async getNeteaseDataCatalog() {
         throw new Error("not needed");
       },
       async getNeteaseAuthAttempt() {

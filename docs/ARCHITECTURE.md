@@ -255,9 +255,9 @@ NeteaseProviderRuntime
 └── NeteaseProjector     Widget v2 availability/provenance/coverage
 ```
 
-The module implements only account validation, user-detail listen totals, weekly listening records, recent songs, and a weekly listening report. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
+The module implements account validation, old/new user detail, level progress, VIP tiers, Provider-reported cumulative duration, weekly/all-time records, recent songs, weekly reports, bounded social lists, created playlists, social status, and medals. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
 
-One SyncRun may insert five immutable `provider_raw_snapshots`, each identified by `source_kind`. The Connector recursively strips credential-bearing keys before returning a payload; the Worker independently rejects credential-like Raw input. Runtime schemas intentionally permit harmless extra Provider fields but require every semantic field consumed by normalization. A missing/renamed field raises `ProviderSchemaMismatchError`; it is never coerced to zero, null, or an empty list.
+One SyncRun inserts fifteen base immutable `provider_raw_snapshots` plus bounded page snapshots when a social/playlist list has more results. Every request has its own `source_kind`; pagination stops at the configured cap or when a page yields no new Provider IDs. Normalization deduplicates again and records whether coverage is complete. The Connector recursively strips credential-bearing keys before returning a payload; the Worker independently rejects credential-like Raw input. Runtime schemas intentionally permit harmless extra Provider fields but require every semantic field consumed by normalization. A missing/renamed field raises `ProviderSchemaMismatchError`; it is never coerced to zero, null, or an empty list.
 
 ### NetEase native and derived data
 
@@ -326,11 +326,29 @@ SyncJobQueue / ProviderAuthJobQueue Ports
      Netease Connector → Raw → Projection
 ```
 
-D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, Owner reads, encrypted NetEase connection management, QR/SMS AuthAttempts, Queue-backed SyncRuns, sanitized Raw Snapshots, and Last Known Good projections. Provider messages carry only Nivalis UUIDs; credentials and private authentication state remain contextual AEAD ciphertext in D1. Immutable Revision write/CAS operations, full NetEase native history, and replay commit remain unported. See ADR 0016.
+D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, immutable Draft save/Publish CAS, Owner reads, encrypted NetEase connection management, QR/SMS AuthAttempts, Queue-backed SyncRuns, sanitized Raw Snapshots, Owner data catalogs, and Last Known Good projections. Provider messages carry only Nivalis UUIDs; credentials and private authentication state remain contextual AEAD ciphertext in D1. Revision list/detail/restore, full relational NetEase native history, and replay commit remain unported. See ADR 0016.
 
 The public homepage is content-only: anonymous visitors receive no mode switcher, editing chrome, status/sync/API controls, Settings link, phase badge, or operational footer. Direct `/settings` access owns the authentication entry point. Once the API reports an authenticated Owner session, the same `DashboardCanvas` reveals the existing control surface without introducing a second renderer.
 
 Widget display customization is Registry-driven. Each definition may declare toggle/select `presentationControls`; the shared ModuleShell opens one display-field dialog, and Renderers consume the resulting `presentationConfig`. These values are Revision configuration, not Provider data, and are deliberately excluded from Projection Keys. Cloudflare D1 Draft save creates a full immutable successor snapshot through an atomic batch and conditional pointer update; Publish moves only the Published pointer. See ADR 0017.
+
+### Owner data catalog and public disclosure
+
+NetEase synchronization now produces two distinct derived read models:
+
+```text
+Sanitized Raw Snapshots
+          ↓
+NeteaseNormalizer
+          ├── Owner-only provider_data_catalogs
+          └── Widget Projector + server disclosure policy
+                           ↓
+                 Public Widget Projection
+```
+
+`GET /v1/me/providers/netease/data` returns the latest complete normalized catalog only to an authenticated Owner and uses a strong `catalog:` ETag. It is not a Raw Snapshot API. The public Dashboard never receives this catalog.
+
+NetEase is divided into identity, listening, ranking, social, created-playlist, and showcase Widget types. Their `dataConfig` contains data-affecting public policy (`publicFields`, `publicLists`, range, public limit, selected resource), so the Projector removes private values before persistence. `presentationConfig` remains a renderer-only concern. A policy change partitions Projection state; a visual change does not. See ADR 0018.
 
 The Pages Function removes the `/api` prefix and forwards the request through a Worker Service Binding. OAuth callback responses therefore set a first-party Pages cookie; the browser never depends on a third-party Worker-domain cookie.
 

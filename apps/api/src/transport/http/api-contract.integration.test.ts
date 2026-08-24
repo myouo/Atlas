@@ -13,6 +13,7 @@ import { buildApi } from "../../bootstrap/build-api";
 import { loadApiConfig } from "../../config/api-config";
 import { createMigrator } from "../../infrastructure/database/migrator";
 import {
+  PHASE_FIVE_NETEASE_CONNECTION_ID,
   PHASE_THREE_INITIAL_REVISION_ID,
   PHASE_TWO_OWNER_ID
 } from "../../infrastructure/database/phase-two-fixture";
@@ -186,6 +187,69 @@ describe("Fastify immutable revision and OpenAPI contract", () => {
       .select(({ fn }) => fn.countAll().as("count"))
       .executeTakeFirstOrThrow();
     expect(Number(remaining.count)).toBe(0);
+  });
+
+  it("serves the Owner-only sanitized NetEase data catalog with a strong catalog ETag", async () => {
+    const dataVersion = "00000000-0000-4000-8000-000000000998";
+    await database
+      .insertInto("provider_data_catalogs")
+      .values({
+        data: JSON.stringify({
+          account: {
+            avatarFrameUrl: null,
+            avatarUrl: null,
+            createdAt: null,
+            displayName: "Contract Fixture",
+            eventCount: 0,
+            followerCount: 0,
+            followingCount: 0,
+            level: 1,
+            playlistCount: 0,
+            providerUserId: "fixture-user",
+            signature: null,
+            vipType: 0
+          },
+          allTimeRanking: [],
+          createdPlaylists: { complete: true, items: [], providerTotal: 0 },
+          followers: { complete: true, items: [], providerTotal: 0 },
+          following: { complete: true, items: [], providerTotal: 0 },
+          levelProgress: {
+            currentLoginCount: null,
+            currentPlayCount: null,
+            nextLoginCount: null,
+            nextPlayCount: null,
+            progress: null
+          },
+          listening: {
+            totalDurationSeconds: 0,
+            totalListenCount: 0,
+            weeklyDurationMinutes: 0,
+            weeklyTrend: []
+          },
+          medals: { items: [], obtainedCount: 0 },
+          memberships: [],
+          musicCards: { items: [], sourceAvailability: "provider_omitted" },
+          provider: "netease",
+          recentListening: [],
+          redVipAnnualCount: null,
+          redVipLevel: null,
+          schemaVersion: 1,
+          socialStatus: null,
+          weeklyRanking: []
+        }),
+        data_version_id: dataVersion,
+        generated_at: new Date("2026-08-24T00:00:00.000Z"),
+        provider: "netease",
+        provider_connection_id: PHASE_FIVE_NETEASE_CONNECTION_ID,
+        schema_version: 1
+      })
+      .execute();
+
+    const response = await inject({ method: "GET", url: "/v1/me/providers/netease/data" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers.etag).toBe(`"catalog:${dataVersion}"`);
+    expect(response.body).not.toMatch(/MUSIC_U|authorization|lastLoginIP/i);
+    assertContract("/v1/me/providers/netease/data", "get", 200, response);
   });
 
   it("creates a secret-free, deduplicated QR AuthAttempt resource", async () => {

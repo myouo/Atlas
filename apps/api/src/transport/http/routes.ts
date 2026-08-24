@@ -3,6 +3,7 @@ import type {
   DashboardService,
   ProviderAuthService,
   ProviderConnectionService,
+  ProviderDataService,
   SyncService
 } from "@nivalis/application";
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
@@ -37,6 +38,7 @@ import {
   IfMatchHeadersSchema,
   JobParamsSchema,
   NeteaseConnectInputSchema,
+  NeteaseDataCatalogSchema,
   NeteaseSmsAuthInputSchema,
   NeteaseSmsVerifyInputSchema,
   ProblemDetailsSchema,
@@ -60,6 +62,7 @@ import {
 import { requireOwnerContext } from "./auth-boundary";
 import {
   encodeRevisionCursor,
+  formatCatalogEtag,
   formatDataEtag,
   formatRevisionEtag,
   formatViewEtag,
@@ -69,6 +72,7 @@ import {
 interface RouteOptions {
   readonly dashboardService: DashboardService;
   readonly providerConnectionService: ProviderConnectionService;
+  readonly providerDataService: ProviderDataService;
   readonly providerAuthService: ProviderAuthService;
   readonly readService: DashboardReadService;
   readonly syncService: SyncService;
@@ -530,6 +534,30 @@ export const deferredRoutes: FastifyPluginAsyncTypebox<RouteOptions> = async (ap
       serializeProviderConnection(
         await options.providerConnectionService.getNetease(requireOwnerContext(request))
       )
+  );
+
+  app.get(
+    "/v1/me/providers/netease/data",
+    {
+      schema: {
+        response: {
+          200: NeteaseDataCatalogSchema,
+          401: ProblemDetailsSchema,
+          403: ProblemDetailsSchema,
+          404: ProblemDetailsSchema,
+          default: ProblemDetailsSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const catalog = await options.providerDataService.getNeteaseCatalog(
+        requireOwnerContext(request)
+      );
+      return reply.header("etag", formatCatalogEtag(catalog.dataVersion)).send({
+        ...catalog,
+        generatedAt: catalog.generatedAt.toISOString()
+      });
+    }
   );
 
   app.post(
