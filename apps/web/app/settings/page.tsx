@@ -383,8 +383,11 @@ function ProviderSettings(props: ProviderSettingsProps) {
     enabled: Boolean(authAttempt && isAuthAttemptActive(authAttempt.status)),
     queryFn: () => dashboardSource.getNeteaseAuthAttempt(authAttempt!.attemptId),
     queryKey: ["netease-auth-attempt", authAttempt?.attemptId, dashboardSource.kind],
-    refetchInterval: (query) =>
-      query.state.data && isAuthAttemptActive(query.state.data.status) ? 750 : false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status || !isAuthAttemptActive(status)) return false;
+      return status === "queued" || status === "preparing" ? 300 : 750;
+    },
     retry: false
   });
   const liveAttempt = latestAuthAttempt(authAttempt, attemptQuery.data);

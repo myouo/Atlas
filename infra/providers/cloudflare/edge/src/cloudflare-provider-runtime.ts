@@ -66,7 +66,7 @@ export function createCloudflareProviderRuntime(
   const authQueue = new CloudflareProviderAuthJobQueue(queue);
   const auth = new ProviderAuthService(
     attemptRepository,
-    new D1ProviderAuthEnqueueUnitOfWork(database, queue),
+    new D1ProviderAuthEnqueueUnitOfWork(database),
     protector,
     { create: () => crypto.randomUUID() },
     { now: () => new Date() },
@@ -89,22 +89,27 @@ export function createCloudflareProviderRuntime(
       connections.connectNeteaseFromAuthAttempt(context, credential, attemptCreatedAt),
     { leaseMs: 20_000, maxFailures: 3, qrPollIntervalMs: 2_000, smsResendDelayMs: 30_000 }
   );
-  return { auth, authWorker, connections, sync };
+  return { auth, authQueue, authWorker, connections, sync };
 }
 
 class D1ProviderAuthEnqueueUnitOfWork implements ProviderAuthEnqueueUnitOfWork {
-  constructor(
-    private readonly database: D1Database,
-    private readonly queue: Queue<CloudflareQueueMessage>
-  ) {}
+  constructor(private readonly database: D1Database) {}
 
   run<T>(
     work: (repository: ProviderAuthAttemptRepository, queue: ProviderAuthJobQueue) => Promise<T>
   ) {
     return work(
       new D1ProviderAuthAttemptRepository(this.database),
-      new CloudflareProviderAuthJobQueue(this.queue)
+      new DeferredProviderAuthJobQueue()
     );
+  }
+}
+
+class DeferredProviderAuthJobQueue implements ProviderAuthJobQueue {
+  async enqueue() {
+    // The Cloudflare fetch handler starts the first step through waitUntil().
+    // ProviderAuthWorkerService uses the real Queue adapter for every follow-up.
+    return crypto.randomUUID();
   }
 }
 

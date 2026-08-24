@@ -38,7 +38,11 @@ export interface Environment extends AuthEnvironment, ProviderEnvironment {
 }
 
 const worker = {
-  async fetch(request: Request, environment: Environment): Promise<Response> {
+  async fetch(
+    request: Request,
+    environment: Environment,
+    executionContext: ExecutionContext
+  ): Promise<Response> {
     const requestUrl = new URL(request.url);
     const requestId = crypto.randomUUID();
     const corsHeaders = resolveCorsHeaders(request, environment.CORS_ORIGINS);
@@ -318,6 +322,7 @@ const worker = {
             request.method === "POST"
           ) {
             const attempt = await providers.auth.startQr(context);
+            executionContext.waitUntil(progressProviderAuthentication(providers, attempt.id));
             return json(serializeProviderAuthAttempt(attempt), 202, corsHeaders, {
               Location: `/v1/me/providers/netease/auth-attempts/${attempt.id}`
             });
@@ -333,6 +338,7 @@ const worker = {
               requiredString(body, "phone"),
               requiredString(body, "countryCode")
             );
+            executionContext.waitUntil(progressProviderAuthentication(providers, attempt.id));
             return json(serializeProviderAuthAttempt(attempt), 202, corsHeaders, {
               Location: `/v1/me/providers/netease/auth-attempts/${attempt.id}`
             });
@@ -349,6 +355,7 @@ const worker = {
               verifyAttemptId,
               requiredString(body, "code")
             );
+            executionContext.waitUntil(progressProviderAuthentication(providers, attempt.id));
             return json(serializeProviderAuthAttempt(attempt), 202, corsHeaders);
           }
 
@@ -357,11 +364,11 @@ const worker = {
             /^\/v1\/me\/providers\/netease\/auth-attempts\/([^/]+)$/
           );
           if (authAttemptId && request.method === "GET") {
-            return json(
-              serializeProviderAuthAttempt(await providers.auth.get(context, authAttemptId)),
-              200,
-              corsHeaders
-            );
+            const attempt = await providers.auth.get(context, authAttemptId);
+            if (attempt.status === "queued" && attempt.lastErrorCode === null) {
+              executionContext.waitUntil(progressProviderAuthentication(providers, attempt.id));
+            }
+            return json(serializeProviderAuthAttempt(attempt), 200, corsHeaders);
           }
           if (authAttemptId && request.method === "DELETE") {
             await providers.auth.cancel(context, authAttemptId);
@@ -471,6 +478,17 @@ const worker = {
 } satisfies ExportedHandler<Environment, CloudflareQueueMessage>;
 
 export default worker;
+
+async function progressProviderAuthentication(
+  providers: NonNullable<ReturnType<typeof createCloudflareProviderRuntime>>,
+  attemptId: string
+) {
+  try {
+    await providers.authWorker.process(attemptId);
+  } catch {
+    await providers.authQueue.enqueue(attemptId);
+  }
+}
 
 function createDashboardReadService(database: D1Database) {
   return new DashboardReadService(
