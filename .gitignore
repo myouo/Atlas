@@ -9,6 +9,7 @@ playwright-report/
 playwright-report-api/
 test-results/
 *.tsbuildinfo
+next-env.d.ts
 
 # Local runtime configuration and secrets
 .env*
