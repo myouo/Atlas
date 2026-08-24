@@ -3,6 +3,7 @@ import process from "node:process";
 
 const port = 8_791;
 const baseUrl = `http://127.0.0.1:${port}`;
+const testMasterKey = Buffer.alloc(32, 7).toString("base64url");
 
 await run("pnpm", ["d1:migrate:local"]);
 await run("pnpm", ["d1:seed:local"]);
@@ -16,7 +17,23 @@ const worker = spawn(
     "--config",
     "infra/providers/cloudflare/edge/wrangler.jsonc",
     "--port",
-    String(port)
+    String(port),
+    "--var",
+    "API_PUBLIC_ORIGIN:http://127.0.0.1:8791",
+    "--var",
+    "APP_PUBLIC_ORIGIN:http://127.0.0.1:3000",
+    "--var",
+    "GITHUB_OAUTH_CLIENT_ID:test-client",
+    "--var",
+    "GITHUB_OAUTH_CLIENT_SECRET:test-secret",
+    "--var",
+    `NIVALIS_CREDENTIAL_MASTER_KEY:${testMasterKey}`,
+    "--var",
+    "NIVALIS_CREDENTIAL_KEY_ID:test-key",
+    "--var",
+    "NIVALIS_OWNER_ID:00000000-0000-4000-8000-000000000001",
+    "--var",
+    "OWNER_GITHUB_USER_ID:1"
   ],
   { env: process.env, stdio: ["ignore", "pipe", "pipe"] }
 );
@@ -34,6 +51,7 @@ try {
   const ready = await fetchJson("/ready");
   const dashboard = await fetchJson("/v1/public/dashboards/about");
   const session = await fetchJson("/v1/auth/session");
+  const authStart = await fetchJson("/v1/auth/github/start", { method: "POST" });
 
   assert(health.response.status === 200, "health did not return 200");
   assert(ready.response.status === 200, "readiness did not return 200");
@@ -45,6 +63,11 @@ try {
     "invalid view ETag"
   );
   assert(session.body.authenticated === false, "D1 preview must not manufacture an Owner session");
+  assert(authStart.response.status === 200, "GitHub authentication did not start");
+  const authorizationUrl = new URL(authStart.body.authorizationUrl);
+  assert(authorizationUrl.hostname === "github.com", "unexpected GitHub authorization host");
+  assert(Boolean(authorizationUrl.searchParams.get("state")), "OAuth state is missing");
+  assert(Boolean(authorizationUrl.searchParams.get("code_challenge")), "PKCE challenge is missing");
 
   process.stdout.write(`${JSON.stringify({ command: "smoke-d1-worker", status: "passed" })}\n`);
 } finally {
@@ -66,8 +89,8 @@ async function waitUntilReady() {
   throw new Error(`Timed out waiting for the D1 Worker.\n${output}`);
 }
 
-async function fetchJson(pathname) {
-  const response = await fetch(`${baseUrl}${pathname}`);
+async function fetchJson(pathname, init) {
+  const response = await fetch(`${baseUrl}${pathname}`, init);
   return { body: await response.json(), response };
 }
 

@@ -282,6 +282,12 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
     []
   );
 
+  useEffect(() => {
+    if (source.kind === "api" && query.data?.session.role !== "owner" && store.mode !== "display") {
+      store.setMode("display");
+    }
+  }, [query.data?.session.role, source.kind, store]);
+
   const hasCachedDashboard = store.initialized && store.draft && store.published;
   if (query.isPending && !hasCachedDashboard) {
     return <DashboardLoading />;
@@ -305,7 +311,8 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   if (!store.draft || !store.published) return <DashboardLoading />;
   const session = query.data?.session;
   const isOwner = source.kind === "mock" || session?.role === "owner";
-  const snapshot = store.mode === "edit" ? store.draft : store.published;
+  const effectiveMode = isOwner ? store.mode : "display";
+  const snapshot = effectiveMode === "edit" ? store.draft : store.published;
   const providerStatuses = query.data?.providerStatuses ?? [];
 
   const addWidget = (type: WidgetType) => {
@@ -336,25 +343,21 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   return (
     <main className="nivalis-page">
       <div className="nivalis-content">
-        <TopActionBar
-          authenticated={session?.authenticated ?? source.kind === "mock"}
-          isOwner={isOwner}
-          mode={store.mode}
-          onLogin={() => startAuthenticationMutation.mutate()}
-          onLogout={() => logoutMutation.mutate()}
-          onModeChange={(mode) => {
-            if (mode === "edit" && !isOwner) {
-              startAuthenticationMutation.mutate();
-              return;
-            }
-            store.setMode(mode);
-          }}
-          onSync={startMockSync}
-          providerStatuses={providerStatuses}
-          syncState={syncState}
-        />
+        {isOwner ? (
+          <TopActionBar
+            authenticated={session?.authenticated ?? source.kind === "mock"}
+            isOwner
+            mode={effectiveMode}
+            onLogin={() => startAuthenticationMutation.mutate()}
+            onLogout={() => logoutMutation.mutate()}
+            onModeChange={store.setMode}
+            onSync={startMockSync}
+            providerStatuses={providerStatuses}
+            syncState={syncState}
+          />
+        ) : null}
 
-        {query.isError && hasCachedDashboard ? (
+        {isOwner && query.isError && hasCachedDashboard ? (
           <div
             className="glass-surface mt-3 rounded-xl px-4 py-2 text-xs font-bold text-amber-800"
             role="alert"
@@ -363,7 +366,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           </div>
         ) : null}
 
-        {store.mode === "edit" && isOwner ? (
+        {effectiveMode === "edit" && isOwner ? (
           <div className="relative z-30 mt-3 sm:absolute sm:top-[61px] sm:right-0 sm:mt-0">
             <EditToolbar
               dirty={store.dirty}
@@ -393,17 +396,19 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
                 {snapshot.profile.headline}
               </p>
             </div>
-            <span className="glass-surface rounded-full px-3 py-1.5 text-[10px] font-bold text-blue-700">
-              {source.kind === "api"
-                ? "Phase 5 · Netease Provider"
-                : "Phase 1 · Explicit Mock Data"}
-            </span>
+            {isOwner ? (
+              <span className="glass-surface rounded-full px-3 py-1.5 text-[10px] font-bold text-blue-700">
+                {source.kind === "api"
+                  ? "Phase 5 · Netease Provider"
+                  : "Phase 1 · Explicit Mock Data"}
+              </span>
+            ) : null}
           </div>
         </header>
 
         <div className="mt-2">
           <DashboardCanvas
-            editable={store.mode === "edit"}
+            editable={isOwner && effectiveMode === "edit"}
             layout={snapshot.layout}
             onLayoutChange={store.updateBreakpointLayout}
             onRemoveWidget={(widgetId) => {
@@ -414,7 +419,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           />
         </div>
 
-        {store.mode === "edit" ? (
+        {isOwner && effectiveMode === "edit" ? (
           <ModuleCatalog
             onAdd={addWidget}
             onOpenCatalog={() => setAddDialogOpen(true)}
@@ -422,23 +427,29 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           />
         ) : null}
 
-        <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 px-2 text-[10px] font-medium text-blue-900/55">
-          <span>
-            Published version {store.published.revision} ·{" "}
-            {source.kind === "api" ? "Nivalis API" : "Local Fixture"}
-          </span>
-          <span>Provider 数据：{source.kind === "api" ? "异步 Projection 管线" : "显式 Mock"}</span>
-        </footer>
+        {isOwner ? (
+          <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 px-2 text-[10px] font-medium text-blue-900/55">
+            <span>
+              Published version {store.published.revision} ·{" "}
+              {source.kind === "api" ? "Nivalis API" : "Local Fixture"}
+            </span>
+            <span>
+              Provider 数据：{source.kind === "api" ? "异步 Projection 管线" : "显式 Mock"}
+            </span>
+          </footer>
+        ) : null}
       </div>
 
-      <AddWidgetDialog
-        onAdd={addWidget}
-        onOpenChange={setAddDialogOpen}
-        open={addDialogOpen}
-        widgets={snapshot.widgets}
-      />
+      {isOwner ? (
+        <AddWidgetDialog
+          onAdd={addWidget}
+          onOpenChange={setAddDialogOpen}
+          open={addDialogOpen}
+          widgets={snapshot.widgets}
+        />
+      ) : null}
 
-      {historyOpen ? (
+      {isOwner && historyOpen ? (
         <RevisionHistoryDialog
           onOpenChange={setHistoryOpen}
           onRestore={(revisionId) => restoreMutation.mutate(revisionId)}
@@ -448,28 +459,32 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         />
       ) : null}
 
-      <RevisionConflictDialog
-        conflict={store.conflict}
-        onKeepLocal={store.clearConflict}
-        onOpenHistory={() => {
-          store.clearConflict();
-          setHistoryOpen(true);
-        }}
-        onReloadServer={() => reloadMutation.mutate()}
-        reloading={reloadMutation.isPending}
-      />
+      {isOwner ? (
+        <RevisionConflictDialog
+          conflict={store.conflict}
+          onKeepLocal={store.clearConflict}
+          onOpenHistory={() => {
+            store.clearConflict();
+            setHistoryOpen(true);
+          }}
+          onReloadServer={() => reloadMutation.mutate()}
+          reloading={reloadMutation.isPending}
+        />
+      ) : null}
 
-      <div
-        aria-live="polite"
-        className={
-          notice
-            ? "glass-surface-strong fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 rounded-full px-5 py-3 text-xs font-bold text-ink opacity-100 shadow-xl transition"
-            : "pointer-events-none fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 rounded-full px-5 py-3 text-xs font-bold opacity-0 transition"
-        }
-        role="status"
-      >
-        {notice}
-      </div>
+      {isOwner ? (
+        <div
+          aria-live="polite"
+          className={
+            notice
+              ? "glass-surface-strong fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 rounded-full px-5 py-3 text-xs font-bold text-ink opacity-100 shadow-xl transition"
+              : "pointer-events-none fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 rounded-full px-5 py-3 text-xs font-bold opacity-0 transition"
+          }
+          role="status"
+        >
+          {notice}
+        </div>
+      ) : null}
     </main>
   );
 }

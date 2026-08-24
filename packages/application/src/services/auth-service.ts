@@ -35,7 +35,7 @@ export class AuthService {
   async startGithubAuthentication() {
     const now = this.clock.now();
     const state = this.tokens.createOpaqueToken(32);
-    const stateHash = this.tokens.hashOpaqueToken(state);
+    const stateHash = await this.tokens.hashOpaqueToken(state);
     const codeVerifier = this.tokens.createOpaqueToken(48);
     const protectedCodeVerifier = await this.secrets.protect(codeVerifier, {
       credentialType: "pkce_verifier",
@@ -52,7 +52,7 @@ export class AuthService {
     });
     return {
       authorizationUrl: this.oauth.createAuthorizationUrl({
-        codeChallenge: this.tokens.createPkceChallenge(codeVerifier),
+        codeChallenge: await this.tokens.createPkceChallenge(codeVerifier),
         state
       }),
       expiresAt
@@ -61,7 +61,7 @@ export class AuthService {
 
   async completeGithubAuthentication(code: string, state: string): Promise<IssuedSession> {
     const now = this.clock.now();
-    const stateHash = this.tokens.hashOpaqueToken(state);
+    const stateHash = await this.tokens.hashOpaqueToken(state);
     const transaction = await this.repository.consumeState(stateHash, now);
     if (!transaction) throw new InvalidAuthTransactionError();
     let codeVerifier: string;
@@ -95,15 +95,15 @@ export class AuthService {
       createdAt: now,
       expiresAt,
       id: this.tokens.createUuid(),
-      tokenHash: this.tokens.hashOpaqueToken(token)
+      tokenHash: await this.tokens.hashOpaqueToken(token)
     });
     return { expiresAt, token };
   }
 
-  getSession(token: string | null): Promise<AuthenticatedSession | null> {
+  async getSession(token: string | null): Promise<AuthenticatedSession | null> {
     if (!token) return Promise.resolve(null);
     return this.repository.findSessionByTokenHash(
-      this.tokens.hashOpaqueToken(token),
+      await this.tokens.hashOpaqueToken(token),
       this.clock.now()
     );
   }
@@ -117,6 +117,6 @@ export class AuthService {
 
   async logout(token: string | null): Promise<void> {
     if (!token) throw new UnauthenticatedError();
-    await this.repository.revokeSession(this.tokens.hashOpaqueToken(token), this.clock.now());
+    await this.repository.revokeSession(await this.tokens.hashOpaqueToken(token), this.clock.now());
   }
 }

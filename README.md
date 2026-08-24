@@ -225,13 +225,15 @@ CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 ```
 
 - D1 has independent SQLite migrations and an idempotent fixture Seed.
-- `/health`, `/ready`, public Profile/Dashboard, and anonymous Auth Session are implemented.
+- `/health`, `/ready`, public Profile/Dashboard, GitHub OAuth, D1 Session, and Owner read resources are implemented.
 - Cloudflare Queues implements the `SyncJobQueue` port and has an explicit per-message ack/retry consumer boundary.
-- Owner write APIs, OAuth, encrypted Provider credentials, and real NetEase execution intentionally return Problem Details until their D1 adapters are complete.
+- Owner write APIs, encrypted Provider credentials, and real NetEase execution intentionally return Problem Details until their D1 adapters are complete.
 - The PostgreSQL/Fastify/pg-boss implementation remains available and fully tested.
 - No Cloudflare account, domain, project endpoint, or secret is committed.
 
 See [ADR 0016](docs/adr/0016-cloudflare-d1-worker-queue-adapter.md) and the [Cloudflare adapter guide](infra/providers/cloudflare/README.md).
+
+The public homepage intentionally has no administration chrome. Open `/settings` directly to authenticate as Owner; the display/edit controls, Provider status, sync actions, API information, and Settings link appear on the homepage only after the API reports an Owner session.
 
 ## Security
 

@@ -10,7 +10,9 @@ import { AboutPage } from "./about-page";
 import { useDashboardStore } from "./dashboard-store";
 
 vi.mock("./dashboard-canvas", () => ({
-  DashboardCanvas: () => <div data-testid="dashboard-canvas" />
+  DashboardCanvas: ({ editable }: { readonly editable: boolean }) => (
+    <div data-editable={String(editable)} data-testid="dashboard-canvas" />
+  )
 }));
 
 const draft = {
@@ -25,6 +27,13 @@ const ownerSession = {
   authenticated: true,
   expiresAt: "2099-01-01T00:00:00.000Z",
   role: "owner" as const
+};
+
+const anonymousSession = {
+  actorId: null,
+  authenticated: false,
+  expiresAt: null,
+  role: null
 };
 
 beforeEach(() => {
@@ -47,6 +56,59 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("API persistence failure UX", () => {
+  it("keeps the public homepage content-only until an Owner session exists", async () => {
+    const unsupported = async () => {
+      throw new Error("Owner capability is unavailable.");
+    };
+    const publicSource: DashboardDataSource = {
+      cancelNeteaseAuthAttempt: unsupported,
+      connectNetease: unsupported,
+      disconnectNetease: unsupported,
+      enqueueProviderSync: unsupported,
+      getAuthSession: async () => anonymousSession,
+      getNeteaseAuthAttempt: unsupported,
+      getNeteaseConnection: unsupported,
+      getProviderConnections: unsupported,
+      getRevision: unsupported,
+      getSyncJob: unsupported,
+      kind: "api",
+      listRevisions: unsupported,
+      load: async () => ({
+        draft: null,
+        providerStatuses: [],
+        published: mockDashboard,
+        session: anonymousSession
+      }),
+      logout: unsupported,
+      publishDraft: unsupported,
+      refreshProjections: unsupported,
+      restoreRevision: unsupported,
+      saveDraft: unsupported,
+      startAuthentication: unsupported,
+      startNeteaseQrAuth: unsupported,
+      startNeteaseSmsAuth: unsupported,
+      verifyNeteaseSmsAuth: unsupported
+    };
+    useDashboardStore.setState({ mode: "edit" });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AboutPage source={publicSource} />
+      </QueryClientProvider>
+    );
+
+    await screen.findByRole("heading", { name: "About Me" });
+    expect(screen.getByTestId("dashboard-canvas")).toHaveAttribute("data-editable", "false");
+    expect(screen.queryByRole("navigation", { name: "About Me 页面操作" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "编辑视图" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "状态信息" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "同步" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "API 文档" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "打开设置" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Phase [15]/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Published version/)).not.toBeInTheDocument();
+  });
+
   it("keeps the edited local Draft when an API save fails", async () => {
     const failingSource: DashboardDataSource = {
       kind: "api",

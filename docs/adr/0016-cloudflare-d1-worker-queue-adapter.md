@@ -14,7 +14,7 @@ The generic Nivalis deployment uses PostgreSQL, Fastify, and a persistent pg-bos
 2. Cloudflare D1 is introduced as a SQLite-backed persistence adapter, with its own migrations.
 3. A Fetch-native API Worker exposes the existing OpenAPI resource semantics without importing Fastify.
 4. Cloudflare Queues implements `SyncJobQueue`; every consumer message is explicitly acknowledged or retried.
-5. The first vertical slice is the public Published Dashboard read model and anonymous Auth Session. Owner writes and Provider execution remain unavailable until their D1 adapters are complete.
+5. The first vertical slices are the public Published Dashboard read model, GitHub OAuth/D1 Session, and Owner configuration reads. Owner writes and Provider execution remain unavailable until their D1 adapters are complete.
 6. Unimplemented Cloudflare routes return structured Problem Details and never fall back to ephemeral state.
 
 ## Consequences

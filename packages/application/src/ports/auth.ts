@@ -42,7 +42,7 @@ export interface OAuthIdentityProvider {
 
 export interface AuthTokenFactory {
   createOpaqueToken(bytes: number): string;
-  createPkceChallenge(verifier: string): string;
-  hashOpaqueToken(token: string): string;
+  createPkceChallenge(verifier: string): string | Promise<string>;
+  hashOpaqueToken(token: string): string | Promise<string>;
   createUuid(): string;
 }

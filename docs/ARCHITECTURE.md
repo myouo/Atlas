@@ -316,7 +316,9 @@ Pages → generated API client → Fetch API Worker
 SyncJobQueue Port → Cloudflare Queue → Consumer Worker
 ```
 
-D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The first slice exposes the public Published Dashboard and anonymous Auth Session. Owner mutations, OAuth, Credential storage, and Provider execution remain disabled until their D1 repositories pass the same immutability, CAS, encryption, LKG, and retry tests as the generic runtime. See ADR 0016.
+D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, and Owner reads. Owner mutations, Credential storage, and Provider execution remain disabled until their D1 repositories pass the same immutability, CAS, encryption, LKG, and retry tests as the generic runtime. See ADR 0016.
+
+The public homepage is content-only: anonymous visitors receive no mode switcher, editing chrome, status/sync/API controls, Settings link, phase badge, or operational footer. Direct `/settings` access owns the authentication entry point. Once the API reports an authenticated Owner session, the same `DashboardCanvas` reveals the existing control surface without introducing a second renderer.
 
 The API production artifact bundles Nivalis Domain/Application code while leaving third-party Node dependencies external. This is a packaging boundary only; it does not collapse the source-layer dependency direction. See ADR 0005.
 
