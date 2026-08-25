@@ -540,7 +540,7 @@ function NeteaseDataExplorer({
         </div>
         <div className="mt-4">
           <p className="text-[10px] font-extrabold text-ink">
-            网易云主页音乐卡片 · {musicCardItems.length} / 6
+            网易云主页音乐卡片 · 已读取 {musicCardItems.length} · 公开展示最多 6
           </p>
           {musicCards?.sourceAvailability === "available" ? (
             musicCardItems.length > 0 ? (
@@ -576,7 +576,7 @@ function NeteaseDataExplorer({
             )
           ) : (
             <p className="mt-2 text-[9px] font-semibold text-amber-700">
-              当前同步尚未返回 PERSONAL_SHOWCASE；Last Known Good 不会被伪造数据覆盖。
+              当前同步尚未返回可解析的个人主页音乐 block；Last Known Good 不会被伪造数据覆盖。
             </p>
           )}
         </div>

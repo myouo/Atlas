@@ -83,17 +83,23 @@ export interface NeteaseNormalizedMembership extends JsonObject {
 }
 
 export interface NeteaseNormalizedMusicCard extends JsonObject {
-  readonly cardKind: "album" | "duration" | "medal" | "playlist" | "song" | "unknown";
+  readonly cardKind:
+    "album" | "duration" | "favorite" | "medal" | "playlist" | "ranking" | "song" | "unknown";
   readonly badgeIconUrl: string | null;
   readonly badgeText: string | null;
   readonly coverUrl: string | null;
-  readonly creativeType: "SHOWCASE_GALLERY_FIX" | "SHOWCASE_LIST" | "SHOWCASE_VOID" | "legacy";
+  readonly creativeType: string;
   readonly description: string | null;
   readonly imageUrls: readonly string[];
   readonly jumpUrl: string | null;
   readonly providerCardId: string;
+  readonly providerPublic: boolean;
+  readonly providerUiType: string | null;
+  readonly providerVisibility: string | null;
   readonly resourceId: string | null;
   readonly resourceType: string | null;
+  readonly sourceBlockCode: string | null;
+  readonly sourceBlockType: string;
   readonly textLines: readonly string[];
   readonly title: string;
 }

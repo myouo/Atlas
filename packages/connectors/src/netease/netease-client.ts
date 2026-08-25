@@ -26,6 +26,8 @@ export interface NeteaseClientOptions {
   readonly timeoutMs: number;
 }
 
+export type NeteaseProfileCursor = string | Readonly<Record<string, string>>;
+
 export interface NeteaseTransportResponse {
   readonly cookies: readonly string[];
   readonly payload: JsonValue;
@@ -57,16 +59,33 @@ export class NeteaseClient {
     );
   }
 
-  getProfileShowcase(credential: string, userId: string) {
+  getProfileHomePage(credential: string, userId: string | number, cursor?: NeteaseProfileCursor) {
     const numericUserId = Number(userId);
     return this.eapi(
       "/api/personal/home/page/user",
       {
         newStyle: true,
-        userId: Number.isSafeInteger(numericUserId) ? numericUserId : userId
+        userId: Number.isSafeInteger(numericUserId) ? numericUserId : userId,
+        ...(cursor ? { cursor } : {})
       },
       credential,
       "/api/personal/home/page/user",
+      "android",
+      MOBILE_INTERFACE_ORIGIN
+    );
+  }
+
+  getProfileShowcase(credential: string, userId: string) {
+    return this.getProfileHomePage(credential, userId);
+  }
+
+  getProfileHomeTabs(credential: string, userId: string | number) {
+    const numericUserId = Number(userId);
+    return this.eapi(
+      "/api/personal/home/page/tabs",
+      { userId: Number.isSafeInteger(numericUserId) ? numericUserId : userId },
+      credential,
+      "/api/personal/home/page/tabs",
       "android",
       MOBILE_INTERFACE_ORIGIN
     );

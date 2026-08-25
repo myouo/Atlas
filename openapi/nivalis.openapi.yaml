@@ -2301,10 +2301,10 @@ components:
           type: string
         cardKind:
           type: string
-          enum: [album, duration, medal, playlist, song, unknown]
+          enum: [album, duration, favorite, medal, playlist, ranking, song, unknown]
         creativeType:
           type: string
-          enum: [SHOWCASE_GALLERY_FIX, SHOWCASE_LIST, SHOWCASE_VOID, legacy]
+          minLength: 1
         title:
           type: string
         description:
@@ -2332,6 +2332,16 @@ components:
           type: [string, "null"]
         resourceType:
           type: [string, "null"]
+        providerPublic:
+          type: boolean
+        providerUiType:
+          type: [string, "null"]
+        providerVisibility:
+          type: [string, "null"]
+        sourceBlockCode:
+          type: [string, "null"]
+        sourceBlockType:
+          type: string
     NeteaseDataCatalog:
       type: object
       additionalProperties: false

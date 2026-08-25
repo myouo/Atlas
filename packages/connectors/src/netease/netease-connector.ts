@@ -1,4 +1,5 @@
 import type { ProviderCredentialResolver } from "@nivalis/application";
+import { ProviderSchemaMismatchError } from "@nivalis/domain";
 import type {
   JsonObject,
   JsonValue,
@@ -7,7 +8,7 @@ import type {
   SyncRun
 } from "@nivalis/domain";
 
-import { NeteaseClient } from "./netease-client";
+import { NeteaseClient, type NeteaseProfileCursor } from "./netease-client";
 import { NETEASE_SOURCE } from "./netease-types";
 
 export class NeteaseConnector implements ProviderConnector {
@@ -31,8 +32,7 @@ export class NeteaseConnector implements ProviderConnector {
     snapshots.push(snapshot(NETEASE_SOURCE.userDetail, detail, this.now()));
     const profileHome = await this.client.getProfileHome(credential, userId);
     snapshots.push(snapshot(NETEASE_SOURCE.profileHome, profileHome, this.now()));
-    const profileShowcase = await this.client.getProfileShowcase(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.profileShowcase, profileShowcase, this.now()));
+    snapshots.push(...(await profileHomePageSnapshots(this.client, credential, userId, this.now)));
     const level = await this.client.getUserLevel(credential);
     snapshots.push(snapshot(NETEASE_SOURCE.userLevel, level, this.now()));
     const vip = await this.client.getVipInfo(credential, userId);
@@ -81,6 +81,75 @@ export class NeteaseConnector implements ProviderConnector {
 
 const MAX_PROVIDER_LIST_ITEMS = 500;
 const MAX_PROVIDER_LIST_PAGES = 20;
+const MAX_PROFILE_HOME_PAGES = 20;
+
+async function profileHomePageSnapshots(
+  client: NeteaseClient,
+  credential: string,
+  userId: string,
+  now: () => Date
+) {
+  const results: ProviderFetchResult[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: NeteaseProfileCursor | undefined;
+  for (let page = 0; page < MAX_PROFILE_HOME_PAGES; page += 1) {
+    const payload = await client.getProfileHomePage(credential, userId, cursor);
+    const sourceCursor = cursor ? canonicalCursor(cursor) : undefined;
+    results.push(
+      snapshot(
+        page === 0
+          ? NETEASE_SOURCE.profileShowcase
+          : `${NETEASE_SOURCE.profileShowcase}.page.${page}`,
+        payload,
+        now(),
+        sourceCursor
+      )
+    );
+    const state = profileHomePageState(payload);
+    if (!state.more) return results;
+    if (!state.cursor || page === MAX_PROFILE_HOME_PAGES - 1) {
+      throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+    }
+    const nextCursor = canonicalCursor(state.cursor);
+    if (seenCursors.has(nextCursor)) {
+      throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+    }
+    seenCursors.add(nextCursor);
+    cursor = state.cursor;
+  }
+  throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+}
+
+function profileHomePageState(payload: JsonValue): {
+  readonly cursor: NeteaseProfileCursor | null;
+  readonly more: boolean;
+} {
+  if (!isObject(payload) || !isObject(payload.data)) {
+    return { cursor: null, more: false };
+  }
+  if (payload.data.hasMore !== true) return { cursor: null, more: false };
+  if (typeof payload.data.cursor === "string") {
+    return payload.data.cursor.length > 0
+      ? { cursor: payload.data.cursor, more: true }
+      : { cursor: null, more: true };
+  }
+  if (!isObject(payload.data.cursor)) return { cursor: null, more: true };
+  const entries = Object.entries(payload.data.cursor);
+  if (entries.length === 0) return { cursor: null, more: true };
+  const cursor: Record<string, string> = {};
+  for (const [key, value] of entries) {
+    if (typeof value !== "string") return { cursor: null, more: true };
+    cursor[key] = value;
+  }
+  return { cursor, more: true };
+}
+
+function canonicalCursor(cursor: NeteaseProfileCursor) {
+  if (typeof cursor === "string") return cursor;
+  return JSON.stringify(
+    Object.fromEntries(Object.entries(cursor).sort(([a], [b]) => a.localeCompare(b)))
+  );
+}
 
 async function paginatedSnapshots(
   baseSourceKind: string,
@@ -130,8 +199,19 @@ function pageInfo(payload: JsonValue, listKey: string, containerKey?: string, id
   };
 }
 
-function snapshot(sourceKind: string, payload: ProviderFetchResult["payload"], fetchedAt: Date) {
-  return { fetchedAt, payload: sanitizeNeteasePayload(payload), schemaVersion: 1, sourceKind };
+function snapshot(
+  sourceKind: string,
+  payload: ProviderFetchResult["payload"],
+  fetchedAt: Date,
+  sourceCursor?: string
+) {
+  return {
+    fetchedAt,
+    payload: sanitizeNeteasePayload(payload),
+    schemaVersion: 1,
+    sourceKind,
+    ...(sourceCursor ? { sourceCursor } : {})
+  };
 }
 
 export function sanitizeNeteasePayload(value: JsonValue): JsonValue {

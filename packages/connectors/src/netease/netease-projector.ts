@@ -299,11 +299,14 @@ function showcaseGallery(payload: NeteaseNormalizedPayload, dataConfig: JsonObje
   if (mode === "provider") {
     return {
       availability: payload.musicCardsAvailable ? "available" : "unavailable",
-      items: payload.musicCards.slice(0, 6).map((card) => ({
-        card: { ...card, kind: "provider_music_card" },
-        resourceId: card.providerCardId,
-        source: "provider_music_card"
-      })),
+      items: payload.musicCards
+        .filter((card) => card.providerPublic)
+        .slice(0, 6)
+        .map((card) => ({
+          card: { ...card, kind: "provider_music_card" },
+          resourceId: card.providerCardId,
+          source: "provider_music_card"
+        })),
       maxItems: 6,
       mode,
       provider: "netease",

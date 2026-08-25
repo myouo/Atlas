@@ -601,14 +601,14 @@ function NeteaseShowcaseGallery({
         <MusicNotes aria-hidden className="text-[#ff4668]" size={34} weight="duotone" />
         <p className="mt-3 text-sm font-black text-ink">
           {providerUnavailable
-            ? "尚未读取到官方主页卡片"
+            ? "尚未读取到个人主页音乐卡片"
             : providerMode
               ? "网易云主页展柜为空"
               : "自定义展柜还是空的"}
         </p>
         <p className="mt-1 max-w-xs text-[10px] leading-relaxed text-ink-muted">
           {providerUnavailable
-            ? "保存当前配置并同步一次，Nivalis 会读取 PERSONAL_SHOWCASE 数据，不会用听歌排行补位。"
+            ? "同步后，Nivalis 会从音乐品味、单曲、专辑架、歌单和橱窗 block 读取真实卡片，不会用听歌历史补位。"
             : providerMode
               ? "网易云当前没有返回公开卡片；可以在网易云 App 装扮主页，或切换到 Nivalis 自定义。"
               : "在卡片设置中加入 1～6 个歌曲、歌单、徽章或听歌数据。"}

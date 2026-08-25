@@ -1083,9 +1083,8 @@ export interface components {
         NeteaseOwnerMusicCardV1: {
             providerCardId: string;
             /** @enum {string} */
-            cardKind: "album" | "duration" | "medal" | "playlist" | "song" | "unknown";
-            /** @enum {string} */
-            creativeType: "SHOWCASE_GALLERY_FIX" | "SHOWCASE_LIST" | "SHOWCASE_VOID" | "legacy";
+            cardKind: "album" | "duration" | "favorite" | "medal" | "playlist" | "ranking" | "song" | "unknown";
+            creativeType: string;
             title: string;
             description: string | null;
             /** Format: uri */
@@ -1098,6 +1097,11 @@ export interface components {
             jumpUrl: string | null;
             resourceId: string | null;
             resourceType: string | null;
+            providerPublic?: boolean;
+            providerUiType?: string | null;
+            providerVisibility?: string | null;
+            sourceBlockCode?: string | null;
+            sourceBlockType?: string;
         };
         NeteaseDataCatalog: {
             /** @constant */

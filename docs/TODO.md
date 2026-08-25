@@ -8,7 +8,7 @@
 - Add credential-key rotation tooling; Phase 5 stores a version and key ID but does not run automatic re-encryption.
 - Add session cleanup/rate limiting and production observability without logging Provider payloads or secrets.
 - Complete appearance persistence, backups, and deployment adapters.
-- Monitor the undocumented `personal/home/page/user` showcase contract for new creative variants; schema drift must remain explicit and Last Known Good must be preserved.
+- Monitor the undocumented, paginated `personal/home/page/user` contract for new block/UI/creative variants; schema drift must remain explicit and Last Known Good must be preserved.
 - Add a measured Revision retention/archive policy only if immutable history growth requires it.
 
 Phase 5 NetEase remains read-only and capability-bounded. QR and SMS OTP are implemented through encrypted Worker-owned attempts; password login, Provider writes, proxy/IP bypass, automatic schema repair, and additional Providers are not hidden behind temporary code. Revision conflict handling continues to detect/preserve/inform, and Provider synchronization remains independent from Revision concurrency.

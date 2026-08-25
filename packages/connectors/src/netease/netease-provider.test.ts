@@ -202,17 +202,18 @@ describe("NetEase Provider module", () => {
       items: [
         {
           card: {
-            cardKind: "song",
-            creativeType: "SHOWCASE_GALLERY_FIX",
+            creativeType: "LISTEN_RANK",
+            cardKind: "ranking",
             kind: "provider_music_card",
-            title: "最近循环最多"
-          },
-          resourceId: "native-card-song",
-          source: "provider_music_card"
+            providerUiType: "nm.profilePage.commonColorCreative",
+            title: "听歌排行"
+          }
         },
-        { card: { cardKind: "playlist", title: "我的宝藏歌单" } },
-        { card: { creativeType: "SHOWCASE_LIST", textLines: ["累计 162 小时", "本周 91 分钟"] } },
-        { card: { cardKind: "medal", title: "雪夜聆听者" } }
+        { card: { cardKind: "unknown", creativeType: "TIME_MACHINE", title: "音乐时光机" } },
+        { card: { cardKind: "song", title: "Snow Light" } },
+        { card: { cardKind: "album", title: "雪境收藏" } },
+        { card: { cardKind: "playlist", title: "Snow Archive" } },
+        { card: { creativeType: "SHOWCASE_GALLERY_FIX", title: "最近循环最多" } }
       ],
       maxItems: 6,
       mode: "provider"
@@ -247,12 +248,24 @@ describe("NetEase Provider module", () => {
     expect(catalog.musicCards).toMatchObject({
       items: expect.arrayContaining([
         expect.objectContaining({
+          cardKind: "favorite",
+          creativeType: "MY_FAVORITE",
+          providerPublic: false,
+          providerUiType: "nm.profilePage.commonColorCreative",
+          providerVisibility: "ONLY_MYSELF_SEE"
+        }),
+        expect.objectContaining({
+          cardKind: "album",
+          providerUiType: "nm.profilePage.albumrack"
+        }),
+        expect.objectContaining({
           creativeType: "SHOWCASE_GALLERY_FIX",
           providerCardId: "native-card-song"
         })
       ]),
       sourceAvailability: "available"
     });
+    expect((catalog.musicCards as JsonObject).items).toHaveLength(10);
     expect(JSON.stringify(catalog)).not.toMatch(/lastLoginIP|MUSIC_U|authorization/i);
   });
 
@@ -282,6 +295,64 @@ describe("NetEase Provider module", () => {
     expect(normalized.payload).toMatchObject({
       musicCards: [expect.objectContaining({ creativeType: "legacy" })],
       musicCardsAvailable: true
+    });
+  });
+
+  it("merges profile music cards across immutable Raw pages without losing Provider order", async () => {
+    const raw = snapshots(normalNeteaseFixture);
+    const profileIndex = raw.findIndex(
+      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.profileShowcase
+    );
+    const profile = raw[profileIndex]!;
+    const payload = profile.payload as JsonObject;
+    const data = payload.data as JsonObject;
+    const blocks = data.blocks as JsonObject[];
+    raw[profileIndex] = {
+      ...profile,
+      payload: {
+        ...payload,
+        data: {
+          ...data,
+          blocks: blocks.slice(0, 3),
+          cursor: { PERSONAL_USER_SHOWCASE: "next-page" },
+          hasMore: true
+        }
+      }
+    };
+    raw.push({
+      ...profile,
+      id: "00000000-0000-4000-8000-000000000698",
+      payload: {
+        ...payload,
+        data: {
+          ...data,
+          blocks: blocks.slice(3),
+          cursor: { PERSONAL_USER_SHOWCASE: "-1" },
+          hasMore: false
+        }
+      },
+      sourceCursor: JSON.stringify({ PERSONAL_USER_SHOWCASE: "next-page" }),
+      sourceKind: `${NETEASE_SOURCE.profileShowcase}.page.1`
+    });
+
+    const normalized = await new NeteaseNormalizer().normalize(raw);
+    const cards = (normalized.payload as NeteaseNormalizedPayload).musicCards;
+    expect(cards).toHaveLength(10);
+    expect(cards.map((card) => card.sourceBlockType)).toEqual([
+      "MUSIC_TASTE_WITH_MORE",
+      "MUSIC_TASTE_WITH_MORE",
+      "MUSIC_TASTE_WITH_MORE",
+      "SONG_LIST",
+      "PERSONAL_ALBUM_RACK",
+      "PLAYLIST_LIST_WITH_MORE",
+      "PERSONAL_SHOWCASE",
+      "PERSONAL_SHOWCASE",
+      "PERSONAL_SHOWCASE",
+      "PERSONAL_SHOWCASE"
+    ]);
+    expect(normalized.sourceSnapshotIds).toMatchObject({
+      [NETEASE_SOURCE.profileShowcase]: profile.id,
+      [`${NETEASE_SOURCE.profileShowcase}.page.1`]: "00000000-0000-4000-8000-000000000698"
     });
   });
 
@@ -378,7 +449,8 @@ describe("NetEase Provider module", () => {
     expect(showcaseRequest?.headers.get("cookie")).toContain("appver=9.5.70");
     expect(showcaseRequest?.headers.get("cookie")).toContain("versioncode=9005070");
     expect(new URL(showcaseRequest!.url).hostname).toBe("interface3.music.163.com");
-    await expect(decodeEapiRequest(showcaseRequest!)).resolves.toMatchObject({
+    const profilePageRequest = await decodeEapiRequest(showcaseRequest!);
+    expect(profilePageRequest).toMatchObject({
       header: {
         appver: "9.5.70",
         os: "android",
@@ -388,12 +460,118 @@ describe("NetEase Provider module", () => {
       newStyle: true,
       userId: 10001
     });
+    expect(profilePageRequest).not.toHaveProperty("cursor");
 
     const profileHomeRequest = requests.find((request) =>
       new URL(request.url).pathname.includes("w/v1/user/detail")
     );
     expect(profileHomeRequest?.headers.get("user-agent")).toContain("Mozilla/5.0");
     expect(profileHomeRequest?.headers.get("cookie")).toContain("os=pc");
+  });
+
+  it("follows Provider profile cursors only after hasMore and preserves every page as Raw evidence", async () => {
+    const profileRequests: Request[] = [];
+    const fetcher = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      const request = new Request(input, init);
+      const pathname = new URL(request.url).pathname;
+      if (pathname.includes("personal/home/page/user")) {
+        profileRequests.push(request);
+        return Response.json(
+          profileRequests.length === 1
+            ? {
+                code: 200,
+                data: {
+                  blocks: [{ creatives: [], showType: "MUSIC_TASTE_WITH_MORE" }],
+                  cursor: JSON.stringify({ PERSONAL_USER_SHOWCASE: "next-page" }),
+                  hasMore: true
+                }
+              }
+            : {
+                code: 200,
+                data: {
+                  blocks: [{ creatives: [], showType: "SONG_LIST" }],
+                  cursor: { PERSONAL_USER_SHOWCASE: "-1" },
+                  hasMore: false
+                }
+              }
+        );
+      }
+      return Response.json(payloadForPath(pathname));
+    });
+    const connector = new NeteaseConnector(
+      new NeteaseClient({ timeoutMs: 2_000 }, fetcher),
+      { resolve: async () => secret },
+      () => fetchedAt
+    );
+
+    const results = await connector.fetch(syncRun());
+    const profileSnapshots = results.filter((result) =>
+      result.sourceKind.startsWith(NETEASE_SOURCE.profileShowcase)
+    );
+    expect(profileSnapshots.map((result) => result.sourceKind)).toEqual([
+      NETEASE_SOURCE.profileShowcase,
+      `${NETEASE_SOURCE.profileShowcase}.page.1`
+    ]);
+    expect(profileSnapshots[0]?.sourceCursor).toBeUndefined();
+    expect(profileSnapshots[1]?.sourceCursor).toBe(
+      JSON.stringify({ PERSONAL_USER_SHOWCASE: "next-page" })
+    );
+    expect(profileRequests).toHaveLength(2);
+    const firstRequest = await decodeEapiRequest(profileRequests[0]!);
+    const secondRequest = await decodeEapiRequest(profileRequests[1]!);
+    expect(firstRequest).not.toHaveProperty("cursor");
+    expect(secondRequest).toMatchObject({
+      cursor: JSON.stringify({ PERSONAL_USER_SHOWCASE: "next-page" }),
+      newStyle: true,
+      userId: 10001
+    });
+  });
+
+  it("rejects a repeated profile cursor instead of looping or committing a partial projection", async () => {
+    const fetcher = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      const pathname = new URL(new Request(input, init).url).pathname;
+      if (pathname.includes("personal/home/page/user")) {
+        return Response.json({
+          code: 200,
+          data: {
+            blocks: [{ creatives: [], showType: "MUSIC_TASTE_WITH_MORE" }],
+            cursor: JSON.stringify({ PERSONAL_USER_SHOWCASE: "same-page" }),
+            hasMore: true
+          }
+        });
+      }
+      return Response.json(payloadForPath(pathname));
+    });
+    const connector = new NeteaseConnector(
+      new NeteaseClient({ timeoutMs: 2_000 }, fetcher),
+      { resolve: async () => secret },
+      () => fetchedAt
+    );
+
+    await expect(connector.fetch(syncRun())).rejects.toBeInstanceOf(ProviderSchemaMismatchError);
+  });
+
+  it("exposes the read-only profile tab capability", async () => {
+    let captured: Request | null = null;
+    const client = new NeteaseClient({ timeoutMs: 2_000 }, async (input, init) => {
+      captured = new Request(input, init);
+      return Response.json({
+        code: 200,
+        data: {
+          tabs: [
+            { tabInfo: { title: "主页" }, tabName: "main" },
+            { tabInfo: { title: "声音" }, tabName: "voice" }
+          ]
+        }
+      });
+    });
+
+    await expect(client.getProfileHomeTabs(secret, "10001")).resolves.toMatchObject({
+      data: { tabs: [{ tabName: "main" }, { tabName: "voice" }] }
+    });
+    expect(captured).not.toBeNull();
+    expect(new URL(captured!.url).pathname).toContain("personal/home/page/tabs");
+    await expect(decodeEapiRequest(captured!)).resolves.toMatchObject({ userId: 10001 });
   });
 
   it("invokes the default Fetch transport with the runtime global receiver", async () => {

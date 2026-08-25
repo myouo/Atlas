@@ -176,11 +176,11 @@ NETEASE_INTEGRATION_MUSIC_U=
 pnpm test:provider
 ```
 
-The NetEase integration is deliberately read-only but now covers account/profile identity, level progress, VIP tiers, Provider-reported cumulative listening duration, weekly and all-time rankings, recent songs, weekly listening reports, bounded following/follower lists, created playlists, social status, obtained/worn badges, and the ordered native `PERSONAL_SHOWCASE` music-card block. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
+The NetEase integration is deliberately read-only but now covers account/profile identity, level progress, VIP tiers, Provider-reported cumulative listening duration, weekly and all-time rankings, recent songs, weekly listening reports, bounded following/follower lists, created playlists, social status, obtained/worn badges, and the paginated personal-home music-card read model. Music cards are normalized from music-taste, representative-song, album-rack, playlist, and `PERSONAL_SHOWCASE` blocks using `uiElement.type` as the primary semantic key. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
 
 After one successful sync, Settings exposes an authenticated **网易云完整数据** catalog. This is a normalized allowlist—not Raw Snapshot data—and never includes credentials, headers, login IPs, or other private Provider fields. Owner edit mode offers semantic public policies for NetEase identity, listening, ranking, social, playlist, and showcase cards. Public scope is enforced while building the Projection; display-only switches are not treated as privacy controls.
 
-The preferred ranking card contains both the recent-week and all-time Provider rankings, switches locally, and pages rows without a nested native scrollbar. The preferred music showcase follows the Provider's ordered personal-home cards by default, while an explicit Nivalis custom mode can compose at most six Owner-catalog resources. Neither mode auto-promotes the first listening-history record.
+The preferred ranking card contains both the recent-week and all-time Provider rankings, switches locally, and pages rows without a nested native scrollbar. The preferred music showcase follows up to six publicly eligible Provider-ordered personal-home cards by default, while an explicit Nivalis custom mode can compose at most six Owner-catalog resources. Provider-private cards remain Owner-only unless explicitly selected; neither mode auto-promotes the first listening-history record.
 
 ## Test database and quality gates
 

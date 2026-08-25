@@ -1,6 +1,7 @@
 import { Type } from "typebox";
 
 const ProviderIdSchema = Type.Union([Type.Integer({ minimum: 0 }), Type.String({ minLength: 1 })]);
+const NullableStringSchema = Type.Union([Type.Null(), Type.String()]);
 
 const ArtistSchema = Type.Object(
   { id: ProviderIdSchema, name: Type.String({ minLength: 1 }) },
@@ -123,8 +124,46 @@ export const NeteaseProfileShowcaseResponseSchema = Type.Object(
         blocks: Type.Array(
           Type.Object(
             {
+              blockCode: Type.Optional(NullableStringSchema),
+              channel: Type.Optional(NullableStringSchema),
+              code: Type.Optional(NullableStringSchema),
               creatives: Type.Optional(Type.Array(Type.Unknown())),
-              showType: Type.Optional(Type.String())
+              modulePosition: Type.Optional(Type.Union([Type.Null(), Type.Number()])),
+              showType: Type.Optional(NullableStringSchema),
+              uiElement: Type.Optional(Type.Unknown())
+            },
+            { additionalProperties: true }
+          )
+        ),
+        cursor: Type.Optional(
+          Type.Union([Type.String({ minLength: 1 }), Type.Record(Type.String(), Type.String())])
+        ),
+        hasMore: Type.Optional(Type.Boolean())
+      },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseProfileHomeTabsResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        tabs: Type.Array(
+          Type.Object(
+            {
+              tabInfo: Type.Optional(
+                Type.Object(
+                  {
+                    subTitle: Type.Optional(Type.String()),
+                    title: Type.Optional(Type.String())
+                  },
+                  { additionalProperties: true }
+                )
+              ),
+              tabName: Type.String()
             },
             { additionalProperties: true }
           )

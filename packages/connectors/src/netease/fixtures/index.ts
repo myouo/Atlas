@@ -37,6 +37,138 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       blocks: [
         { creatives: [], showType: "PROFILE_HEADER" },
         {
+          code: "PERSONAL_MUSIC_TASTE",
+          creatives: [
+            {
+              creativeId: "profile-favorite",
+              creativeType: "MY_FAVORITE",
+              resources: [
+                {
+                  resourceId: "favorite-music",
+                  resourceType: "PLAYLIST",
+                  visibleStatus: "ONLY_MYSELF_SEE",
+                  uiElement: {
+                    images: [
+                      { imageUrl: "https://p1.music.126.net/sanitized-fixture/favorite.jpg" }
+                    ],
+                    labels: [{ text: "Provider Reported" }],
+                    mainTitle: { title: "红心收藏" },
+                    subTitles: [{ title: "999+ 首喜欢的音乐" }],
+                    type: "nm.profilePage.commonColorCreative"
+                  }
+                }
+              ]
+            },
+            {
+              creativeId: "profile-listen-rank",
+              creativeType: "LISTEN_RANK",
+              resources: [
+                {
+                  resourceId: "listen-rank",
+                  resourceType: "SONG_TOPLIST",
+                  uiElement: {
+                    mainTitle: { title: "听歌排行" },
+                    subTitles: [{ title: "累计 162 小时" }],
+                    type: "nm.profilePage.commonColorCreative"
+                  }
+                }
+              ]
+            },
+            {
+              creativeId: "profile-time-machine",
+              creativeType: "TIME_MACHINE",
+              resources: [
+                {
+                  resourceId: "time-machine",
+                  resourceType: "TEXT",
+                  uiElement: {
+                    mainTitle: { title: "音乐时光机" },
+                    subTitles: [{ title: "Provider 卡片" }],
+                    type: "nm.profilePage.commonColorCreative"
+                  }
+                }
+              ]
+            }
+          ],
+          modulePosition: 1,
+          showType: "MUSIC_TASTE_WITH_MORE",
+          uiElement: { mainTitle: { title: "音乐品味" } }
+        },
+        {
+          code: "PERSONAL_REPRESENT_SONG",
+          creatives: [
+            {
+              creativeId: "profile-song",
+              creativeType: "PROFILE_BLOCK_RESOURCE",
+              resources: [
+                {
+                  action: { clickAction: { targetUrl: "orpheus://song/20001" } },
+                  resourceId: "20001",
+                  resourceType: "song_resource_type",
+                  uiElement: {
+                    images: [{ imageUrl: "https://p1.music.126.net/sanitized-fixture/20001.jpg" }],
+                    mainTitle: { title: "Snow Light" },
+                    subTitles: [{ title: "Aimer" }],
+                    type: "nm.profilePage.song"
+                  }
+                }
+              ]
+            }
+          ],
+          modulePosition: 2,
+          showType: "SONG_LIST"
+        },
+        {
+          code: "PERSONAL_ALBUM_RACK_BLOCK",
+          creatives: [
+            {
+              creativeId: "profile-album",
+              creativeType: "PROFILE_BLOCK_RESOURCE",
+              resources: [
+                {
+                  action: { clickAction: { targetUrl: "orpheus://album/40001" } },
+                  resourceId: "40001",
+                  resourceType: "albumrack_resource_type",
+                  uiElement: {
+                    images: [{ imageUrl: "https://p1.music.126.net/sanitized-fixture/album.jpg" }],
+                    mainTitle: { title: "雪境收藏" },
+                    subTitles: [{ title: "私藏专辑" }],
+                    type: "nm.profilePage.albumrack"
+                  }
+                }
+              ]
+            }
+          ],
+          modulePosition: 3,
+          showType: "PERSONAL_ALBUM_RACK"
+        },
+        {
+          code: "PERSONAL_CREATE_PLAYLIST",
+          creatives: [
+            {
+              creativeId: "profile-playlist",
+              creativeType: "PROFILE_BLOCK_RESOURCE",
+              resources: [
+                {
+                  action: { clickAction: { targetUrl: "orpheus://playlist/13001" } },
+                  resourceId: "13001",
+                  resourceType: "playlist_resource_type",
+                  uiElement: {
+                    images: [
+                      { imageUrl: "https://p1.music.126.net/sanitized-fixture/playlist-1.jpg" }
+                    ],
+                    mainTitle: { title: "Snow Archive" },
+                    subTitles: [{ title: "创建的歌单" }],
+                    type: "nm.profilePage.playlist"
+                  }
+                }
+              ]
+            }
+          ],
+          modulePosition: 4,
+          showType: "PLAYLIST_LIST_WITH_MORE"
+        },
+        {
           creatives: [
             {
               creativeId: "native-card-song",
@@ -122,9 +254,14 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
               ]
             }
           ],
+          channel: "PERSONAL_USER_SHOWCASE",
+          code: "PERSONAL_SHOWCASE_BLOCK",
+          modulePosition: 5,
           showType: "PERSONAL_SHOWCASE"
         }
-      ]
+      ],
+      cursor: { PERSONAL_USER_SHOWCASE: "-1" },
+      hasMore: false
     }
   },
   [NETEASE_SOURCE.userDetail]: {
@@ -304,9 +441,13 @@ export const emptyNeteaseFixture: SanitizedNeteaseFixture = {
               ]
             }
           ],
+          channel: "PERSONAL_USER_SHOWCASE",
+          code: "PERSONAL_SHOWCASE_BLOCK",
           showType: "PERSONAL_SHOWCASE"
         }
-      ]
+      ],
+      cursor: { PERSONAL_USER_SHOWCASE: "-1" },
+      hasMore: false
     }
   },
   [NETEASE_SOURCE.userDetail]: {
@@ -345,9 +486,13 @@ export const showcaseSchemaDriftFixture: SanitizedNeteaseFixture = {
       blocks: [
         {
           creatives: [{ creativeId: "future-card", creativeType: "SHOWCASE_FUTURE" }],
+          channel: "PERSONAL_USER_SHOWCASE",
+          code: "PERSONAL_SHOWCASE_BLOCK",
           showType: "PERSONAL_SHOWCASE"
         }
-      ]
+      ],
+      cursor: { PERSONAL_USER_SHOWCASE: "-1" },
+      hasMore: false
     }
   }
 };

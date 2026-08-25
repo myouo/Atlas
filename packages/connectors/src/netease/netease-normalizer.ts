@@ -51,7 +51,10 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const listenTotalSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenTotal);
     const medalsSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.medals);
     const profileHomeSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.profileHome);
-    const profileShowcaseSnapshot = optionalSnapshot(snapshots, NETEASE_SOURCE.profileShowcase);
+    const profileShowcaseSnapshots = optionalMatchingSnapshots(
+      snapshots,
+      NETEASE_SOURCE.profileShowcase
+    );
     const weeklySnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.weeklyRecord);
     const recentSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.recentSongs);
     const reportSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenReportWeek);
@@ -74,9 +77,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const listenTotal = checked(NeteaseListenTotalResponseSchema, listenTotalSnapshot);
     const medals = checked(NeteaseMedalsResponseSchema, medalsSnapshot);
     checked(NeteaseProfileHomeResponseSchema, profileHomeSnapshot);
-    if (profileShowcaseSnapshot) {
-      checked(NeteaseProfileShowcaseResponseSchema, profileShowcaseSnapshot);
-    }
+    const profileShowcasePages = profileShowcaseSnapshots.map((snapshot) =>
+      checked(NeteaseProfileShowcaseResponseSchema, snapshot)
+    );
     const weekly = checked(NeteaseWeeklyRecordResponseSchema, weeklySnapshot);
     const recent = checked(NeteaseRecentSongsResponseSchema, recentSnapshot);
     const report = checked(NeteaseListenReportResponseSchema, reportSnapshot);
@@ -106,9 +109,10 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const playlistTotal = firstPlaylistPage.data.count ?? null;
     const followerTotal = profile.followeds ?? followerPages[0]!.size ?? null;
     const followingTotal = profile.follows ?? null;
-    const musicCards = profileShowcaseSnapshot
-      ? normalizeProfileShowcase(profileShowcaseSnapshot.payload)
-      : normalizeLegacyMusicCards(profileHomeSnapshot.payload);
+    const musicCards =
+      profileShowcasePages.length > 0
+        ? normalizeProfileMusicCards(profileShowcasePages)
+        : normalizeLegacyMusicCards(profileHomeSnapshot.payload);
     const payload: NeteaseNormalizedPayload = {
       account: {
         avatarFrameUrl: safeArtworkUrl(profile.avatarDetail?.identityIconUrl),
@@ -355,8 +359,13 @@ function normalizeLegacyMusicCards(payload: unknown): {
           imageUrls: [],
           jumpUrl: null,
           providerCardId: stringOrNumber(candidate.cardId ?? candidate.id) ?? `position-${index}`,
+          providerPublic: true,
+          providerUiType: null,
+          providerVisibility: null,
           resourceId: stringOrNumber(candidate.resourceId ?? resource?.id),
           resourceType: rawKind ?? null,
+          sourceBlockCode: null,
+          sourceBlockType: "legacy",
           textLines: [],
           title
         }
@@ -374,67 +383,146 @@ const profileShowcaseCreativeTypes = [
 
 type ProfileShowcaseCreativeType = (typeof profileShowcaseCreativeTypes)[number];
 
-function normalizeProfileShowcase(payload: unknown): {
+const profileMusicBlockTypes = new Set([
+  "MUSIC_TASTE_WITH_MORE",
+  "PERSONAL_ALBUM_RACK",
+  "PERSONAL_SHOWCASE",
+  "PLAYLIST_LIST_WITH_MORE",
+  "SONG_LIST"
+]);
+
+function normalizeProfileMusicCards(payloads: readonly unknown[]): {
   readonly available: boolean;
   readonly items: readonly NeteaseNormalizedMusicCard[];
 } {
-  if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.blocks)) {
-    throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
-  }
-  const showcase = payload.data.blocks.find(
-    (block) => isObject(block) && block.showType === "PERSONAL_SHOWCASE"
-  );
-  if (!showcase) return { available: false, items: [] };
-  if (!Array.isArray(showcase.creatives)) {
-    throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
-  }
-  const items: NeteaseNormalizedMusicCard[] = [];
-  for (const [index, candidate] of showcase.creatives.entries()) {
-    if (!isObject(candidate) || !isProfileShowcaseCreativeType(candidate.creativeType)) {
+  const blocks: JsonObject[] = [];
+  for (const payload of payloads) {
+    if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.blocks)) {
       throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
     }
-    if (candidate.creativeType === "SHOWCASE_BUTTON") continue;
-    const resources = Array.isArray(candidate.resources) ? candidate.resources : null;
-    const resource = resources?.find(isObject) ?? null;
-    if (!resource) throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
-    const uiElement = isObject(resource.uiElement) ? resource.uiElement : null;
-    if (!uiElement) throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
-    const mainTitle = isObject(uiElement.mainTitle) ? uiElement.mainTitle : null;
-    const images = Array.isArray(uiElement.images) ? uiElement.images.filter(isObject) : [];
-    const imageUrls = images.flatMap((image) => {
-      const url = safeArtworkUrl(stringValue(image.imageUrl));
-      return url ? [url] : [];
-    });
-    const subTitles = Array.isArray(uiElement.subTitles)
-      ? uiElement.subTitles.filter(isObject)
-      : [];
-    const textLines = subTitles.flatMap((item) => nonEmpty(item.title) ?? []);
-    const superscript = isObject(uiElement.superscript)
-      ? uiElement.superscript
-      : (images.map((image) => image.superscript).find(isObject) ?? null);
-    const jumpUrl = clickTarget(resource.action);
-    const resourceType = stringOrNumber(resource.resourceType);
-    const creativeType = candidate.creativeType;
-    const title = nonEmpty(mainTitle?.title) ?? "";
-    items.push({
-      badgeIconUrl: safeArtworkUrl(stringValue(superscript?.picUrl)),
-      badgeText: nonEmpty(superscript?.text),
-      cardKind: profileShowcaseCardKind(creativeType, resourceType, jumpUrl),
-      coverUrl: imageUrls[0] ?? null,
-      creativeType,
-      description: nonEmpty(superscript?.text) ?? textLines[0] ?? null,
-      imageUrls,
-      jumpUrl,
-      providerCardId:
-        stringOrNumber(candidate.creativeId ?? resource.resourceId) ?? `position-${index}`,
-      resourceId: stringOrNumber(resource.resourceId),
-      resourceType,
-      textLines,
-      title
-    });
-    if (items.length === 6) break;
+    blocks.push(...payload.data.blocks.filter(isObject));
   }
-  return { available: true, items };
+  const supportedBlocks = blocks
+    .map((block, index) => ({ block, index }))
+    .filter(
+      ({ block }) =>
+        typeof block.showType === "string" && profileMusicBlockTypes.has(block.showType)
+    )
+    .sort(
+      (left, right) =>
+        blockPosition(left.block, left.index) - blockPosition(right.block, right.index)
+    )
+    .map(({ block }) => block);
+  const cards = supportedBlocks.flatMap(normalizeProfileMusicBlock);
+  return {
+    available: supportedBlocks.length > 0,
+    items: uniqueBy(cards, (card) => card.providerCardId)
+  };
+}
+
+function normalizeProfileMusicBlock(block: JsonObject): NeteaseNormalizedMusicCard[] {
+  const showType = nonEmpty(block.showType);
+  if (!showType) return [];
+  if (!Array.isArray(block.creatives)) {
+    if (showType === "PERSONAL_SHOWCASE") {
+      throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+    }
+    return [];
+  }
+  const items: NeteaseNormalizedMusicCard[] = [];
+  for (const [creativeIndex, candidate] of block.creatives.entries()) {
+    if (!isObject(candidate)) {
+      throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+    }
+    const creativeType = nonEmpty(candidate.creativeType) ?? "PROFILE_BLOCK_RESOURCE";
+    if (showType === "PERSONAL_SHOWCASE") {
+      if (!isProfileShowcaseCreativeType(creativeType)) {
+        throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+      }
+      if (creativeType === "SHOWCASE_BUTTON") continue;
+    }
+    const resources = Array.isArray(candidate.resources) ? candidate.resources : [];
+    for (const [resourceIndex, resourceCandidate] of resources.entries()) {
+      if (!isObject(resourceCandidate) || !isObject(resourceCandidate.uiElement)) {
+        throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+      }
+      const uiElement = resourceCandidate.uiElement;
+      const providerUiType = nonEmpty(uiElement.type);
+      if (providerUiType === "nm.profilePage.all") continue;
+      const mainTitle = isObject(uiElement.mainTitle) ? uiElement.mainTitle : null;
+      const blockUi = isObject(block.uiElement) ? block.uiElement : null;
+      const blockMainTitle = blockUi && isObject(blockUi.mainTitle) ? blockUi.mainTitle : null;
+      const images = Array.isArray(uiElement.images) ? uiElement.images.filter(isObject) : [];
+      const imageUrls = images.flatMap((image) => {
+        const url = safeArtworkUrl(stringValue(image.imageUrl));
+        return url ? [url] : [];
+      });
+      const subTitles = Array.isArray(uiElement.subTitles)
+        ? uiElement.subTitles.filter(isObject)
+        : [];
+      const labels = Array.isArray(uiElement.labels) ? uiElement.labels.filter(isObject) : [];
+      const textLines = uniqueStrings([
+        ...subTitles.flatMap((item) => nonEmpty(item.title) ?? []),
+        ...labels.flatMap((item) => nonEmpty(item.text) ?? [])
+      ]);
+      const superscript = isObject(uiElement.superscript)
+        ? uiElement.superscript
+        : (images.map((image) => image.superscript).find(isObject) ?? null);
+      const jumpUrl = clickTarget(resourceCandidate.action ?? candidate.action ?? block.action);
+      const resourceType = stringOrNumber(resourceCandidate.resourceType);
+      const resourceId = stringOrNumber(resourceCandidate.resourceId);
+      const creativeId = stringOrNumber(candidate.creativeId);
+      const sourceBlockCode = stringOrNumber(block.code ?? block.blockCode);
+      const providerVisibility = nonEmpty(
+        resourceCandidate.visibleStatus ?? candidate.visibleStatus ?? block.visibleStatus
+      );
+      const providerCardId =
+        showType === "PERSONAL_SHOWCASE" && creativeId && resources.length === 1
+          ? creativeId
+          : stableCardId(
+              showType,
+              providerUiType,
+              creativeId,
+              resourceId,
+              creativeIndex,
+              resourceIndex
+            );
+      items.push({
+        badgeIconUrl: safeArtworkUrl(stringValue(superscript?.picUrl)),
+        badgeText: nonEmpty(superscript?.text),
+        cardKind: profileMusicCardKind(
+          providerUiType,
+          creativeType,
+          resourceType,
+          jumpUrl,
+          showType
+        ),
+        coverUrl: imageUrls[0] ?? null,
+        creativeType,
+        description: nonEmpty(superscript?.text) ?? textLines[0] ?? null,
+        imageUrls,
+        jumpUrl,
+        providerCardId,
+        providerPublic:
+          providerVisibility !== "FOLLOW_USER_SEE" && providerVisibility !== "ONLY_MYSELF_SEE",
+        providerUiType,
+        providerVisibility,
+        resourceId,
+        resourceType,
+        sourceBlockCode,
+        sourceBlockType: showType,
+        textLines,
+        title: nonEmpty(mainTitle?.title) ?? nonEmpty(blockMainTitle?.title) ?? ""
+      });
+    }
+  }
+  return items;
+}
+
+function blockPosition(block: JsonObject, fallback: number) {
+  return typeof block.modulePosition === "number" && Number.isFinite(block.modulePosition)
+    ? block.modulePosition
+    : Number.MAX_SAFE_INTEGER - 10_000 + fallback;
 }
 
 function isProfileShowcaseCreativeType(value: unknown): value is ProfileShowcaseCreativeType {
@@ -467,12 +555,22 @@ function safeProviderTarget(value: unknown) {
   }
 }
 
-function profileShowcaseCardKind(
-  creativeType: Exclude<ProfileShowcaseCreativeType, "SHOWCASE_BUTTON">,
+function profileMusicCardKind(
+  providerUiType: string | null,
+  creativeType: string,
   resourceType: string | null,
-  jumpUrl: string | null
+  jumpUrl: string | null,
+  showType: string
 ): NeteaseNormalizedMusicCard["cardKind"] {
-  const semantic = `${resourceType ?? ""} ${jumpUrl ?? ""}`.toLowerCase();
+  if (providerUiType === "nm.profilePage.song") return "song";
+  if (providerUiType === "nm.profilePage.playlist") return "playlist";
+  if (providerUiType === "nm.profilePage.albumrack") return "album";
+  if (providerUiType === "nm.profilePage.myFavorite") return "favorite";
+  if (providerUiType === "nm.profilePage.listenRank") return "ranking";
+  if (providerUiType === "nm.profilePage.wiki.identity") return "medal";
+  if (creativeType === "MY_FAVORITE") return "favorite";
+  if (creativeType === "LISTEN_RANK") return "ranking";
+  const semantic = `${resourceType ?? ""} ${jumpUrl ?? ""} ${showType}`.toLowerCase();
   if (semantic.includes("playlist")) return "playlist";
   if (semantic.includes("album")) return "album";
   if (semantic.includes("song") || semantic.includes("track")) return "song";
@@ -483,14 +581,30 @@ function profileShowcaseCardKind(
   return "unknown";
 }
 
+function stableCardId(
+  showType: string,
+  providerUiType: string | null,
+  creativeId: string | null,
+  resourceId: string | null,
+  creativeIndex: number,
+  resourceIndex: number
+) {
+  return [
+    showType,
+    providerUiType ?? "unknown",
+    creativeId ?? `creative-${creativeIndex}`,
+    resourceId ?? `resource-${resourceIndex}`
+  ].join(":");
+}
+
+function uniqueStrings(values: readonly string[]) {
+  return [...new Set(values)];
+}
+
 function requiredSnapshot(snapshots: readonly RawSnapshot[], sourceKind: string) {
   const snapshot = snapshots.find((candidate) => candidate.sourceKind === sourceKind);
   if (!snapshot) throw new ProviderSchemaMismatchError(sourceKind);
   return snapshot;
-}
-
-function optionalSnapshot(snapshots: readonly RawSnapshot[], sourceKind: string) {
-  return snapshots.find((candidate) => candidate.sourceKind === sourceKind) ?? null;
 }
 
 function matchingSnapshots(snapshots: readonly RawSnapshot[], sourceKind: string) {
@@ -500,6 +614,13 @@ function matchingSnapshots(snapshots: readonly RawSnapshot[], sourceKind: string
   );
   if (matches.length === 0) throw new ProviderSchemaMismatchError(sourceKind);
   return matches;
+}
+
+function optionalMatchingSnapshots(snapshots: readonly RawSnapshot[], sourceKind: string) {
+  return snapshots.filter(
+    (candidate) =>
+      candidate.sourceKind === sourceKind || candidate.sourceKind.startsWith(`${sourceKind}.page.`)
+  );
 }
 
 function uniqueBy<T>(items: readonly T[], identity: (item: T) => string) {
