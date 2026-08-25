@@ -102,6 +102,39 @@ select:focus-visible {
   -webkit-backdrop-filter: blur(20px) saturate(122%);
 }
 
+.glass-surface *,
+.glass-surface-strong * {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.glass-surface *::-webkit-scrollbar,
+.glass-surface-strong *::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.glass-surface *::-webkit-scrollbar-track,
+.glass-surface-strong *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.glass-surface *::-webkit-scrollbar-thumb,
+.glass-surface-strong *::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+
+.glass-surface *:hover::-webkit-scrollbar-thumb,
+.glass-surface-strong *:hover::-webkit-scrollbar-thumb {
+  background: rgba(92, 119, 176, 0.28);
+}
+
+.glass-surface *:hover,
+.glass-surface-strong *:hover {
+  scrollbar-color: rgba(92, 119, 176, 0.28) transparent;
+}
+
 .dashboard-grid.is-editing {
   padding: 14px;
   border: 1px dashed rgba(75, 115, 246, 0.62);

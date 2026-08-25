@@ -18,6 +18,17 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.queryByText("Weekly One")).not.toBeInTheDocument();
   });
 
+  it("pages ranking rows without exposing a native scrollbar", async () => {
+    const { container } = render(<NeteaseRankingWidget widget={rankingWidget()} />);
+    expect(container.querySelector(".overflow-y-auto")).toBeNull();
+    expect(screen.getByText("Weekly 6")).toBeInTheDocument();
+    expect(screen.queryByText("Weekly 7")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "下一组排名" }));
+    expect(screen.getByText("Weekly 7")).toBeInTheDocument();
+    expect(screen.queryByText("Weekly 6")).not.toBeInTheDocument();
+  });
+
   it("renders a curated multi-item showcase without auto-selecting history", () => {
     render(<NeteaseShowcaseWidget widget={showcaseWidget()} />);
     expect(screen.getByText("Curated Song")).toBeInTheDocument();
@@ -25,6 +36,51 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.getByText("Curated Medal")).toBeInTheDocument();
     expect(screen.getByText("累计播放时间")).toBeInTheDocument();
     expect(screen.queryByText(/历史第一/)).not.toBeInTheDocument();
+  });
+
+  it("renders Provider-native profile showcase metadata", () => {
+    const widget = showcaseWidget();
+    render(
+      <NeteaseShowcaseWidget
+        widget={{
+          ...widget,
+          data: {
+            availability: "available",
+            items: [
+              {
+                card: {
+                  badgeText: "音乐浓度",
+                  cardKind: "duration",
+                  coverUrl: "https://p1.music.126.net/fixture/one.jpg",
+                  creativeType: "SHOWCASE_LIST",
+                  description: "累计 162 小时",
+                  imageUrls: [
+                    "https://p1.music.126.net/fixture/one.jpg",
+                    "https://p1.music.126.net/fixture/two.jpg"
+                  ],
+                  kind: "provider_music_card",
+                  providerCardId: "native-duration",
+                  resourceId: "listen-duration",
+                  resourceType: "listen_duration",
+                  textLines: ["累计 162 小时", "本周 91 分钟"],
+                  title: "听歌时长"
+                },
+                resourceId: "native-duration",
+                source: "provider_music_card"
+              }
+            ],
+            maxItems: 6,
+            mode: "provider",
+            provider: "netease"
+          },
+          dataConfig: { mode: "provider" }
+        }}
+      />
+    );
+    expect(screen.getByText("听歌时长")).toBeInTheDocument();
+    expect(screen.getByText("累计 162 小时")).toBeInTheDocument();
+    expect(screen.getByText("音乐浓度")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "听歌时长 的图片组合" })).toBeInTheDocument();
   });
 });
 
@@ -34,7 +90,7 @@ function rankingWidget(): Extract<WidgetOf<"music.netease.ranking">, { schemaVer
       allTime: {
         availability: "available",
         coverage: "provider_top_100",
-        items: [rankingItem("all-1", "All-time One", 1, 88)],
+        items: rankingItems("all", "All-time"),
         totalAvailable: 100
       },
       provider: "netease",
@@ -43,7 +99,7 @@ function rankingWidget(): Extract<WidgetOf<"music.netease.ranking">, { schemaVer
       week: {
         availability: "available",
         coverage: "provider_top_100",
-        items: [rankingItem("week-1", "Weekly One", 1, 12)],
+        items: rankingItems("week", "Weekly"),
         totalAvailable: 100
       }
     },
@@ -104,6 +160,7 @@ function showcaseWidget(): Extract<WidgetOf<"music.netease.showcase">, { schemaV
         }
       ],
       maxItems: 6,
+      mode: "custom",
       provider: "netease"
     },
     dataConfig: { selections: [] },
@@ -126,6 +183,17 @@ function rankingItem(id: string, name: string, rank: number, playCount: number) 
     score: 100,
     track: track(id, name)
   };
+}
+
+function rankingItems(idPrefix: string, namePrefix: string) {
+  return Array.from({ length: 12 }, (_, index) =>
+    rankingItem(
+      `${idPrefix}-${index + 1}`,
+      index === 0 ? `${namePrefix} One` : `${namePrefix} ${index + 1}`,
+      index + 1,
+      88 - index * 4
+    )
+  );
 }
 
 function track(id: string, name: string) {

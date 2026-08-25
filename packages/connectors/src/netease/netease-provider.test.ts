@@ -14,6 +14,7 @@ import {
   normalNeteaseFixture,
   partialNeteaseFixture,
   schemaDriftFixture,
+  showcaseSchemaDriftFixture,
   unknownEnumFixture
 } from "./fixtures";
 import { NeteaseClient } from "./netease-client";
@@ -133,25 +134,28 @@ describe("NetEase Provider module", () => {
         { publicLimit: 12, publicRanges: ["week", "all_time"] },
         2
       ),
+      targetFor("music.netease.showcase", { mode: "provider" }, 2),
       targetFor(
         "music.netease.showcase",
         {
+          mode: "custom",
           selections: [
             { resourceId: "20001", source: "weekly_track" },
             { resourceId: "20002", source: "all_time_track" },
             { resourceId: "13001", source: "created_playlist" },
             { resourceId: "medal-1", source: "medal" },
             { resourceId: "total", source: "listening_duration" },
-            { resourceId: "fixture-card-1", source: "provider_music_card" },
+            { resourceId: "native-card-song", source: "provider_music_card" },
             { resourceId: "20003", source: "weekly_track" }
           ]
         },
         2
       ),
-      targetFor("music.netease.showcase", { selections: [] }, 2),
+      targetFor("music.netease.showcase", { mode: "custom", selections: [] }, 2),
       targetFor(
         "music.netease.showcase",
         {
+          mode: "custom",
           selections: [
             { resourceId: "20001", source: "unknown_source" },
             { resourceId: "20001", source: "weekly_track" },
@@ -191,8 +195,28 @@ describe("NetEase Provider module", () => {
       publicRanges: ["week", "all_time"],
       week: { availability: "available", totalAvailable: 3 }
     });
-    expect((projections[7]!.data as JsonObject).items).toHaveLength(6);
     expect(projections[7]!.data).toMatchObject({
+      availability: "available",
+      items: [
+        {
+          card: {
+            cardKind: "song",
+            creativeType: "SHOWCASE_GALLERY_FIX",
+            kind: "provider_music_card",
+            title: "最近循环最多"
+          },
+          resourceId: "native-card-song",
+          source: "provider_music_card"
+        },
+        { card: { cardKind: "playlist", title: "我的宝藏歌单" } },
+        { card: { creativeType: "SHOWCASE_LIST", textLines: ["累计 162 小时", "本周 91 分钟"] } },
+        { card: { cardKind: "medal", title: "雪夜聆听者" } }
+      ],
+      maxItems: 6,
+      mode: "provider"
+    });
+    expect((projections[8]!.data as JsonObject).items).toHaveLength(6);
+    expect(projections[8]!.data).toMatchObject({
       availability: "available",
       items: [
         { card: { kind: "track" }, source: "weekly_track" },
@@ -202,10 +226,11 @@ describe("NetEase Provider module", () => {
         { card: { kind: "duration" }, source: "listening_duration" },
         { card: { kind: "provider_music_card" }, source: "provider_music_card" }
       ],
-      maxItems: 6
+      maxItems: 6,
+      mode: "custom"
     });
-    expect((projections[8]!.data as JsonObject).items).toEqual([]);
-    expect((projections[9]!.data as JsonObject).items).toMatchObject([
+    expect((projections[9]!.data as JsonObject).items).toEqual([]);
+    expect((projections[10]!.data as JsonObject).items).toMatchObject([
       { resourceId: "20001", source: "weekly_track" }
     ]);
 
@@ -217,6 +242,15 @@ describe("NetEase Provider module", () => {
     expect(catalog.weeklyRanking).toEqual(
       expect.arrayContaining([expect.objectContaining({ rank: 1 })])
     );
+    expect(catalog.musicCards).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          creativeType: "SHOWCASE_GALLERY_FIX",
+          providerCardId: "native-card-song"
+        })
+      ]),
+      sourceAvailability: "available"
+    });
     expect(JSON.stringify(catalog)).not.toMatch(/lastLoginIP|MUSIC_U|authorization/i);
   });
 
@@ -228,12 +262,24 @@ describe("NetEase Provider module", () => {
       totalListenCount: { availability: "available", value: 0 },
       weeklyListening: { availability: "available", rankedPlayCount: 0 }
     });
+    expect(empty.payload).toMatchObject({ musicCards: [], musicCardsAvailable: true });
 
     const partial = await new NeteaseNormalizer().normalize(snapshots(partialNeteaseFixture));
     const [partialProjection] = await new NeteaseProjector().project(partial, [target("30d")]);
     expect(partialProjection?.data).toMatchObject({
       listeningDuration: { availability: "unavailable", reason: "provider_omitted" },
       weeklyListening: { availability: "unavailable", reason: "insufficient_coverage" }
+    });
+  });
+
+  it("keeps historical Raw Snapshot replay compatible before the showcase endpoint existed", async () => {
+    const historical = snapshots(normalNeteaseFixture).filter(
+      (snapshot) => snapshot.sourceKind !== NETEASE_SOURCE.profileShowcase
+    );
+    const normalized = await new NeteaseNormalizer().normalize(historical);
+    expect(normalized.payload).toMatchObject({
+      musicCards: [expect.objectContaining({ creativeType: "legacy" })],
+      musicCardsAvailable: true
     });
   });
 
@@ -262,7 +308,8 @@ describe("NetEase Provider module", () => {
   it.each([
     ["renamed field", schemaDriftFixture],
     ["missing required field", missingFieldFixture],
-    ["unknown enum", unknownEnumFixture]
+    ["unknown enum", unknownEnumFixture],
+    ["unknown showcase creative", showcaseSchemaDriftFixture]
   ])("surfaces %s as ProviderSchemaMismatch rather than fake zero data", async (_name, fixture) => {
     await expect(new NeteaseNormalizer().normalize(snapshots(fixture))).rejects.toBeInstanceOf(
       ProviderSchemaMismatchError
@@ -295,6 +342,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.account,
       NETEASE_SOURCE.userDetail,
       NETEASE_SOURCE.profileHome,
+      NETEASE_SOURCE.profileShowcase,
       NETEASE_SOURCE.userLevel,
       NETEASE_SOURCE.vipInfo,
       NETEASE_SOURCE.listenTotal,
@@ -309,7 +357,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.socialStatus
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
-    expect(requests).toHaveLength(15);
+    expect(requests).toHaveLength(16);
     for (const request of requests) {
       expect(request.method).toBe("POST");
       expect(["music.163.com", "interface.music.163.com"]).toContain(new URL(request.url).hostname);
@@ -375,13 +423,17 @@ describe("NetEase Provider module", () => {
       account: { id: 1 },
       authorization: "private",
       code: 200,
+      cookieString: "MUSIC_U=private; os=android",
       nested: { access_token: "private", keep: "evidence", tokenVersion: 3 },
-      MUSIC_U: "private"
+      MUSIC_U: "private",
+      targetUrl: "orpheus://song/20001?token=private&source=profile"
     });
     expect(sanitized).toEqual({
       account: { id: 1 },
       code: 200,
-      nested: { keep: "evidence", tokenVersion: 3 }
+      cookieString: "[redacted]",
+      nested: { keep: "evidence", tokenVersion: 3 },
+      targetUrl: "orpheus://song/20001?source=profile"
     });
   });
 
@@ -484,6 +536,9 @@ function payloadForPath(pathname: string) {
   if (pathname.includes("account/get")) return normalNeteaseFixture[NETEASE_SOURCE.account];
   if (pathname.includes("w/v1/user/detail")) {
     return normalNeteaseFixture[NETEASE_SOURCE.profileHome];
+  }
+  if (pathname.includes("personal/home/page/user")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.profileShowcase];
   }
   if (pathname.includes("v1/user/detail")) {
     return normalNeteaseFixture[NETEASE_SOURCE.userDetail];

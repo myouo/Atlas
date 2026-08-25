@@ -18,6 +18,7 @@ import {
   NeteaseListenReportResponseSchema,
   NeteaseMedalsResponseSchema,
   NeteaseProfileHomeResponseSchema,
+  NeteaseProfileShowcaseResponseSchema,
   NeteaseRecentSongsResponseSchema,
   NeteaseSocialStatusResponseSchema,
   NeteaseUserDetailResponseSchema,
@@ -50,6 +51,7 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const listenTotalSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenTotal);
     const medalsSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.medals);
     const profileHomeSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.profileHome);
+    const profileShowcaseSnapshot = optionalSnapshot(snapshots, NETEASE_SOURCE.profileShowcase);
     const weeklySnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.weeklyRecord);
     const recentSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.recentSongs);
     const reportSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenReportWeek);
@@ -72,6 +74,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const listenTotal = checked(NeteaseListenTotalResponseSchema, listenTotalSnapshot);
     const medals = checked(NeteaseMedalsResponseSchema, medalsSnapshot);
     checked(NeteaseProfileHomeResponseSchema, profileHomeSnapshot);
+    if (profileShowcaseSnapshot) {
+      checked(NeteaseProfileShowcaseResponseSchema, profileShowcaseSnapshot);
+    }
     const weekly = checked(NeteaseWeeklyRecordResponseSchema, weeklySnapshot);
     const recent = checked(NeteaseRecentSongsResponseSchema, recentSnapshot);
     const report = checked(NeteaseListenReportResponseSchema, reportSnapshot);
@@ -101,6 +106,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const playlistTotal = firstPlaylistPage.data.count ?? null;
     const followerTotal = profile.followeds ?? followerPages[0]!.size ?? null;
     const followingTotal = profile.follows ?? null;
+    const musicCards = profileShowcaseSnapshot
+      ? normalizeProfileShowcase(profileShowcaseSnapshot.payload)
+      : normalizeLegacyMusicCards(profileHomeSnapshot.payload);
     const payload: NeteaseNormalizedPayload = {
       account: {
         avatarFrameUrl: safeArtworkUrl(profile.avatarDetail?.identityIconUrl),
@@ -160,7 +168,8 @@ export class NeteaseNormalizer implements ProviderNormalizer {
         obtainedCount: medals.data.medalNum ?? medals.data.obtainMedals?.length ?? 0
       },
       memberships: memberships(vip.data),
-      musicCards: normalizeMusicCards(profileHomeSnapshot.payload),
+      musicCards: musicCards.items,
+      musicCardsAvailable: musicCards.available,
       recentListens: recent.data.list.slice(0, 100).map((item) => ({
         playedAt: new Date(item.playTime).toISOString(),
         track: normalizeTrack("data" in item ? item.data : item.resource)
@@ -317,36 +326,171 @@ function normalizeSocialStatus(data: JsonObject) {
   };
 }
 
-function normalizeMusicCards(payload: unknown): readonly NeteaseNormalizedMusicCard[] {
-  if (!isObject(payload)) return [];
+function normalizeLegacyMusicCards(payload: unknown): {
+  readonly available: boolean;
+  readonly items: readonly NeteaseNormalizedMusicCard[];
+} {
+  if (!isObject(payload)) return { available: false, items: [] };
   const data = isObject(payload.data) ? payload.data : null;
   const cards = data && Array.isArray(data.musicCards) ? data.musicCards : [];
-  return cards.flatMap((candidate, index) => {
-    if (!isObject(candidate)) return [];
-    const resource = isObject(candidate.resource) ? candidate.resource : null;
-    const title = nonEmpty(candidate.title) ?? nonEmpty(resource?.name);
-    if (!title) return [];
-    const rawKind = stringValue(candidate.cardType ?? candidate.type);
-    const cardKind = ["album", "duration", "medal", "playlist", "song"].includes(rawKind ?? "")
-      ? (rawKind as NeteaseNormalizedMusicCard["cardKind"])
-      : "unknown";
-    return [
-      {
-        cardKind,
-        coverUrl: safeArtworkUrl(stringValue(candidate.coverUrl ?? resource?.picUrl)),
-        description: nonEmpty(candidate.description ?? candidate.subtitle),
-        providerCardId: stringOrNumber(candidate.cardId ?? candidate.id) ?? `position-${index}`,
-        resourceId: stringOrNumber(candidate.resourceId ?? resource?.id),
-        title
+  return {
+    available: Boolean(data && Array.isArray(data.musicCards)),
+    items: cards.flatMap((candidate, index) => {
+      if (!isObject(candidate)) return [];
+      const resource = isObject(candidate.resource) ? candidate.resource : null;
+      const title = nonEmpty(candidate.title) ?? nonEmpty(resource?.name);
+      if (!title) return [];
+      const rawKind = stringValue(candidate.cardType ?? candidate.type);
+      const cardKind = ["album", "duration", "medal", "playlist", "song"].includes(rawKind ?? "")
+        ? (rawKind as NeteaseNormalizedMusicCard["cardKind"])
+        : "unknown";
+      return [
+        {
+          badgeIconUrl: null,
+          badgeText: null,
+          cardKind,
+          coverUrl: safeArtworkUrl(stringValue(candidate.coverUrl ?? resource?.picUrl)),
+          creativeType: "legacy",
+          description: nonEmpty(candidate.description ?? candidate.subtitle),
+          imageUrls: [],
+          jumpUrl: null,
+          providerCardId: stringOrNumber(candidate.cardId ?? candidate.id) ?? `position-${index}`,
+          resourceId: stringOrNumber(candidate.resourceId ?? resource?.id),
+          resourceType: rawKind ?? null,
+          textLines: [],
+          title
+        }
+      ];
+    })
+  };
+}
+
+const profileShowcaseCreativeTypes = [
+  "SHOWCASE_BUTTON",
+  "SHOWCASE_GALLERY_FIX",
+  "SHOWCASE_LIST",
+  "SHOWCASE_VOID"
+] as const;
+
+type ProfileShowcaseCreativeType = (typeof profileShowcaseCreativeTypes)[number];
+
+function normalizeProfileShowcase(payload: unknown): {
+  readonly available: boolean;
+  readonly items: readonly NeteaseNormalizedMusicCard[];
+} {
+  if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.blocks)) {
+    throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+  }
+  const showcase = payload.data.blocks.find(
+    (block) => isObject(block) && block.showType === "PERSONAL_SHOWCASE"
+  );
+  if (!showcase) return { available: false, items: [] };
+  if (!Array.isArray(showcase.creatives)) {
+    throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+  }
+  const items: NeteaseNormalizedMusicCard[] = [];
+  for (const [index, candidate] of showcase.creatives.entries()) {
+    if (!isObject(candidate) || !isProfileShowcaseCreativeType(candidate.creativeType)) {
+      throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+    }
+    if (candidate.creativeType === "SHOWCASE_BUTTON") continue;
+    const resources = Array.isArray(candidate.resources) ? candidate.resources : null;
+    const resource = resources?.find(isObject) ?? null;
+    if (!resource) throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+    const uiElement = isObject(resource.uiElement) ? resource.uiElement : null;
+    if (!uiElement) throw new ProviderSchemaMismatchError(NETEASE_SOURCE.profileShowcase);
+    const mainTitle = isObject(uiElement.mainTitle) ? uiElement.mainTitle : null;
+    const images = Array.isArray(uiElement.images) ? uiElement.images.filter(isObject) : [];
+    const imageUrls = images.flatMap((image) => {
+      const url = safeArtworkUrl(stringValue(image.imageUrl));
+      return url ? [url] : [];
+    });
+    const subTitles = Array.isArray(uiElement.subTitles)
+      ? uiElement.subTitles.filter(isObject)
+      : [];
+    const textLines = subTitles.flatMap((item) => nonEmpty(item.title) ?? []);
+    const superscript = isObject(uiElement.superscript)
+      ? uiElement.superscript
+      : (images.map((image) => image.superscript).find(isObject) ?? null);
+    const jumpUrl = clickTarget(resource.action);
+    const resourceType = stringOrNumber(resource.resourceType);
+    const creativeType = candidate.creativeType;
+    const title = nonEmpty(mainTitle?.title) ?? "";
+    items.push({
+      badgeIconUrl: safeArtworkUrl(stringValue(superscript?.picUrl)),
+      badgeText: nonEmpty(superscript?.text),
+      cardKind: profileShowcaseCardKind(creativeType, resourceType, jumpUrl),
+      coverUrl: imageUrls[0] ?? null,
+      creativeType,
+      description: nonEmpty(superscript?.text) ?? textLines[0] ?? null,
+      imageUrls,
+      jumpUrl,
+      providerCardId:
+        stringOrNumber(candidate.creativeId ?? resource.resourceId) ?? `position-${index}`,
+      resourceId: stringOrNumber(resource.resourceId),
+      resourceType,
+      textLines,
+      title
+    });
+    if (items.length === 6) break;
+  }
+  return { available: true, items };
+}
+
+function isProfileShowcaseCreativeType(value: unknown): value is ProfileShowcaseCreativeType {
+  return profileShowcaseCreativeTypes.includes(value as ProfileShowcaseCreativeType);
+}
+
+function clickTarget(value: unknown) {
+  if (!isObject(value) || !isObject(value.clickAction)) return null;
+  return safeProviderTarget(value.clickAction.targetUrl);
+}
+
+function safeProviderTarget(value: unknown) {
+  const target = nonEmpty(value);
+  if (!target) return null;
+  try {
+    const url = new URL(target);
+    if (url.protocol !== "https:" && url.protocol !== "orpheus:") return null;
+    for (const key of [...url.searchParams.keys()]) {
+      if (
+        /^(?:authorization|cookie|music[_-]?u|csrf|access[_-]?token|refresh[_-]?token|api[_-]?key|password|secret)$/i.test(
+          key
+        )
+      ) {
+        url.searchParams.delete(key);
       }
-    ];
-  });
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function profileShowcaseCardKind(
+  creativeType: Exclude<ProfileShowcaseCreativeType, "SHOWCASE_BUTTON">,
+  resourceType: string | null,
+  jumpUrl: string | null
+): NeteaseNormalizedMusicCard["cardKind"] {
+  const semantic = `${resourceType ?? ""} ${jumpUrl ?? ""}`.toLowerCase();
+  if (semantic.includes("playlist")) return "playlist";
+  if (semantic.includes("album")) return "album";
+  if (semantic.includes("song") || semantic.includes("track")) return "song";
+  if (semantic.includes("medal")) return "medal";
+  if (creativeType === "SHOWCASE_LIST" && /listen|duration|time/.test(semantic)) {
+    return "duration";
+  }
+  return "unknown";
 }
 
 function requiredSnapshot(snapshots: readonly RawSnapshot[], sourceKind: string) {
   const snapshot = snapshots.find((candidate) => candidate.sourceKind === sourceKind);
   if (!snapshot) throw new ProviderSchemaMismatchError(sourceKind);
   return snapshot;
+}
+
+function optionalSnapshot(snapshots: readonly RawSnapshot[], sourceKind: string) {
+  return snapshots.find((candidate) => candidate.sourceKind === sourceKind) ?? null;
 }
 
 function matchingSnapshots(snapshots: readonly RawSnapshot[], sourceKind: string) {
@@ -444,6 +588,7 @@ export function isNeteaseNormalizedPayload(value: JsonObject): value is NeteaseN
     Array.isArray(value.reportPoints) &&
     Array.isArray(value.memberships) &&
     Array.isArray(value.musicCards) &&
+    typeof value.musicCardsAvailable === "boolean" &&
     value.account !== null &&
     typeof value.account === "object"
   );

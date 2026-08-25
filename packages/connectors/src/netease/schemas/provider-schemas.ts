@@ -115,6 +115,27 @@ export const NeteaseUserDetailResponseSchema = Type.Object(
 
 export const NeteaseProfileHomeResponseSchema = NeteaseUserDetailResponseSchema;
 
+export const NeteaseProfileShowcaseResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        blocks: Type.Array(
+          Type.Object(
+            {
+              creatives: Type.Optional(Type.Array(Type.Unknown())),
+              showType: Type.Optional(Type.String())
+            },
+            { additionalProperties: true }
+          )
+        )
+      },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
 export const NeteaseUserLevelResponseSchema = Type.Object(
   {
     code: Type.Literal(200),

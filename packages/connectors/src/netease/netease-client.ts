@@ -54,6 +54,15 @@ export class NeteaseClient {
     );
   }
 
+  getProfileShowcase(credential: string, userId: string) {
+    const numericUserId = Number(userId);
+    return this.eapi(
+      "/api/personal/home/page/user",
+      { userId: Number.isSafeInteger(numericUserId) ? numericUserId : userId },
+      credential
+    );
+  }
+
   getUserLevel(credential: string) {
     return this.weapi("/api/user/level", {}, credential);
   }

@@ -444,8 +444,15 @@ export function createMockWidget(
   if (type === "music.netease.showcase") {
     if (schemaVersion === 2) {
       return {
-        data: { availability: "available", items: [], maxItems: 6, provider: "netease" },
-        dataConfig: { selections: [] },
+        data: {
+          availability: "unavailable",
+          items: [],
+          maxItems: 6,
+          mode: "provider",
+          provider: "netease",
+          reason: "provider_omitted"
+        },
+        dataConfig: { mode: "provider", selections: [] },
         enabled: true,
         id,
         presentationConfig: { galleryStyle: "editorial", showMeta: true },

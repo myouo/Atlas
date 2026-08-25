@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactElement } from "react";
+import type { WidgetProjection } from "@nivalis/api-client";
+import { type ReactElement, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createMockWidget, mockWidgets } from "../dashboard/mock-dashboard";
@@ -109,22 +110,42 @@ describe("WidgetRegistry", () => {
       2
     );
     const onDataConfigChange = vi.fn();
-    renderWidget(
-      <WidgetCard
-        editable
-        onDataConfigChange={onDataConfigChange}
-        onRemove={() => undefined}
-        widget={showcase}
-      />
-    );
+    renderWidget(<StatefulWidgetCard initial={showcase} onDataConfigChange={onDataConfigChange} />);
 
     fireEvent.click(screen.getByRole("button", { name: /设置 网易云 · 音乐展柜/ }));
+    expect(screen.getByRole("button", { name: "跟随网易云主页" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Nivalis 自定义" }));
     await userEvent.click(await screen.findByRole("button", { name: /累计播放时间/ }));
     expect(onDataConfigChange).toHaveBeenLastCalledWith({
+      mode: "custom",
       selections: [{ resourceId: "total", source: "listening_duration" }]
     });
   });
 });
+
+function StatefulWidgetCard({
+  initial,
+  onDataConfigChange
+}: {
+  readonly initial: WidgetProjection;
+  readonly onDataConfigChange: (config: WidgetProjection["dataConfig"]) => void;
+}) {
+  const [widget, setWidget] = useState(initial);
+  return (
+    <WidgetCard
+      editable
+      onDataConfigChange={(config) => {
+        onDataConfigChange(config);
+        setWidget({ ...widget, dataConfig: config } as WidgetProjection);
+      }}
+      onRemove={() => undefined}
+      widget={widget}
+    />
+  );
+}
 
 function renderWidget(element: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

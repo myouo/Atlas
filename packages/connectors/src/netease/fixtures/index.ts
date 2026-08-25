@@ -31,6 +31,102 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       userId: 10001
     }
   },
+  [NETEASE_SOURCE.profileShowcase]: {
+    code: 200,
+    data: {
+      blocks: [
+        { creatives: [], showType: "PROFILE_HEADER" },
+        {
+          creatives: [
+            {
+              creativeId: "native-card-song",
+              creativeType: "SHOWCASE_GALLERY_FIX",
+              resources: [
+                {
+                  action: { clickAction: { targetUrl: "orpheus://song/20001" } },
+                  resourceId: "20001",
+                  resourceType: "song",
+                  scm: "sanitized.fixture.song",
+                  uiElement: {
+                    images: [
+                      {
+                        imageUrl: "http://p1.music.126.net/sanitized-fixture/20001.jpg",
+                        superscript: { text: "本周循环 12 次" }
+                      }
+                    ],
+                    mainTitle: { title: "最近循环最多" }
+                  }
+                }
+              ]
+            },
+            {
+              creativeId: "native-card-playlist",
+              creativeType: "SHOWCASE_GALLERY_FIX",
+              resources: [
+                {
+                  action: { clickAction: { targetUrl: "orpheus://playlist/13001" } },
+                  resourceId: "13001",
+                  resourceType: "playlist",
+                  scm: "sanitized.fixture.playlist",
+                  uiElement: {
+                    images: [
+                      { imageUrl: "https://p1.music.126.net/sanitized-fixture/playlist-1.jpg" }
+                    ],
+                    mainTitle: { title: "我的宝藏歌单" }
+                  }
+                }
+              ]
+            },
+            {
+              creativeId: "native-card-duration",
+              creativeType: "SHOWCASE_LIST",
+              resources: [
+                {
+                  resourceId: "listen-duration",
+                  resourceType: "listen_duration",
+                  scm: "sanitized.fixture.duration",
+                  uiElement: {
+                    mainTitle: { title: "听歌时长" },
+                    subTitles: [{ title: "累计 162 小时" }, { title: "本周 91 分钟" }],
+                    superscript: { text: "音乐浓度" }
+                  }
+                }
+              ]
+            },
+            {
+              creativeId: "native-card-medal",
+              creativeType: "SHOWCASE_VOID",
+              resources: [
+                {
+                  resourceId: "medal-1",
+                  resourceType: "medal",
+                  scm: "sanitized.fixture.medal",
+                  uiElement: {
+                    images: [
+                      { imageUrl: "https://p1.music.126.net/sanitized-fixture/medal-1.png" }
+                    ],
+                    mainTitle: { title: "雪夜聆听者" }
+                  }
+                }
+              ]
+            },
+            {
+              creativeId: "native-card-add",
+              creativeType: "SHOWCASE_BUTTON",
+              resources: [
+                {
+                  resourceId: "add",
+                  resourceType: "button",
+                  uiElement: { mainTitle: { title: "装扮卡片" } }
+                }
+              ]
+            }
+          ],
+          showType: "PERSONAL_SHOWCASE"
+        }
+      ]
+    }
+  },
   [NETEASE_SOURCE.userDetail]: {
     code: 200,
     listenSongs: 6_421,
@@ -190,6 +286,29 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
 
 export const emptyNeteaseFixture: SanitizedNeteaseFixture = {
   ...normalNeteaseFixture,
+  [NETEASE_SOURCE.profileShowcase]: {
+    code: 200,
+    data: {
+      blocks: [
+        {
+          creatives: [
+            {
+              creativeId: "native-card-add",
+              creativeType: "SHOWCASE_BUTTON",
+              resources: [
+                {
+                  resourceId: "add",
+                  resourceType: "button",
+                  uiElement: { mainTitle: { title: "装扮卡片" } }
+                }
+              ]
+            }
+          ],
+          showType: "PERSONAL_SHOWCASE"
+        }
+      ]
+    }
+  },
   [NETEASE_SOURCE.userDetail]: {
     code: 200,
     listenSongs: 0,
@@ -215,6 +334,21 @@ export const schemaDriftFixture: SanitizedNeteaseFixture = {
   [NETEASE_SOURCE.weeklyRecord]: {
     code: 200,
     weekData: [{ play_count: 12, score: 100, song: track(20001, "Snow Light", 30001, "Aimer") }]
+  }
+};
+
+export const showcaseSchemaDriftFixture: SanitizedNeteaseFixture = {
+  ...normalNeteaseFixture,
+  [NETEASE_SOURCE.profileShowcase]: {
+    code: 200,
+    data: {
+      blocks: [
+        {
+          creatives: [{ creativeId: "future-card", creativeType: "SHOWCASE_FUTURE" }],
+          showType: "PERSONAL_SHOWCASE"
+        }
+      ]
+    }
   }
 };
 
@@ -290,6 +424,9 @@ export function createNeteaseHttpFixtureFetcher(
     }
     if (url.pathname.includes("w/v1/user/detail")) {
       return Response.json(fixture[NETEASE_SOURCE.profileHome]);
+    }
+    if (url.pathname.includes("personal/home/page/user")) {
+      return Response.json(fixture[NETEASE_SOURCE.profileShowcase]);
     }
     if (url.pathname.includes("v1/user/detail")) {
       return Response.json(fixture[NETEASE_SOURCE.userDetail]);

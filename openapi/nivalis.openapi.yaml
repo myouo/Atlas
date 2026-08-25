@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nivalis API
-  version: 0.7.0
+  version: 0.8.0
   description: >-
     Frontend-independent contract for profiles and composable Dashboard state.
     Phase 5 adds API-owned Owner authentication, encrypted Provider credential lifecycle,
@@ -2054,17 +2054,23 @@ components:
     NeteaseShowcaseDataV2:
       type: object
       additionalProperties: false
-      required: [availability, provider, maxItems, items]
+      required: [availability, provider, maxItems, mode, items]
       properties:
         availability:
           type: string
-          const: available
+          enum: [available, unavailable]
         provider:
           type: string
           const: netease
         maxItems:
           type: integer
           const: 6
+        mode:
+          type: string
+          enum: [provider, custom]
+        reason:
+          type: string
+          enum: [provider_omitted]
         items:
           type: array
           maxItems: 6
@@ -2274,13 +2280,31 @@ components:
     NeteaseOwnerMusicCardV1:
       type: object
       additionalProperties: false
-      required: [providerCardId, cardKind, title, description, coverUrl, resourceId]
+      required:
+        [
+          providerCardId,
+          cardKind,
+          creativeType,
+          title,
+          description,
+          coverUrl,
+          imageUrls,
+          textLines,
+          badgeText,
+          badgeIconUrl,
+          jumpUrl,
+          resourceId,
+          resourceType
+        ]
       properties:
         providerCardId:
           type: string
         cardKind:
           type: string
           enum: [album, duration, medal, playlist, song, unknown]
+        creativeType:
+          type: string
+          enum: [SHOWCASE_GALLERY_FIX, SHOWCASE_LIST, SHOWCASE_VOID, legacy]
         title:
           type: string
         description:
@@ -2288,7 +2312,25 @@ components:
         coverUrl:
           type: [string, "null"]
           format: uri
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        textLines:
+          type: array
+          items:
+            type: string
+        badgeText:
+          type: [string, "null"]
+        badgeIconUrl:
+          type: [string, "null"]
+          format: uri
+        jumpUrl:
+          type: [string, "null"]
         resourceId:
+          type: [string, "null"]
+        resourceType:
           type: [string, "null"]
     NeteaseDataCatalog:
       type: object

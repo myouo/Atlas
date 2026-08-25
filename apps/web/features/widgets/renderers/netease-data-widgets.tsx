@@ -1,4 +1,6 @@
 import {
+  CaretLeft,
+  CaretRight,
   ClockCounterClockwise,
   Crown,
   Headphones,
@@ -21,14 +23,16 @@ function Artwork({
 }: {
   label: string;
   url: string | null;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
 }) {
   const dimensions =
     size === "lg"
       ? "h-20 w-20 rounded-[22px]"
-      : size === "sm"
-        ? "h-8 w-8 rounded-xl"
-        : "h-11 w-11 rounded-2xl";
+      : size === "xs"
+        ? "h-7 w-7 rounded-lg"
+        : size === "sm"
+          ? "h-8 w-8 rounded-xl"
+          : "h-11 w-11 rounded-2xl";
   return (
     <span
       aria-label={label}
@@ -254,13 +258,14 @@ function NeteaseRankingWidgetV2({
         </div>
         {selected.availability === "available" ? (
           <span className="shrink-0 text-[9px] font-bold text-ink-muted">
-            Provider Top {selected.totalAvailable}
+            已公开 {selected.items.length} / Provider {selected.totalAvailable}
           </span>
         ) : null}
       </div>
 
       {selected.availability === "available" ? (
         <RankingBoard
+          key={range}
           items={selected.items}
           showPlayCount={presentationToggle(widget.presentationConfig, "showPlayCount")}
           style={style}
@@ -296,18 +301,30 @@ function RankingBoard({
   readonly style: string;
   readonly totalAvailable: number;
 }) {
+  const [requestedPage, setRequestedPage] = useState(0);
   if (items.length === 0) return <Empty>这是一个有效空榜单</Empty>;
   if (style === "compact") {
+    const pageSize = 5;
+    const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+    const page = Math.min(requestedPage, pageCount - 1);
+    const visible = items.slice(page * pageSize, page * pageSize + pageSize);
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          {items.map((item) => (
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="grid min-h-0 content-start gap-1.5 sm:grid-cols-2">
+          {visible.map((item) => (
             <RankingRow
               item={item}
               key={item.track.providerTrackId}
               showPlayCount={showPlayCount}
             />
           ))}
+          <RankingPager
+            count={items.length}
+            onChange={setRequestedPage}
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+          />
         </div>
       </div>
     );
@@ -315,28 +332,32 @@ function RankingBoard({
 
   const podium = items.slice(0, 3);
   const remaining = items.slice(3);
+  const pageSize = 3;
+  const pageCount = Math.max(1, Math.ceil(remaining.length / pageSize));
+  const page = Math.min(requestedPage, pageCount - 1);
+  const visibleRemaining = remaining.slice(page * pageSize, page * pageSize + pageSize);
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {podium.map((item) => (
           <div
             className={
               item.rank === 1
-                ? "relative col-span-2 flex min-w-0 items-center gap-2.5 overflow-hidden rounded-[18px] border border-amber-200/80 bg-gradient-to-br from-amber-50 via-white/75 to-rose-50 p-2.5 shadow-sm sm:col-span-1"
-                : "relative flex min-w-0 items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/80 bg-white/48 p-2.5"
+                ? "relative col-span-2 flex min-w-0 items-center gap-2 overflow-hidden rounded-[16px] border border-amber-200/80 bg-gradient-to-br from-amber-50 via-white/75 to-rose-50 p-2 shadow-sm sm:col-span-1"
+                : "relative flex min-w-0 items-center gap-2 overflow-hidden rounded-[16px] border border-white/80 bg-white/48 p-2"
             }
             key={item.track.providerTrackId}
           >
             <span
               className={
                 item.rank === 1
-                  ? "absolute top-2 left-2 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10px] font-black text-white"
-                  : "absolute top-2 left-2 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-700/75 px-1.5 text-[10px] font-black text-white"
+                  ? "absolute top-1.5 left-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-white"
+                  : "absolute top-1.5 left-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-700/75 px-1 text-[9px] font-black text-white"
               }
             >
-              {item.rank === 1 ? <Trophy aria-hidden size={12} weight="fill" /> : item.rank}
+              {item.rank === 1 ? <Trophy aria-hidden size={10} weight="fill" /> : item.rank}
             </span>
-            <Artwork label={item.track.name} url={item.track.coverUrl} />
+            <Artwork label={item.track.name} size="sm" url={item.track.coverUrl} />
             <div className="min-w-0 flex-1 pt-1">
               <p className="truncate text-[10px] font-extrabold text-ink">{item.track.name}</p>
               <p className="mt-0.5 truncate text-[8px] text-ink-muted">
@@ -351,15 +372,23 @@ function RankingBoard({
       </div>
 
       {remaining.length > 0 ? (
-        <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="grid gap-1.5 sm:grid-cols-2">
-            {remaining.map((item) => (
+        <div className="mt-2.5 min-h-0 flex-1">
+          <div className="grid min-h-0 content-start gap-1.5 sm:grid-cols-2">
+            {visibleRemaining.map((item) => (
               <RankingRow
                 item={item}
                 key={item.track.providerTrackId}
                 showPlayCount={showPlayCount}
               />
             ))}
+            <RankingPager
+              count={remaining.length}
+              offset={3}
+              onChange={setRequestedPage}
+              page={page}
+              pageCount={pageCount}
+              pageSize={pageSize}
+            />
           </div>
         </div>
       ) : (
@@ -371,13 +400,58 @@ function RankingBoard({
   );
 }
 
+function RankingPager({
+  count,
+  offset = 0,
+  onChange,
+  page,
+  pageCount,
+  pageSize
+}: {
+  readonly count: number;
+  readonly offset?: number;
+  readonly onChange: (page: number) => void;
+  readonly page: number;
+  readonly pageCount: number;
+  readonly pageSize: number;
+}) {
+  if (pageCount <= 1) return null;
+  const first = offset + page * pageSize + 1;
+  const last = offset + Math.min(count, page * pageSize + pageSize);
+  return (
+    <div className="flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/55 bg-white/24 px-2">
+      <button
+        aria-label="上一组排名"
+        className="flex h-6 w-6 items-center justify-center rounded-full border border-white/90 bg-white/65 text-blue-600 shadow-sm transition hover:bg-white disabled:opacity-30"
+        disabled={page === 0}
+        onClick={() => onChange(page - 1)}
+        type="button"
+      >
+        <CaretLeft aria-hidden size={12} weight="bold" />
+      </button>
+      <span className="min-w-20 text-center text-[8px] font-extrabold text-ink-muted">
+        {first}–{last} / {offset + count}
+      </span>
+      <button
+        aria-label="下一组排名"
+        className="flex h-6 w-6 items-center justify-center rounded-full border border-white/90 bg-white/65 text-blue-600 shadow-sm transition hover:bg-white disabled:opacity-30"
+        disabled={page === pageCount - 1}
+        onClick={() => onChange(page + 1)}
+        type="button"
+      >
+        <CaretRight aria-hidden size={12} weight="bold" />
+      </button>
+    </div>
+  );
+}
+
 function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount: boolean }) {
   return (
-    <div className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-transparent bg-white/40 px-2.5 py-2 transition hover:border-white/90 hover:bg-white/65">
+    <div className="group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/40 px-2.5 py-1 transition hover:border-white/90 hover:bg-white/65">
       <span className="w-5 shrink-0 text-center text-[10px] font-black text-blue-500">
         {item.rank}
       </span>
-      <Artwork label={item.track.name} size="sm" url={item.track.coverUrl} />
+      <Artwork label={item.track.name} size="xs" url={item.track.coverUrl} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[10px] font-extrabold text-ink">{item.track.name}</p>
         <p className="truncate text-[8px] text-ink-muted">
@@ -520,12 +594,24 @@ function NeteaseShowcaseGallery({
 }>) {
   const items = widget.data.items;
   if (items.length === 0) {
+    const providerMode = widget.data.mode === "provider";
+    const providerUnavailable = providerMode && widget.data.availability === "unavailable";
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center rounded-[22px] border border-dashed border-rose-200 bg-gradient-to-br from-rose-50/60 via-white/35 to-blue-50/60 px-6 text-center">
         <MusicNotes aria-hidden className="text-[#ff4668]" size={34} weight="duotone" />
-        <p className="mt-3 text-sm font-black text-ink">展柜还是空的</p>
+        <p className="mt-3 text-sm font-black text-ink">
+          {providerUnavailable
+            ? "尚未读取到官方主页卡片"
+            : providerMode
+              ? "网易云主页展柜为空"
+              : "自定义展柜还是空的"}
+        </p>
         <p className="mt-1 max-w-xs text-[10px] leading-relaxed text-ink-muted">
-          在编辑视图打开卡片设置，手动加入 1～6 个歌曲、歌单、徽章或听歌数据。
+          {providerUnavailable
+            ? "保存当前配置并同步一次，Nivalis 会读取 PERSONAL_SHOWCASE 数据，不会用听歌排行补位。"
+            : providerMode
+              ? "网易云当前没有返回公开卡片；可以在网易云 App 装扮主页，或切换到 Nivalis 自定义。"
+              : "在卡片设置中加入 1～6 个歌曲、歌单、徽章或听歌数据。"}
         </p>
       </div>
     );
@@ -634,6 +720,31 @@ function ShowcaseArtwork({
   readonly size: "sm" | "md";
   readonly summary: ReturnType<typeof showcaseSummary>;
 }) {
+  if (summary.imageUrls.length > 1) {
+    return (
+      <span
+        aria-label={`${summary.title} 的图片组合`}
+        className={
+          size === "sm"
+            ? "flex h-9 w-12 shrink-0 items-center -space-x-4"
+            : "flex h-11 w-14 shrink-0 items-center -space-x-4"
+        }
+        role="img"
+      >
+        {summary.imageUrls.slice(0, 3).map((url, index) => (
+          <span
+            className={
+              size === "sm"
+                ? "h-8 w-8 rounded-lg border border-white bg-cover bg-center shadow-sm"
+                : "h-10 w-10 rounded-xl border border-white bg-cover bg-center shadow-sm"
+            }
+            key={`${url}-${index}`}
+            style={{ backgroundImage: `url(${JSON.stringify(url)})`, zIndex: index }}
+          />
+        ))}
+      </span>
+    );
+  }
   if (summary.coverUrl) return <Artwork label={summary.title} size={size} url={summary.coverUrl} />;
   const dimensions = size === "sm" ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl";
   return (
@@ -659,6 +770,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
       : [];
     return {
       coverUrl: stringValue(track.coverUrl),
+      imageUrls: stringValue(track.coverUrl) ? [stringValue(track.coverUrl)!] : [],
       kind: "track",
       meta: typeof card.playCount === "number" ? `${card.playCount} 次播放` : null,
       subtitle: artists.join(" / "),
@@ -668,6 +780,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
   if (card.kind === "playlist") {
     return {
       coverUrl: stringValue(card.coverUrl),
+      imageUrls: stringValue(card.coverUrl) ? [stringValue(card.coverUrl)!] : [],
       kind: "playlist",
       meta: typeof card.trackCount === "number" ? `${card.trackCount} 首歌曲` : null,
       subtitle: Array.isArray(card.tags)
@@ -679,6 +792,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
   if (card.kind === "medal") {
     return {
       coverUrl: stringValue(card.iconUrl),
+      imageUrls: stringValue(card.iconUrl) ? [stringValue(card.iconUrl)!] : [],
       kind: "medal",
       meta: card.worn === true ? "佩戴中" : "已获得",
       subtitle: stringValue(card.description),
@@ -688,6 +802,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
   if (card.kind === "duration") {
     return {
       coverUrl: null,
+      imageUrls: [],
       kind: "duration",
       meta:
         typeof card.value === "number"
@@ -698,11 +813,20 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
     };
   }
   return {
-    coverUrl: stringValue(card.coverUrl),
-    kind: source,
-    meta: null,
-    subtitle: stringValue(card.description),
-    title: stringValue(card.title) ?? "音乐内容"
+    coverUrl:
+      stringValue(card.coverUrl) ??
+      (Array.isArray(card.imageUrls) ? stringValue(card.imageUrls[0]) : null),
+    kind: stringValue(card.cardKind) ?? source,
+    imageUrls: Array.isArray(card.imageUrls)
+      ? card.imageUrls.filter((url): url is string => typeof url === "string").slice(0, 3)
+      : [],
+    meta: stringValue(card.badgeText) ?? stringValue(card.resourceType),
+    subtitle:
+      stringValue(card.description) ??
+      (Array.isArray(card.textLines)
+        ? card.textLines.filter((line): line is string => typeof line === "string").join(" · ")
+        : null),
+    title: stringValue(card.title) || "网易云音乐卡片"
   };
 }
 

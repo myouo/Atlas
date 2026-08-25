@@ -406,6 +406,7 @@ function NeteaseDataExplorer({
   const followerItems = objectArray(followers?.items);
   const playlistItems = objectArray(playlists?.items);
   const medalItems = objectArray(medals?.items);
+  const musicCardItems = objectArray(musicCards?.items);
 
   return (
     <section className="glass-surface mt-5 rounded-[26px] p-5 sm:p-6">
@@ -537,12 +538,48 @@ function NeteaseDataExplorer({
           <CatalogRanking label="最近一周 Top 100" items={data.weeklyRanking} />
           <CatalogRanking label="全部时间 Top 100" items={data.allTimeRanking} />
         </div>
-        <p className="mt-3 text-[9px] leading-relaxed text-ink-muted">
-          Provider 原生音乐卡片：
-          {musicCards?.sourceAvailability === "available" ? "可用" : "当前接口未返回"}。Nivalis
-          音乐名片仍可从真实歌曲、创建歌单与徽章中选择，并标记为 Nivalis 编排，不冒充 Provider
-          原生卡片。
-        </p>
+        <div className="mt-4">
+          <p className="text-[10px] font-extrabold text-ink">
+            网易云主页音乐卡片 · {musicCardItems.length} / 6
+          </p>
+          {musicCards?.sourceAvailability === "available" ? (
+            musicCardItems.length > 0 ? (
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {musicCardItems.slice(0, 6).map((card, index) => (
+                  <div
+                    className="flex min-w-0 items-center gap-2.5 rounded-2xl border border-white/85 bg-white/58 p-2.5"
+                    key={stringValue(card.providerCardId) ?? index}
+                  >
+                    <span
+                      aria-label={stringValue(card.title) || `音乐卡片 ${index + 1}`}
+                      className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-rose-200 to-blue-200 bg-cover bg-center"
+                      role="img"
+                      style={backgroundImage(card.coverUrl)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[10px] font-extrabold text-ink">
+                        {stringValue(card.title) || `音乐卡片 ${index + 1}`}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[8px] text-ink-muted">
+                        {stringValue(card.description) ??
+                          stringValue(card.creativeType) ??
+                          "Provider 卡片"}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[9px] font-semibold text-ink-muted">
+                接口有效，但网易云主页当前没有配置公开音乐卡片。
+              </p>
+            )
+          ) : (
+            <p className="mt-2 text-[9px] font-semibold text-amber-700">
+              当前同步尚未返回 PERSONAL_SHOWCASE；Last Known Good 不会被伪造数据覆盖。
+            </p>
+          )}
+        </div>
       </details>
     </section>
   );

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-25
+- Native-endpoint limitation superseded by ADR 0020
 
 ## Context
 

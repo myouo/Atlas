@@ -31,6 +31,8 @@ export class NeteaseConnector implements ProviderConnector {
     snapshots.push(snapshot(NETEASE_SOURCE.userDetail, detail, this.now()));
     const profileHome = await this.client.getProfileHome(credential, userId);
     snapshots.push(snapshot(NETEASE_SOURCE.profileHome, profileHome, this.now()));
+    const profileShowcase = await this.client.getProfileShowcase(credential, userId);
+    snapshots.push(snapshot(NETEASE_SOURCE.profileShowcase, profileShowcase, this.now()));
     const level = await this.client.getUserLevel(credential);
     snapshots.push(snapshot(NETEASE_SOURCE.userLevel, level, this.now()));
     const vip = await this.client.getVipInfo(credential, userId);
@@ -134,12 +136,29 @@ function snapshot(sourceKind: string, payload: ProviderFetchResult["payload"], f
 
 export function sanitizeNeteasePayload(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map(sanitizeNeteasePayload);
+  if (typeof value === "string") return sanitizeNeteaseString(value);
   if (value === null || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value)
       .filter(([key]) => !isCredentialKey(key))
       .map(([key, nested]) => [key, sanitizeNeteasePayload(nested)])
   );
+}
+
+function sanitizeNeteaseString(value: string) {
+  try {
+    const url = new URL(value);
+    for (const key of [...url.searchParams.keys()]) {
+      if (isCredentialKey(key)) url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch {
+    return /(?:authorization|cookie|music[_-]?u|csrf|access[_-]?token|refresh[_-]?token|api[_-]?key|password|secret)\s*[:=]/i.test(
+      value
+    )
+      ? "[redacted]"
+      : value;
+  }
 }
 
 function isCredentialKey(key: string) {

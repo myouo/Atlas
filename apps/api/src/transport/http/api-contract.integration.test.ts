@@ -228,7 +228,26 @@ describe("Fastify immutable revision and OpenAPI contract", () => {
           },
           medals: { items: [], obtainedCount: 0 },
           memberships: [],
-          musicCards: { items: [], sourceAvailability: "provider_omitted" },
+          musicCards: {
+            items: [
+              {
+                badgeIconUrl: null,
+                badgeText: "音乐浓度",
+                cardKind: "duration",
+                coverUrl: null,
+                creativeType: "SHOWCASE_LIST",
+                description: "累计 162 小时",
+                imageUrls: [],
+                jumpUrl: null,
+                providerCardId: "contract-showcase-card",
+                resourceId: "listen-duration",
+                resourceType: "listen_duration",
+                textLines: ["累计 162 小时"],
+                title: "听歌时长"
+              }
+            ],
+            sourceAvailability: "available"
+          },
           provider: "netease",
           recentListening: [],
           redVipAnnualCount: null,

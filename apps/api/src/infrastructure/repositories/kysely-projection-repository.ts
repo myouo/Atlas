@@ -288,7 +288,14 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
       };
     case "music.netease.showcase":
       if (configuration.schemaVersion === 2) {
-        return { availability: "available", items: [], maxItems: 6, provider: "netease" };
+        return {
+          availability: "unavailable",
+          items: [],
+          maxItems: 6,
+          mode: "provider",
+          provider: "netease",
+          reason: "provider_omitted"
+        };
       }
       return {
         availability: "unavailable",

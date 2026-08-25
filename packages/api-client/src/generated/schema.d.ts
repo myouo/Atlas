@@ -990,12 +990,16 @@ export interface components {
             [key: string]: unknown;
         };
         NeteaseShowcaseDataV2: {
-            /** @constant */
-            availability: "available";
+            /** @enum {string} */
+            availability: "available" | "unavailable";
             /** @constant */
             provider: "netease";
             /** @constant */
             maxItems: 6;
+            /** @enum {string} */
+            mode: "provider" | "custom";
+            /** @enum {string} */
+            reason?: "provider_omitted";
             items: {
                 /** @enum {string} */
                 source: "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "listening_duration" | "provider_music_card";
@@ -1080,11 +1084,20 @@ export interface components {
             providerCardId: string;
             /** @enum {string} */
             cardKind: "album" | "duration" | "medal" | "playlist" | "song" | "unknown";
+            /** @enum {string} */
+            creativeType: "SHOWCASE_GALLERY_FIX" | "SHOWCASE_LIST" | "SHOWCASE_VOID" | "legacy";
             title: string;
             description: string | null;
             /** Format: uri */
             coverUrl: string | null;
+            imageUrls: string[];
+            textLines: string[];
+            badgeText: string | null;
+            /** Format: uri */
+            badgeIconUrl: string | null;
+            jumpUrl: string | null;
             resourceId: string | null;
+            resourceType: string | null;
         };
         NeteaseDataCatalog: {
             /** @constant */

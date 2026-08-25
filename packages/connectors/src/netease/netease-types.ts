@@ -10,6 +10,7 @@ export const NETEASE_SOURCE = {
   listenReportWeek: "netease.listen_report.week",
   medals: "netease.medals",
   profileHome: "netease.profile_home",
+  profileShowcase: "netease.profile_showcase",
   recentSongs: "netease.recent_songs",
   socialStatus: "netease.social_status",
   userDetail: "netease.user_detail",
@@ -83,10 +84,17 @@ export interface NeteaseNormalizedMembership extends JsonObject {
 
 export interface NeteaseNormalizedMusicCard extends JsonObject {
   readonly cardKind: "album" | "duration" | "medal" | "playlist" | "song" | "unknown";
+  readonly badgeIconUrl: string | null;
+  readonly badgeText: string | null;
   readonly coverUrl: string | null;
+  readonly creativeType: "SHOWCASE_GALLERY_FIX" | "SHOWCASE_LIST" | "SHOWCASE_VOID" | "legacy";
   readonly description: string | null;
+  readonly imageUrls: readonly string[];
+  readonly jumpUrl: string | null;
   readonly providerCardId: string;
   readonly resourceId: string | null;
+  readonly resourceType: string | null;
+  readonly textLines: readonly string[];
   readonly title: string;
 }
 
@@ -146,6 +154,7 @@ export interface NeteaseNormalizedPayload extends JsonObject {
   };
   readonly memberships: readonly NeteaseNormalizedMembership[];
   readonly musicCards: readonly NeteaseNormalizedMusicCard[];
+  readonly musicCardsAvailable: boolean;
   readonly recentListens: readonly NeteaseRecentListen[];
   readonly redVipAnnualCount: number | null;
   readonly redVipLevel: number | null;

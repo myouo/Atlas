@@ -533,7 +533,7 @@ export const widgetRegistry = new WidgetRegistry()
     type: "music.netease.showcase",
     schemaVersion: 2,
     name: "网易云 · 音乐展柜",
-    description: "手动策展最多 6 个歌曲、歌单、徽章或听歌数据",
+    description: "跟随官方主页音乐卡片，或自定义最多 6 项展示内容",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
@@ -560,7 +560,7 @@ export const widgetRegistry = new WidgetRegistry()
     resourcePicker: "netease-showcase-gallery",
     subtitle: (widget) =>
       widget.type === "music.netease.showcase" && widget.schemaVersion === 2
-        ? `${widget.data.items.length} / 6 项 · 手动策展`
+        ? `${widget.data.items.length} / 6 项 · ${widget.data.mode === "provider" ? "网易云主页" : "Nivalis 自定义"}`
         : undefined,
     Renderer: adaptRenderer(NeteaseShowcaseWidget)
   })

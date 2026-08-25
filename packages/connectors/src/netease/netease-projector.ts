@@ -292,6 +292,24 @@ function showcase(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
 
 function showcaseGallery(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
   const selections = gallerySelections(dataConfig.selections);
+  const mode =
+    dataConfig.mode === "custom" || (dataConfig.mode !== "provider" && selections.length > 0)
+      ? "custom"
+      : "provider";
+  if (mode === "provider") {
+    return {
+      availability: payload.musicCardsAvailable ? "available" : "unavailable",
+      items: payload.musicCards.slice(0, 6).map((card) => ({
+        card: { ...card, kind: "provider_music_card" },
+        resourceId: card.providerCardId,
+        source: "provider_music_card"
+      })),
+      maxItems: 6,
+      mode,
+      provider: "netease",
+      ...(payload.musicCardsAvailable ? {} : { reason: "provider_omitted" })
+    };
+  }
   return {
     availability: "available",
     items: selections.flatMap((selection) => {
@@ -299,6 +317,7 @@ function showcaseGallery(payload: NeteaseNormalizedPayload, dataConfig: JsonObje
       return card ? [{ ...selection, card }] : [];
     }),
     maxItems: 6,
+    mode,
     provider: "netease"
   };
 }
@@ -482,7 +501,7 @@ export function buildNeteaseOwnerDataCatalog(payload: NeteaseNormalizedPayload):
     memberships: payload.memberships,
     musicCards: {
       items: payload.musicCards,
-      sourceAvailability: payload.musicCards.length > 0 ? "available" : "provider_omitted"
+      sourceAvailability: payload.musicCardsAvailable ? "available" : "provider_omitted"
     },
     provider: "netease",
     redVipAnnualCount: payload.redVipAnnualCount,

@@ -65,6 +65,10 @@ export function WidgetDisplaySettingsDialog({
   const [resourceQuery, setResourceQuery] = useState("");
   const visibleResources = filterResourceOptions(resourceOptions, resourceQuery);
   const resourceGroups = groupResourceOptions(visibleResources);
+  const customGallery =
+    resourceSelectionMode === "gallery" &&
+    (dataConfig.mode === "custom" ||
+      (dataConfig.mode !== "provider" && gallerySelections(dataConfig.selections).length > 0));
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
@@ -124,21 +128,26 @@ export function WidgetDisplaySettingsDialog({
             </section>
           ) : null}
 
-          {resourceOptions.length > 0 ? (
+          {resourceSelectionMode === "gallery" || resourceOptions.length > 0 ? (
             <div className="mt-4 block rounded-2xl border border-blue-100 bg-blue-50/55 p-4">
-              <span className="block text-sm font-extrabold text-ink">精确选择展示资源</span>
-              <span className="mt-1 block text-[10px] leading-relaxed text-ink-muted">
-                选项来自 Owner-only 完整数据目录（共 {resourceOptions.length} 项）；公共 Projection
-                只保存所选资源的安全摘要。
+              <span className="block text-sm font-extrabold text-ink">
+                {resourceSelectionMode === "gallery" ? "展柜数据来源" : "精确选择展示资源"}
               </span>
-              <input
-                aria-label="搜索展示资源"
-                className="mt-3 h-10 w-full rounded-xl border border-white bg-white/90 px-3 text-xs font-semibold text-ink outline-none ring-blue-400 focus:ring-2"
-                onChange={(event) => setResourceQuery(event.target.value)}
-                placeholder="搜索歌曲、歌单或徽章"
-                type="search"
-                value={resourceQuery}
-              />
+              <span className="mt-1 block text-[10px] leading-relaxed text-ink-muted">
+                {resourceSelectionMode === "gallery"
+                  ? `可跟随网易云主页，或从 Owner-only 完整目录的 ${resourceOptions.length} 项数据中自定义；公共 Projection 只保存安全摘要。`
+                  : `选项来自 Owner-only 完整数据目录（共 ${resourceOptions.length} 项）；公共 Projection 只保存所选资源的安全摘要。`}
+              </span>
+              {resourceSelectionMode === "single" || customGallery ? (
+                <input
+                  aria-label="搜索展示资源"
+                  className="mt-3 h-10 w-full rounded-xl border border-white bg-white/90 px-3 text-xs font-semibold text-ink outline-none ring-blue-400 focus:ring-2"
+                  onChange={(event) => setResourceQuery(event.target.value)}
+                  placeholder="搜索歌曲、歌单或徽章"
+                  type="search"
+                  value={resourceQuery}
+                />
+              ) : null}
               {resourceSelectionMode === "gallery" ? (
                 <GalleryResourceEditor
                   dataConfig={dataConfig}
@@ -184,7 +193,9 @@ export function WidgetDisplaySettingsDialog({
                   ))}
                 </select>
               )}
-              {resourceQuery && visibleResources.length === 0 ? (
+              {(resourceSelectionMode === "single" || customGallery) &&
+              resourceQuery &&
+              visibleResources.length === 0 ? (
                 <span className="mt-2 block text-[9px] font-semibold text-amber-700">
                   当前数据目录中没有匹配资源
                 </span>
@@ -299,109 +310,168 @@ function GalleryResourceEditor({
   readonly options: readonly WidgetDataResourceOption[];
 }) {
   const selected = gallerySelections(dataConfig.selections).slice(0, maxItems);
+  const providerMode =
+    dataConfig.mode === "provider" || (dataConfig.mode !== "custom" && selected.length === 0);
+  const providerCards = options.filter((option) => option.source === "provider_music_card");
   const selectedKeys = new Set(selected.map(selectionKey));
   const update = (next: readonly ResourceSelection[]) =>
-    onChange({ ...dataConfig, selections: next.slice(0, maxItems) });
+    onChange({ ...dataConfig, mode: "custom", selections: next.slice(0, maxItems) });
 
   return (
     <div className="mt-3 space-y-3">
-      <section className="rounded-2xl border border-white bg-white/65 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[10px] font-extrabold text-ink">已入展</p>
-          <span className="rounded-full bg-blue-100 px-2 py-1 text-[9px] font-black text-blue-700">
-            {selected.length} / {maxItems}
-          </span>
-        </div>
-        {selected.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-dashed border-blue-200 px-3 py-4 text-center text-[9px] font-semibold text-ink-muted">
-            展柜为空。请从下方选择 1～{maxItems} 项音乐内容。
-          </p>
-        ) : (
-          <div className="mt-2 space-y-1.5">
-            {selected.map((selection, index) => {
-              const option = options.find(
-                (candidate) => resourceOptionKey(candidate) === selectionKey(selection)
-              );
-              return (
-                <div
-                  className="flex items-center gap-2 rounded-xl border border-blue-50 bg-white/85 px-2.5 py-2"
-                  key={selectionKey(selection)}
-                >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[9px] font-black text-blue-700">
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[10px] font-bold text-ink">
-                    {option?.label ?? selection.resourceId}
-                  </span>
-                  <button
-                    aria-label={`上移 ${option?.label ?? selection.resourceId}`}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-25"
-                    disabled={index === 0}
-                    onClick={() => update(moveSelection(selected, index, index - 1))}
-                    type="button"
-                  >
-                    <ArrowUp aria-hidden size={13} weight="bold" />
-                  </button>
-                  <button
-                    aria-label={`下移 ${option?.label ?? selection.resourceId}`}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-25"
-                    disabled={index === selected.length - 1}
-                    onClick={() => update(moveSelection(selected, index, index + 1))}
-                    type="button"
-                  >
-                    <ArrowDown aria-hidden size={13} weight="bold" />
-                  </button>
-                  <button
-                    aria-label={`移出展柜 ${option?.label ?? selection.resourceId}`}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
-                    onClick={() => update(selected.filter((_, candidate) => candidate !== index))}
-                    type="button"
-                  >
-                    <Trash aria-hidden size={13} weight="bold" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <section className="grid grid-cols-2 gap-2 rounded-2xl border border-white bg-white/65 p-2">
+        <button
+          aria-pressed={providerMode}
+          className={
+            providerMode
+              ? "rounded-xl bg-[#ff4668] px-3 py-2.5 text-[10px] font-extrabold text-white shadow-sm"
+              : "rounded-xl px-3 py-2.5 text-[10px] font-bold text-ink-muted transition hover:bg-white"
+          }
+          onClick={() => onChange({ ...dataConfig, mode: "provider" })}
+          type="button"
+        >
+          跟随网易云主页
+        </button>
+        <button
+          aria-pressed={!providerMode}
+          className={
+            !providerMode
+              ? "rounded-xl bg-blue-600 px-3 py-2.5 text-[10px] font-extrabold text-white shadow-sm"
+              : "rounded-xl px-3 py-2.5 text-[10px] font-bold text-ink-muted transition hover:bg-white"
+          }
+          onClick={() => onChange({ ...dataConfig, mode: "custom" })}
+          type="button"
+        >
+          Nivalis 自定义
+        </button>
       </section>
 
-      <section className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-white bg-white/45 p-3">
-        {groups.map((group) => (
-          <div key={group.source}>
-            <p className="mb-1.5 text-[9px] font-extrabold tracking-[0.08em] text-ink-muted uppercase">
-              {group.label}
-            </p>
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {group.options.map((option) => {
-                const key = resourceOptionKey(option);
-                const isSelected = selectedKeys.has(key);
-                return (
-                  <button
-                    className={
-                      isSelected
-                        ? "flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-left text-[9px] font-bold text-emerald-800"
-                        : "flex min-h-10 items-center gap-2 rounded-xl border border-white bg-white/75 px-3 text-left text-[9px] font-bold text-ink transition hover:border-blue-200 hover:bg-blue-50 disabled:opacity-40"
-                    }
-                    disabled={isSelected || selected.length >= maxItems}
-                    key={key}
-                    onClick={() =>
-                      update([
-                        ...selected,
-                        { resourceId: option.resourceId, source: option.source }
-                      ])
-                    }
-                    type="button"
-                  >
-                    <Plus aria-hidden className="shrink-0" size={12} weight="bold" />
-                    <span className="line-clamp-2">{resourceName(option)}</span>
-                  </button>
-                );
-              })}
+      {providerMode ? (
+        <section className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/90 to-white/70 p-4">
+          <p className="text-xs font-extrabold text-ink">官方主页音乐卡片</p>
+          <p className="mt-1 text-[9px] leading-relaxed font-semibold text-ink-muted">
+            保留网易云服务端返回的卡片类型、标题和顺序，最多展示 6 项；Nivalis 不会用听歌排行补位。
+          </p>
+          {providerCards.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {providerCards.slice(0, maxItems).map((option, index) => (
+                <span
+                  className="rounded-full border border-rose-100 bg-white/85 px-2.5 py-1 text-[9px] font-bold text-ink"
+                  key={resourceOptionKey(option)}
+                >
+                  {index + 1}. {resourceName(option)}
+                </span>
+              ))}
             </div>
-          </div>
-        ))}
-      </section>
+          ) : (
+            <p className="mt-3 rounded-xl border border-dashed border-rose-200 px-3 py-3 text-center text-[9px] font-semibold text-ink-muted">
+              当前目录尚无官方卡片；保存后同步即可重新读取网易云主页展柜。
+            </p>
+          )}
+        </section>
+      ) : (
+        <>
+          <section className="rounded-2xl border border-white bg-white/65 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-extrabold text-ink">已入展</p>
+              <span className="rounded-full bg-blue-100 px-2 py-1 text-[9px] font-black text-blue-700">
+                {selected.length} / {maxItems}
+              </span>
+            </div>
+            {selected.length === 0 ? (
+              <p className="mt-3 rounded-xl border border-dashed border-blue-200 px-3 py-4 text-center text-[9px] font-semibold text-ink-muted">
+                展柜为空。请从下方选择 1～{maxItems} 项音乐内容。
+              </p>
+            ) : (
+              <div className="mt-2 space-y-1.5">
+                {selected.map((selection, index) => {
+                  const option = options.find(
+                    (candidate) => resourceOptionKey(candidate) === selectionKey(selection)
+                  );
+                  return (
+                    <div
+                      className="flex items-center gap-2 rounded-xl border border-blue-50 bg-white/85 px-2.5 py-2"
+                      key={selectionKey(selection)}
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[9px] font-black text-blue-700">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[10px] font-bold text-ink">
+                        {option?.label ?? selection.resourceId}
+                      </span>
+                      <button
+                        aria-label={`上移 ${option?.label ?? selection.resourceId}`}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-25"
+                        disabled={index === 0}
+                        onClick={() => update(moveSelection(selected, index, index - 1))}
+                        type="button"
+                      >
+                        <ArrowUp aria-hidden size={13} weight="bold" />
+                      </button>
+                      <button
+                        aria-label={`下移 ${option?.label ?? selection.resourceId}`}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-25"
+                        disabled={index === selected.length - 1}
+                        onClick={() => update(moveSelection(selected, index, index + 1))}
+                        type="button"
+                      >
+                        <ArrowDown aria-hidden size={13} weight="bold" />
+                      </button>
+                      <button
+                        aria-label={`移出展柜 ${option?.label ?? selection.resourceId}`}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
+                        onClick={() =>
+                          update(selected.filter((_, candidate) => candidate !== index))
+                        }
+                        type="button"
+                      >
+                        <Trash aria-hidden size={13} weight="bold" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-white bg-white/45 p-3">
+            {groups.map((group) => (
+              <div key={group.source}>
+                <p className="mb-1.5 text-[9px] font-extrabold tracking-[0.08em] text-ink-muted uppercase">
+                  {group.label}
+                </p>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {group.options.map((option) => {
+                    const key = resourceOptionKey(option);
+                    const isSelected = selectedKeys.has(key);
+                    return (
+                      <button
+                        className={
+                          isSelected
+                            ? "flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-left text-[9px] font-bold text-emerald-800"
+                            : "flex min-h-10 items-center gap-2 rounded-xl border border-white bg-white/75 px-3 text-left text-[9px] font-bold text-ink transition hover:border-blue-200 hover:bg-blue-50 disabled:opacity-40"
+                        }
+                        disabled={isSelected || selected.length >= maxItems}
+                        key={key}
+                        onClick={() =>
+                          update([
+                            ...selected,
+                            { resourceId: option.resourceId, source: option.source }
+                          ])
+                        }
+                        type="button"
+                      >
+                        <Plus aria-hidden className="shrink-0" size={12} weight="bold" />
+                        <span className="line-clamp-2">{resourceName(option)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
     </div>
   );
 }

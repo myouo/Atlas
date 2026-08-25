@@ -137,9 +137,10 @@ function neteaseResourceOptions(
       options.push({ label: `乐迷徽章 · ${name}`, resourceId, source: "medal" });
   }
   const musicCards = objectArray(catalog.catalog.musicCards.items);
-  for (const item of musicCards) {
+  for (const [index, item] of musicCards.entries()) {
     const resourceId = stringValue(item.providerCardId);
-    const title = stringValue(item.title);
+    const title =
+      nonEmptyString(item.title) ?? nonEmptyString(item.description) ?? `主页卡片 ${index + 1}`;
     if (resourceId && title) {
       options.push({
         label: `Provider 音乐卡片 · ${title}`,
@@ -162,4 +163,8 @@ function objectArray(value: unknown): readonly Record<string, unknown>[] {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : null;
+}
+
+function nonEmptyString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
