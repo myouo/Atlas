@@ -14,6 +14,8 @@ describe("WidgetRegistry", () => {
     expect(widgetRegistry.resolve("music.netease.overview", 2)?.name).toBe("网易云音乐");
     expect(widgetRegistry.resolve("music.netease.identity", 1)?.name).toBe("网易云 · 身份档案");
     expect(widgetRegistry.preferred("music.netease.overview")?.schemaVersion).toBe(2);
+    expect(widgetRegistry.preferred("music.netease.ranking")?.schemaVersion).toBe(2);
+    expect(widgetRegistry.preferred("music.netease.showcase")?.schemaVersion).toBe(2);
     expect(widgetRegistry.list()).toHaveLength(13);
   });
 
@@ -100,10 +102,11 @@ describe("WidgetRegistry", () => {
     );
   });
 
-  it("selects an exact showcase resource from the Owner-only data catalog", async () => {
+  it("adds an exact resource to the six-item showcase gallery", async () => {
     const showcase = createMockWidget(
       "music.netease.showcase",
-      "00000000-0000-4000-8000-000000001008"
+      "00000000-0000-4000-8000-000000001008",
+      2
     );
     const onDataConfigChange = vi.fn();
     renderWidget(
@@ -115,15 +118,10 @@ describe("WidgetRegistry", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /设置 网易云 · 音乐名片/ }));
-    await screen.findAllByRole("option", { name: "Snow Light" });
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: "选择展示资源" }),
-      "all_time_track:20001"
-    );
+    fireEvent.click(screen.getByRole("button", { name: /设置 网易云 · 音乐展柜/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /累计播放时间/ }));
     expect(onDataConfigChange).toHaveBeenLastCalledWith({
-      resourceId: "20001",
-      source: "all_time_track"
+      selections: [{ resourceId: "total", source: "listening_duration" }]
     });
   });
 });

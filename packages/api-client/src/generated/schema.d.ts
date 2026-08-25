@@ -932,6 +932,22 @@ export interface components {
             totalAvailable: number;
             items: components["schemas"]["NeteaseRankingItemV1"][];
         };
+        NeteaseRankingRangeV2: {
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            coverage: "provider_top_100";
+            totalAvailable: number;
+            items: components["schemas"]["NeteaseRankingItemV1"][];
+        };
+        NeteaseRankingDataV2: {
+            /** @constant */
+            provider: "netease";
+            publicLimit: number;
+            publicRanges: ("week" | "all_time")[];
+            week: components["schemas"]["NeteaseRankingRangeV2"] | components["schemas"]["DataUnavailable"];
+            allTime: components["schemas"]["NeteaseRankingRangeV2"] | components["schemas"]["DataUnavailable"];
+        };
         NeteasePeopleListV1: {
             /** @constant */
             availability: "available";
@@ -964,7 +980,7 @@ export interface components {
             /** @constant */
             provider: "netease";
             /** @enum {string} */
-            source: "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "provider_music_card";
+            source: "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "listening_duration" | "provider_music_card";
             /** @enum {string} */
             reason?: "resource_not_found";
             card?: {
@@ -972,6 +988,22 @@ export interface components {
             };
         } & {
             [key: string]: unknown;
+        };
+        NeteaseShowcaseDataV2: {
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            provider: "netease";
+            /** @constant */
+            maxItems: 6;
+            items: {
+                /** @enum {string} */
+                source: "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "listening_duration" | "provider_music_card";
+                resourceId: string;
+                card: {
+                    [key: string]: unknown;
+                };
+            }[];
         };
         NeteaseOwnerAccountV1: {
             providerUserId: string;
@@ -1200,6 +1232,15 @@ export interface components {
             provider?: "netease";
             data: components["schemas"]["NeteaseRankingDataV1"];
         };
+        NeteaseRankingWidgetV2: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.ranking";
+            /** @constant */
+            schemaVersion: 2;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseRankingDataV2"];
+        };
         NeteaseSocialWidgetV1: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
             type: "music.netease.social";
@@ -1226,6 +1267,15 @@ export interface components {
             /** @constant */
             provider?: "netease";
             data: components["schemas"]["NeteaseShowcaseDataV1"];
+        };
+        NeteaseShowcaseWidgetV2: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.showcase";
+            /** @constant */
+            schemaVersion: 2;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseShowcaseDataV2"];
         };
         GithubProfileWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
@@ -1255,7 +1305,7 @@ export interface components {
             schemaVersion: 1;
             data: components["schemas"]["BangumiCollectionData"];
         };
-        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["NeteaseIdentityWidgetV1"] | components["schemas"]["NeteaseListeningWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV1"] | components["schemas"]["NeteaseSocialWidgetV1"] | components["schemas"]["NeteasePlaylistsWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV1"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
+        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["NeteaseIdentityWidgetV1"] | components["schemas"]["NeteaseListeningWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV2"] | components["schemas"]["NeteaseSocialWidgetV1"] | components["schemas"]["NeteasePlaylistsWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV2"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
         CreateWidgetInput: {
             widget: components["schemas"]["WidgetConfiguration"];
             placement: components["schemas"]["WidgetPlacement"];

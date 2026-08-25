@@ -7,6 +7,7 @@ import {
   createSmartLayout,
   findFirstGap,
   removeWidgetFromLayouts,
+  settleInteractiveLayout,
   stripUnknownLayoutItems
 } from "./layout-engine";
 import { widgetRegistry } from "../widgets/widget-registry";
@@ -46,4 +47,53 @@ describe("layout engine", () => {
     const result = stripUnknownLayoutItems(withUnknown, mockWidgets);
     expect(result.lg.some((item) => item.i === "ghost")).toBe(false);
   });
+
+  it("swaps a collided card into the dragged card's origin without live repulsion", () => {
+    const settled = settleInteractiveLayout(
+      [
+        { h: 2, i: "dragged", w: 4, x: 4, y: 0 },
+        { h: 2, i: "target", w: 4, x: 4, y: 0 },
+        { h: 2, i: "fixed", w: 4, x: 8, y: 0 }
+      ],
+      "dragged",
+      { x: 0, y: 0 },
+      12
+    );
+    expect(settled.find((item) => item.i === "dragged")).toMatchObject({ x: 4, y: 0 });
+    expect(settled.find((item) => item.i === "target")).toMatchObject({ x: 0, y: 0 });
+    expect(hasOverlaps(settled)).toBe(false);
+  });
+
+  it("settles multi-card collisions into the nearest free cells while preserving other cards", () => {
+    const settled = settleInteractiveLayout(
+      [
+        { h: 2, i: "dragged", w: 4, x: 4, y: 0 },
+        { h: 2, i: "left", w: 2, x: 4, y: 0 },
+        { h: 2, i: "right", w: 2, x: 6, y: 0 },
+        { h: 2, i: "fixed", w: 4, x: 8, y: 0 }
+      ],
+      "dragged",
+      { x: 0, y: 0 },
+      12
+    );
+    expect(settled.find((item) => item.i === "fixed")).toMatchObject({ x: 8, y: 0 });
+    expect(hasOverlaps(settled)).toBe(false);
+    expect(settled.every((item) => item.x >= 0 && item.x + item.w <= 12)).toBe(true);
+  });
 });
+
+function hasOverlaps(layout: readonly { h: number; w: number; x: number; y: number }[]) {
+  return layout.some((item, index) =>
+    layout
+      .slice(index + 1)
+      .some(
+        (candidate) =>
+          !(
+            item.x + item.w <= candidate.x ||
+            candidate.x + candidate.w <= item.x ||
+            item.y + item.h <= candidate.y ||
+            candidate.y + candidate.h <= item.y
+          )
+      )
+  );
+}

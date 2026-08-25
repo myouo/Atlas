@@ -123,6 +123,13 @@ describe("Phase 2 to Phase 5 migration", () => {
       catalog: "provider_data_catalogs"
     });
 
+    const rolledBackWidgetSemantics = await migrator.migrateDown();
+    if (rolledBackWidgetSemantics.error) throw rolledBackWidgetSemantics.error;
+    const catalogStillPresent = await sql<{ readonly catalog: string | null }>`
+      select to_regclass('provider_data_catalogs')::text as catalog
+    `.execute(database);
+    expect(catalogStillPresent.rows[0]?.catalog).toBe("provider_data_catalogs");
+
     const rolledBackCatalog = await migrator.migrateDown();
     if (rolledBackCatalog.error) throw rolledBackCatalog.error;
     const afterCatalogDown = await sql<{

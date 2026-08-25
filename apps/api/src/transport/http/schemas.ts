@@ -451,13 +451,13 @@ export const NeteaseOverviewWidgetV2Schema = Type.Object(
   { additionalProperties: false }
 );
 
-const neteaseWidget = (type: string) =>
+const neteaseWidget = (type: string, schemaVersion: 1 | 2 = 1) =>
   Type.Object(
     {
       ...widgetEnvelopeProperties,
       type: Type.Literal(type),
       provider: Type.Literal("netease"),
-      schemaVersion: Type.Literal(1),
+      schemaVersion: Type.Literal(schemaVersion),
       data: JsonObjectSchema
     },
     { additionalProperties: false }
@@ -466,9 +466,11 @@ const neteaseWidget = (type: string) =>
 export const NeteaseIdentityWidgetV1Schema = neteaseWidget("music.netease.identity");
 export const NeteaseListeningWidgetV1Schema = neteaseWidget("music.netease.listening");
 export const NeteaseRankingWidgetV1Schema = neteaseWidget("music.netease.ranking");
+export const NeteaseRankingWidgetV2Schema = neteaseWidget("music.netease.ranking", 2);
 export const NeteaseSocialWidgetV1Schema = neteaseWidget("music.netease.social");
 export const NeteasePlaylistsWidgetV1Schema = neteaseWidget("music.netease.playlists");
 export const NeteaseShowcaseWidgetV1Schema = neteaseWidget("music.netease.showcase");
+export const NeteaseShowcaseWidgetV2Schema = neteaseWidget("music.netease.showcase", 2);
 
 export const NeteaseDataCatalogSchema = Type.Object(
   {
@@ -529,9 +531,11 @@ export const WidgetProjectionSchema = Type.Union([
   NeteaseIdentityWidgetV1Schema,
   NeteaseListeningWidgetV1Schema,
   NeteaseRankingWidgetV1Schema,
+  NeteaseRankingWidgetV2Schema,
   NeteaseSocialWidgetV1Schema,
   NeteasePlaylistsWidgetV1Schema,
   NeteaseShowcaseWidgetV1Schema,
+  NeteaseShowcaseWidgetV2Schema,
   GithubProfileWidgetSchema,
   BilibiliProfileWidgetSchema,
   SteamProfileWidgetSchema,

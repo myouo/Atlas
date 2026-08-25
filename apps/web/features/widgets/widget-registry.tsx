@@ -44,7 +44,7 @@ export interface WidgetDefinition {
   readonly sizes: WidgetGridSizes;
   readonly subtitle?: (widget: WidgetProjection) => string | undefined;
   readonly presentationControls?: readonly WidgetPresentationControl[];
-  readonly resourcePicker?: "netease-showcase";
+  readonly resourcePicker?: "netease-showcase" | "netease-showcase-gallery";
   readonly type: WidgetType;
 }
 
@@ -325,6 +325,7 @@ export const widgetRegistry = new WidgetRegistry()
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    catalogVisible: false,
     sizes: {
       lg: { w: 5, h: 6, minW: 4, minH: 5 },
       md: { w: 4, h: 6, minW: 4, minH: 5 },
@@ -351,9 +352,62 @@ export const widgetRegistry = new WidgetRegistry()
       }
     ],
     subtitle: (widget) =>
-      widget.type === "music.netease.ranking" && widget.data.range === "all_time"
+      widget.type === "music.netease.ranking" &&
+      widget.schemaVersion === 1 &&
+      widget.data.range === "all_time"
         ? "全部时间 · Provider Top 100"
         : "最近一周 · Provider Top 100",
+    Renderer: adaptRenderer(NeteaseRankingWidget)
+  })
+  .register({
+    type: "music.netease.ranking",
+    schemaVersion: 2,
+    name: "网易云 · 听歌双榜",
+    description: "同一卡片流畅切换最近一周与全部时间排行",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: true,
+    sizes: {
+      lg: { w: 7, h: 7, minW: 5, minH: 6 },
+      md: { w: 5, h: 7, minW: 4, minH: 6 },
+      sm: { w: 4, h: 11, minW: 4, minH: 9 }
+    },
+    dataPresets: [
+      {
+        id: "ranking-both-12",
+        label: "双榜 Top 12",
+        description: "周榜与总榜都公开，访客可在卡片内切换",
+        dataConfig: { publicLimit: 12, publicRanges: ["week", "all_time"] }
+      },
+      {
+        id: "ranking-week-12",
+        label: "仅最近一周",
+        description: "只公开最近一周排行",
+        dataConfig: { publicLimit: 12, publicRanges: ["week"] }
+      },
+      {
+        id: "ranking-all-12",
+        label: "仅全部时间",
+        description: "只公开全部时间排行",
+        dataConfig: { publicLimit: 12, publicRanges: ["all_time"] }
+      }
+    ],
+    presentationControls: [
+      {
+        defaultValue: "editorial",
+        description: "精选模式突出前三名；紧凑模式适合较小卡片",
+        key: "rankingStyle",
+        kind: "select",
+        label: "排行样式",
+        options: [
+          { label: "精选榜单", value: "editorial" },
+          { label: "紧凑列表", value: "compact" }
+        ]
+      },
+      toggle("showPlayCount", "播放次数", "显示每首歌的 Provider 播放次数")
+    ],
+    subtitle: () => "最近一周 · 全部时间",
     Renderer: adaptRenderer(NeteaseRankingWidget)
   })
   .register({
@@ -433,12 +487,13 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.showcase",
     schemaVersion: 1,
-    name: "网易云 · 音乐名片",
+    name: "网易云 · 单项名片",
     description: "从真实歌曲、歌单、徽章或 Provider 原生卡片中选择一个焦点",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    catalogVisible: false,
     sizes: {
       lg: { w: 6, h: 4, minW: 4, minH: 4 },
       md: { w: 4, h: 4, minW: 4, minH: 4 },
@@ -472,6 +527,41 @@ export const widgetRegistry = new WidgetRegistry()
     ],
     resourcePicker: "netease-showcase",
     subtitle: () => "Nivalis 可编排音乐名片",
+    Renderer: adaptRenderer(NeteaseShowcaseWidget)
+  })
+  .register({
+    type: "music.netease.showcase",
+    schemaVersion: 2,
+    name: "网易云 · 音乐展柜",
+    description: "手动策展最多 6 个歌曲、歌单、徽章或听歌数据",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: false,
+    sizes: {
+      lg: { w: 8, h: 6, minW: 6, minH: 5 },
+      md: { w: 5, h: 7, minW: 4, minH: 6 },
+      sm: { w: 4, h: 11, minW: 4, minH: 8 }
+    },
+    presentationControls: [
+      {
+        defaultValue: "editorial",
+        description: "精选模式保留更强视觉层次；紧凑模式提高信息密度",
+        key: "galleryStyle",
+        kind: "select",
+        label: "展柜排版",
+        options: [
+          { label: "精选展柜", value: "editorial" },
+          { label: "紧凑展柜", value: "compact" }
+        ]
+      },
+      toggle("showMeta", "资源说明", "显示歌曲播放次数、歌单曲目数或徽章状态")
+    ],
+    resourcePicker: "netease-showcase-gallery",
+    subtitle: (widget) =>
+      widget.type === "music.netease.showcase" && widget.schemaVersion === 2
+        ? `${widget.data.items.length} / 6 项 · 手动策展`
+        : undefined,
     Renderer: adaptRenderer(NeteaseShowcaseWidget)
   })
   .register({

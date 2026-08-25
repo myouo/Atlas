@@ -350,6 +350,10 @@ NeteaseNormalizer
 
 NetEase is divided into identity, listening, ranking, social, created-playlist, and showcase Widget types. Their `dataConfig` contains data-affecting public policy (`publicFields`, `publicLists`, range, public limit, selected resource), so the Projector removes private values before persistence. `presentationConfig` remains a renderer-only concern. A policy change partitions Projection state; a visual change does not. See ADR 0018.
 
+`music.netease.showcase@2` corrects the showcase boundary: it is an explicitly ordered, server-bounded gallery of at most six selected resources and never substitutes a weekly/all-time rank when empty. `music.netease.ranking@2` contains separately scoped weekly and all-time payloads so one Renderer can switch views without a waterfall. Existing current v1 Widgets are upgraded by cloning immutable Revisions; historical v1 snapshots stay intact. Nivalis-composed galleries remain distinct from the still-unverified Provider-native personal-home arrangement. See ADR 0019.
+
+During Dashboard editing, grid items may temporarily overlap while the pointer is active. This keeps surrounding cards stationary instead of allowing collision compaction to push them around. On release, the layout engine deterministically swaps or moves only collided cards into nearby free cells, then persists a non-overlapping layout. Display and edit modes still share the same `DashboardCanvas`.
+
 The Pages Function removes the `/api` prefix and forwards the request through a Worker Service Binding. OAuth callback responses therefore set a first-party Pages cookie; the browser never depends on a third-party Worker-domain cookie.
 
 The API production artifact bundles Nivalis Domain/Application code while leaving third-party Node dependencies external. This is a packaging boundary only; it does not collapse the source-layer dependency direction. See ADR 0005.

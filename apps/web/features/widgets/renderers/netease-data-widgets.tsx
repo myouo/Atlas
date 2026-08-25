@@ -6,10 +6,13 @@ import {
   Medal,
   MusicNotes,
   Playlist,
+  Trophy,
   UserList
 } from "@phosphor-icons/react";
+import { useState } from "react";
 
 import type { WidgetOf } from "../widget-types";
+import { presentationSelection, presentationToggle } from "../widget-presentation";
 
 function Artwork({
   label,
@@ -195,30 +198,197 @@ export function NeteaseListeningWidget({
 export function NeteaseRankingWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.ranking"> }>) {
+  if (widget.schemaVersion === 2) return <NeteaseRankingWidgetV2 widget={widget} />;
   const { data } = widget;
-  if (data.items.length === 0) return <Empty>排行是有效空数据集，或尚未完成同步</Empty>;
   return (
-    <div className="h-full min-h-0 overflow-y-auto pr-1">
-      <div className="space-y-2">
-        {data.items.map((item) => (
+    <RankingBoard
+      items={data.items}
+      showPlayCount
+      style="compact"
+      totalAvailable={data.totalAvailable}
+    />
+  );
+}
+
+function NeteaseRankingWidgetV2({
+  widget
+}: Readonly<{
+  widget: Extract<WidgetOf<"music.netease.ranking">, { schemaVersion: 2 }>;
+}>) {
+  const { data } = widget;
+  const availableRanges = [
+    data.week.availability === "available" ? "week" : null,
+    data.allTime.availability === "available" ? "all_time" : null
+  ].filter((range): range is "all_time" | "week" => range !== null);
+  const [requestedRange, setRequestedRange] = useState<"all_time" | "week">(
+    availableRanges[0] ?? "week"
+  );
+  const range = availableRanges.includes(requestedRange)
+    ? requestedRange
+    : (availableRanges[0] ?? "week");
+  const selected = range === "week" ? data.week : data.allTime;
+  const style = presentationSelection(widget.presentationConfig, "rankingStyle", "editorial", [
+    "editorial",
+    "compact"
+  ]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="inline-flex rounded-xl border border-white/90 bg-white/55 p-1 shadow-sm">
+          {availableRanges.map((candidate) => (
+            <button
+              aria-pressed={range === candidate}
+              className={
+                range === candidate
+                  ? "rounded-lg bg-[#ff4668] px-3 py-1.5 text-[10px] font-extrabold text-white shadow-sm transition"
+                  : "rounded-lg px-3 py-1.5 text-[10px] font-bold text-ink-muted transition hover:bg-white/75"
+              }
+              key={candidate}
+              onClick={() => setRequestedRange(candidate)}
+              type="button"
+            >
+              {candidate === "week" ? "最近一周" : "全部时间"}
+            </button>
+          ))}
+        </div>
+        {selected.availability === "available" ? (
+          <span className="shrink-0 text-[9px] font-bold text-ink-muted">
+            Provider Top {selected.totalAvailable}
+          </span>
+        ) : null}
+      </div>
+
+      {selected.availability === "available" ? (
+        <RankingBoard
+          items={selected.items}
+          showPlayCount={presentationToggle(widget.presentationConfig, "showPlayCount")}
+          style={style}
+          totalAvailable={selected.totalAvailable}
+        />
+      ) : (
+        <Empty>当前榜单未加入公开范围</Empty>
+      )}
+    </div>
+  );
+}
+
+interface RankingEntry {
+  readonly playCount: number;
+  readonly rank: number;
+  readonly score: number;
+  readonly track: {
+    readonly artists: readonly { readonly name: string }[];
+    readonly coverUrl: string | null;
+    readonly name: string;
+    readonly providerTrackId: string;
+  };
+}
+
+function RankingBoard({
+  items,
+  showPlayCount,
+  style,
+  totalAvailable
+}: {
+  readonly items: readonly RankingEntry[];
+  readonly showPlayCount: boolean;
+  readonly style: string;
+  readonly totalAvailable: number;
+}) {
+  if (items.length === 0) return <Empty>这是一个有效空榜单</Empty>;
+  if (style === "compact") {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {items.map((item) => (
+            <RankingRow
+              item={item}
+              key={item.track.providerTrackId}
+              showPlayCount={showPlayCount}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const podium = items.slice(0, 3);
+  const remaining = items.slice(3);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {podium.map((item) => (
           <div
-            className="flex items-center gap-3 rounded-2xl bg-white/42 p-2"
+            className={
+              item.rank === 1
+                ? "relative col-span-2 flex min-w-0 items-center gap-2.5 overflow-hidden rounded-[18px] border border-amber-200/80 bg-gradient-to-br from-amber-50 via-white/75 to-rose-50 p-2.5 shadow-sm sm:col-span-1"
+                : "relative flex min-w-0 items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/80 bg-white/48 p-2.5"
+            }
             key={item.track.providerTrackId}
           >
-            <span className="w-5 text-center text-xs font-black text-[#ff4668]">{item.rank}</span>
-            <Artwork label={item.track.name} size="sm" url={item.track.coverUrl} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-extrabold text-ink">{item.track.name}</p>
-              <p className="truncate text-[8px] text-ink-muted">
+            <span
+              className={
+                item.rank === 1
+                  ? "absolute top-2 left-2 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10px] font-black text-white"
+                  : "absolute top-2 left-2 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-700/75 px-1.5 text-[10px] font-black text-white"
+              }
+            >
+              {item.rank === 1 ? <Trophy aria-hidden size={12} weight="fill" /> : item.rank}
+            </span>
+            <Artwork label={item.track.name} url={item.track.coverUrl} />
+            <div className="min-w-0 flex-1 pt-1">
+              <p className="truncate text-[10px] font-extrabold text-ink">{item.track.name}</p>
+              <p className="mt-0.5 truncate text-[8px] text-ink-muted">
                 {item.track.artists.map((artist) => artist.name).join(" / ")}
               </p>
+              {showPlayCount ? (
+                <p className="mt-1 text-[8px] font-bold text-[#e83d5b]">{item.playCount} 次</p>
+              ) : null}
             </div>
-            <span className="shrink-0 text-[9px] font-bold text-ink-muted">
-              {item.playCount} 次
-            </span>
           </div>
         ))}
       </div>
+
+      {remaining.length > 0 ? (
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {remaining.map((item) => (
+              <RankingRow
+                item={item}
+                key={item.track.providerTrackId}
+                showPlayCount={showPlayCount}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-auto pt-3 text-center text-[8px] font-semibold text-ink-muted">
+          Provider 当前返回 {totalAvailable} 条排行记录
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount: boolean }) {
+  return (
+    <div className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-transparent bg-white/40 px-2.5 py-2 transition hover:border-white/90 hover:bg-white/65">
+      <span className="w-5 shrink-0 text-center text-[10px] font-black text-blue-500">
+        {item.rank}
+      </span>
+      <Artwork label={item.track.name} size="sm" url={item.track.coverUrl} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[10px] font-extrabold text-ink">{item.track.name}</p>
+        <p className="truncate text-[8px] text-ink-muted">
+          {item.track.artists.map((artist) => artist.name).join(" / ")}
+        </p>
+      </div>
+      {showPlayCount ? (
+        <span className="shrink-0 rounded-full bg-rose-50 px-2 py-1 text-[8px] font-bold text-[#e83d5b]">
+          {item.playCount}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -291,6 +461,15 @@ export function NeteasePlaylistsWidget({
 export function NeteaseShowcaseWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.showcase"> }>) {
+  if (widget.schemaVersion === 2) return <NeteaseShowcaseGallery widget={widget} />;
+  return <LegacyNeteaseShowcase widget={widget} />;
+}
+
+function LegacyNeteaseShowcase({
+  widget
+}: Readonly<{
+  widget: Extract<WidgetOf<"music.netease.showcase">, { schemaVersion: 1 }>;
+}>) {
   const card = objectValue(widget.data.card);
   if (widget.data.availability !== "available" || !card)
     return <Empty>所选音乐名片资源暂不可用</Empty>;
@@ -332,6 +511,199 @@ export function NeteaseShowcaseWidget({
       <Headphones aria-hidden className="shrink-0 text-[#ff4668]/25" size={52} weight="duotone" />
     </div>
   );
+}
+
+function NeteaseShowcaseGallery({
+  widget
+}: Readonly<{
+  widget: Extract<WidgetOf<"music.netease.showcase">, { schemaVersion: 2 }>;
+}>) {
+  const items = widget.data.items;
+  if (items.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center rounded-[22px] border border-dashed border-rose-200 bg-gradient-to-br from-rose-50/60 via-white/35 to-blue-50/60 px-6 text-center">
+        <MusicNotes aria-hidden className="text-[#ff4668]" size={34} weight="duotone" />
+        <p className="mt-3 text-sm font-black text-ink">展柜还是空的</p>
+        <p className="mt-1 max-w-xs text-[10px] leading-relaxed text-ink-muted">
+          在编辑视图打开卡片设置，手动加入 1～6 个歌曲、歌单、徽章或听歌数据。
+        </p>
+      </div>
+    );
+  }
+  const style = presentationSelection(widget.presentationConfig, "galleryStyle", "editorial", [
+    "editorial",
+    "compact"
+  ]);
+  const grid =
+    items.length === 1
+      ? "grid-cols-1"
+      : items.length === 2
+        ? "grid-cols-2"
+        : "grid-cols-2 sm:grid-cols-3";
+  return (
+    <div className={`grid h-full min-h-0 auto-rows-fr gap-2.5 overflow-hidden ${grid}`}>
+      {items.map((item, index) => (
+        <ShowcaseTile
+          card={objectValue(item.card) ?? {}}
+          dense={items.length >= 4}
+          editorial={style === "editorial"}
+          index={index}
+          key={`${item.source}:${item.resourceId}`}
+          showMeta={presentationToggle(widget.presentationConfig, "showMeta")}
+          source={item.source}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ShowcaseTile({
+  card,
+  dense,
+  editorial,
+  index,
+  showMeta,
+  source
+}: {
+  readonly card: Record<string, unknown>;
+  readonly dense: boolean;
+  readonly editorial: boolean;
+  readonly index: number;
+  readonly showMeta: boolean;
+  readonly source: string;
+}) {
+  const summary = showcaseSummary(card, source);
+  if (dense) {
+    return (
+      <article
+        className={
+          editorial
+            ? "group relative flex min-h-0 items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/85 bg-gradient-to-br from-white/80 via-white/58 to-rose-50/75 p-2.5 pr-9 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
+            : "group relative flex min-h-0 items-center gap-2.5 overflow-hidden rounded-2xl border border-white/75 bg-white/48 p-2.5 pr-9 transition duration-300 hover:bg-white/68"
+        }
+      >
+        <ShowcaseArtwork summary={summary} size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-black text-ink">{summary.title}</p>
+          {summary.subtitle ? (
+            <p className="mt-0.5 truncate text-[8px] font-medium text-ink-muted">
+              {summary.subtitle}
+            </p>
+          ) : null}
+          {showMeta && summary.meta ? (
+            <p className="mt-1 truncate text-[8px] font-bold text-[#e83d5b]">{summary.meta}</p>
+          ) : null}
+        </div>
+        <span className="absolute top-2 right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-white/85 px-1.5 text-[9px] font-black text-[#e83d5b] shadow-sm">
+          {index + 1}
+        </span>
+      </article>
+    );
+  }
+  return (
+    <article
+      className={
+        editorial
+          ? "group relative flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-white/85 bg-gradient-to-br from-white/80 via-white/58 to-rose-50/75 p-3 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
+          : "group relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/48 p-2.5 transition duration-300 hover:bg-white/68"
+      }
+    >
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <ShowcaseArtwork summary={summary} size={editorial ? "md" : "sm"} />
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-white/80 px-1.5 text-[9px] font-black text-[#e83d5b] shadow-sm">
+          {index + 1}
+        </span>
+      </div>
+      <div className="mt-auto min-w-0 pt-3">
+        <p className="line-clamp-2 text-[11px] leading-snug font-black text-ink">{summary.title}</p>
+        {summary.subtitle ? (
+          <p className="mt-1 truncate text-[8px] font-medium text-ink-muted">{summary.subtitle}</p>
+        ) : null}
+        {showMeta && summary.meta ? (
+          <p className="mt-1.5 text-[8px] font-bold text-[#e83d5b]">{summary.meta}</p>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function ShowcaseArtwork({
+  size,
+  summary
+}: {
+  readonly size: "sm" | "md";
+  readonly summary: ReturnType<typeof showcaseSummary>;
+}) {
+  if (summary.coverUrl) return <Artwork label={summary.title} size={size} url={summary.coverUrl} />;
+  const dimensions = size === "sm" ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-2xl";
+  return (
+    <span
+      className={`${dimensions} flex shrink-0 items-center justify-center bg-gradient-to-br from-[#ff6b80] to-[#758cff] text-white shadow-sm`}
+    >
+      {summary.kind === "duration" ? (
+        <Headphones aria-hidden size={size === "sm" ? 18 : 22} weight="duotone" />
+      ) : summary.kind === "medal" ? (
+        <Medal aria-hidden size={size === "sm" ? 18 : 22} weight="duotone" />
+      ) : (
+        <MusicNotes aria-hidden size={size === "sm" ? 18 : 22} weight="duotone" />
+      )}
+    </span>
+  );
+}
+
+function showcaseSummary(card: Record<string, unknown>, source: string) {
+  const track = objectValue(card.track);
+  if (track) {
+    const artists = Array.isArray(track.artists)
+      ? track.artists.flatMap((artist) => stringValue(objectValue(artist)?.name) ?? [])
+      : [];
+    return {
+      coverUrl: stringValue(track.coverUrl),
+      kind: "track",
+      meta: typeof card.playCount === "number" ? `${card.playCount} 次播放` : null,
+      subtitle: artists.join(" / "),
+      title: stringValue(track.name) ?? "未命名歌曲"
+    };
+  }
+  if (card.kind === "playlist") {
+    return {
+      coverUrl: stringValue(card.coverUrl),
+      kind: "playlist",
+      meta: typeof card.trackCount === "number" ? `${card.trackCount} 首歌曲` : null,
+      subtitle: Array.isArray(card.tags)
+        ? card.tags.filter((tag): tag is string => typeof tag === "string").join(" · ")
+        : null,
+      title: stringValue(card.name) ?? "未命名歌单"
+    };
+  }
+  if (card.kind === "medal") {
+    return {
+      coverUrl: stringValue(card.iconUrl),
+      kind: "medal",
+      meta: card.worn === true ? "佩戴中" : "已获得",
+      subtitle: stringValue(card.description),
+      title: stringValue(card.name) ?? "乐迷徽章"
+    };
+  }
+  if (card.kind === "duration") {
+    return {
+      coverUrl: null,
+      kind: "duration",
+      meta:
+        typeof card.value === "number"
+          ? formatDuration(card.value, card.unit === "minutes" ? "minutes" : "seconds")
+          : null,
+      subtitle: "Provider Reported",
+      title: stringValue(card.label) ?? "累计播放时间"
+    };
+  }
+  return {
+    coverUrl: stringValue(card.coverUrl),
+    kind: source,
+    meta: null,
+    subtitle: stringValue(card.description),
+    title: stringValue(card.title) ?? "音乐内容"
+  };
 }
 
 function formatDuration(value: number, unit: "plays" | "seconds" | "minutes") {

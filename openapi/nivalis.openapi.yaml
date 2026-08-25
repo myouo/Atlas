@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nivalis API
-  version: 0.6.0
+  version: 0.7.0
   description: >-
     Frontend-independent contract for profiles and composable Dashboard state.
     Phase 5 adds API-owned Owner authentication, encrypted Provider credential lifecycle,
@@ -1907,6 +1907,51 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NeteaseRankingItemV1"
+    NeteaseRankingRangeV2:
+      type: object
+      additionalProperties: false
+      required: [availability, coverage, totalAvailable, items]
+      properties:
+        availability:
+          type: string
+          const: available
+        coverage:
+          type: string
+          const: provider_top_100
+        totalAvailable:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NeteaseRankingItemV1"
+    NeteaseRankingDataV2:
+      type: object
+      additionalProperties: false
+      required: [provider, publicLimit, publicRanges, week, allTime]
+      properties:
+        provider:
+          type: string
+          const: netease
+        publicLimit:
+          type: integer
+          minimum: 1
+          maximum: 30
+        publicRanges:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum: [week, all_time]
+        week:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseRankingRangeV2"
+            - $ref: "#/components/schemas/DataUnavailable"
+        allTime:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseRankingRangeV2"
+            - $ref: "#/components/schemas/DataUnavailable"
     NeteasePeopleListV1:
       type: object
       additionalProperties: false
@@ -1991,13 +2036,59 @@ components:
           const: netease
         source:
           type: string
-          enum: [weekly_track, all_time_track, created_playlist, medal, provider_music_card]
+          enum:
+            [
+              weekly_track,
+              all_time_track,
+              created_playlist,
+              medal,
+              listening_duration,
+              provider_music_card
+            ]
         reason:
           type: string
           enum: [resource_not_found]
         card:
           type: object
           additionalProperties: true
+    NeteaseShowcaseDataV2:
+      type: object
+      additionalProperties: false
+      required: [availability, provider, maxItems, items]
+      properties:
+        availability:
+          type: string
+          const: available
+        provider:
+          type: string
+          const: netease
+        maxItems:
+          type: integer
+          const: 6
+        items:
+          type: array
+          maxItems: 6
+          items:
+            type: object
+            additionalProperties: false
+            required: [source, resourceId, card]
+            properties:
+              source:
+                type: string
+                enum:
+                  [
+                    weekly_track,
+                    all_time_track,
+                    created_playlist,
+                    medal,
+                    listening_duration,
+                    provider_music_card
+                  ]
+              resourceId:
+                type: string
+              card:
+                type: object
+                additionalProperties: true
     NeteaseOwnerAccountV1:
       type: object
       additionalProperties: false
@@ -2545,6 +2636,21 @@ components:
               const: netease
             data:
               $ref: "#/components/schemas/NeteaseRankingDataV1"
+    NeteaseRankingWidgetV2:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.ranking
+            schemaVersion:
+              const: 2
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseRankingDataV2"
     NeteaseSocialWidgetV1:
       unevaluatedProperties: false
       allOf:
@@ -2590,6 +2696,21 @@ components:
               const: netease
             data:
               $ref: "#/components/schemas/NeteaseShowcaseDataV1"
+    NeteaseShowcaseWidgetV2:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.showcase
+            schemaVersion:
+              const: 2
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseShowcaseDataV2"
     GithubProfileWidget:
       unevaluatedProperties: false
       allOf:
@@ -2651,9 +2772,11 @@ components:
         - $ref: "#/components/schemas/NeteaseIdentityWidgetV1"
         - $ref: "#/components/schemas/NeteaseListeningWidgetV1"
         - $ref: "#/components/schemas/NeteaseRankingWidgetV1"
+        - $ref: "#/components/schemas/NeteaseRankingWidgetV2"
         - $ref: "#/components/schemas/NeteaseSocialWidgetV1"
         - $ref: "#/components/schemas/NeteasePlaylistsWidgetV1"
         - $ref: "#/components/schemas/NeteaseShowcaseWidgetV1"
+        - $ref: "#/components/schemas/NeteaseShowcaseWidgetV2"
         - $ref: "#/components/schemas/GithubProfileWidget"
         - $ref: "#/components/schemas/BilibiliProfileWidget"
         - $ref: "#/components/schemas/SteamProfileWidget"

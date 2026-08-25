@@ -3,12 +3,13 @@
 import type { ResponsiveLayout, WidgetProjection } from "@nivalis/api-client";
 import clsx from "clsx";
 import { noCompactor, Responsive, useContainerWidth } from "react-grid-layout";
-import type { Layout, ResponsiveLayouts } from "react-grid-layout";
+import { getCompactor } from "react-grid-layout/core";
+import type { Layout, LayoutItem, ResponsiveLayouts } from "react-grid-layout";
 import { useMemo, useState } from "react";
 
 import { WidgetCard } from "../widgets/widget-card";
 import { widgetRegistry } from "../widgets/widget-registry";
-import { breakpointColumns } from "./layout-engine";
+import { breakpointColumns, settleInteractiveLayout } from "./layout-engine";
 import type { DashboardBreakpoint, DashboardLayoutItem } from "./layout-engine";
 
 interface DashboardCanvasProps {
@@ -49,6 +50,8 @@ function stripLayout(layout: Layout): DashboardLayoutItem[] {
   return layout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h }));
 }
 
+const overlapWhileEditing = getCompactor(null, true);
+
 export function DashboardCanvas({
   editable,
   layout,
@@ -60,16 +63,33 @@ export function DashboardCanvas({
 }: DashboardCanvasProps) {
   const { containerRef, mounted, width } = useContainerWidth({ initialWidth: 1200 });
   const [breakpoint, setBreakpoint] = useState<DashboardBreakpoint>("lg");
+  const [interacting, setInteracting] = useState(false);
   const gridLayouts = useMemo(() => buildGridLayouts(layout, widgets), [layout, widgets]);
 
-  const commitLayout = (nextLayout: Layout) => {
+  const commitLayout = (
+    nextLayout: Layout,
+    oldItem: LayoutItem | null,
+    newItem: LayoutItem | null
+  ) => {
+    setInteracting(false);
     if (!editable) return;
-    onLayoutChange(breakpoint, stripLayout(nextLayout));
+    const stripped = stripLayout(nextLayout);
+    onLayoutChange(
+      breakpoint,
+      newItem
+        ? settleInteractiveLayout(
+            stripped,
+            newItem.i,
+            oldItem ? { x: oldItem.x, y: oldItem.y } : null,
+            breakpointColumns[breakpoint]
+          )
+        : stripped
+    );
   };
 
   return (
     <div
-      className={clsx("dashboard-grid", editable && "is-editing")}
+      className={clsx("dashboard-grid", editable && "is-editing", interacting && "is-interacting")}
       data-testid="dashboard-canvas"
       ref={containerRef}
     >
@@ -78,18 +98,21 @@ export function DashboardCanvas({
           autoSize
           breakpoints={{ lg: 1160, md: 720, sm: 0 }}
           cols={breakpointColumns}
-          compactor={noCompactor}
+          compactor={editable ? overlapWhileEditing : noCompactor}
           containerPadding={[0, 0]}
           dragConfig={{
             bounded: true,
             cancel: "button:not(.module-drag-handle)",
             enabled: editable,
-            handle: ".module-drag-handle"
+            handle: ".module-drag-handle",
+            threshold: 5
           }}
           layouts={gridLayouts}
-          margin={{ lg: [12, 12], md: [12, 12], sm: [8, 8] }}
+          margin={{ lg: [10, 10], md: [10, 10], sm: [8, 8] }}
           onBreakpointChange={(nextBreakpoint) => setBreakpoint(nextBreakpoint)}
+          onDragStart={() => setInteracting(true)}
           onDragStop={commitLayout}
+          onResizeStart={() => setInteracting(true)}
           onResizeStop={commitLayout}
           resizeConfig={{ enabled: editable, handles: ["se"] }}
           rowHeight={35}

@@ -30,6 +30,12 @@ export class NeteaseProjector implements ProviderProjector {
       if (target.type === "music.netease.overview" && target.schemaVersion === 2) {
         return built(target, overview(payload, target.dataConfig), 2, sourceSnapshotId);
       }
+      if (target.type === "music.netease.ranking" && target.schemaVersion === 2) {
+        return built(target, rankingV2(payload, target.dataConfig), 2, sourceSnapshotId);
+      }
+      if (target.type === "music.netease.showcase" && target.schemaVersion === 2) {
+        return built(target, showcaseGallery(payload, target.dataConfig), 2, sourceSnapshotId);
+      }
       if (target.schemaVersion !== 1) throw unsupported();
       switch (target.type) {
         case "music.netease.identity":
@@ -205,6 +211,46 @@ function ranking(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Jso
   };
 }
 
+function rankingV2(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const ranges = rankingRanges(dataConfig.publicRanges);
+  const limit = boundedInteger(dataConfig.publicLimit, 12, 1, 30);
+  return {
+    allTime: ranges.includes("all_time")
+      ? rankingRange(payload.allTimeRecords, limit)
+      : { availability: "unavailable", reason: "not_public" },
+    provider: "netease",
+    publicLimit: limit,
+    publicRanges: ranges,
+    week: ranges.includes("week")
+      ? rankingRange(payload.weeklyRecords, limit)
+      : { availability: "unavailable", reason: "not_public" }
+  };
+}
+
+function rankingRange(records: NeteaseNormalizedPayload["weeklyRecords"], limit: number) {
+  return {
+    availability: "available",
+    coverage: "provider_top_100",
+    items: records.slice(0, limit).map((record, index) => ({
+      playCount: record.playCount,
+      rank: index + 1,
+      score: record.score,
+      track: trackSummary(record.track)
+    })),
+    totalAvailable: records.length
+  };
+}
+
+function rankingRanges(value: unknown): readonly ("week" | "all_time")[] {
+  if (!Array.isArray(value)) return ["week", "all_time"];
+  const ranges = [
+    ...new Set(
+      value.filter((item): item is "week" | "all_time" => item === "week" || item === "all_time")
+    )
+  ];
+  return ranges.length > 0 ? ranges : ["week", "all_time"];
+}
+
 function social(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
   const lists = publicFields(dataConfig, ["following", "followers"] as const, []);
   const limit = boundedInteger(dataConfig.publicLimit, 8, 0, 30);
@@ -236,7 +282,7 @@ function playlists(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): J
 }
 
 function showcase(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
-  const source = showcaseSource(dataConfig.source);
+  const source = parseShowcaseSource(dataConfig.source) ?? "all_time_track";
   const resourceId = typeof dataConfig.resourceId === "string" ? dataConfig.resourceId : null;
   const card = selectShowcase(payload, source, resourceId);
   return card
@@ -244,9 +290,39 @@ function showcase(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
     : { availability: "unavailable", provider: "netease", reason: "resource_not_found", source };
 }
 
+function showcaseGallery(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const selections = gallerySelections(dataConfig.selections);
+  return {
+    availability: "available",
+    items: selections.flatMap((selection) => {
+      const card = selectShowcase(payload, selection.source, selection.resourceId);
+      return card ? [{ ...selection, card }] : [];
+    }),
+    maxItems: 6,
+    provider: "netease"
+  };
+}
+
+function gallerySelections(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const selections = new Map<
+    string,
+    { readonly resourceId: string; readonly source: ShowcaseSource }
+  >();
+  for (const candidate of value) {
+    if (!isObject(candidate) || typeof candidate.resourceId !== "string") continue;
+    const source = parseShowcaseSource(candidate.source);
+    if (!source) continue;
+    const key = `${source}:${candidate.resourceId}`;
+    if (!selections.has(key)) selections.set(key, { resourceId: candidate.resourceId, source });
+    if (selections.size === 6) break;
+  }
+  return [...selections.values()];
+}
+
 function selectShowcase(
   payload: NeteaseNormalizedPayload,
-  source: ReturnType<typeof showcaseSource>,
+  source: ShowcaseSource,
   resourceId: string | null
 ): JsonObject | null {
   if (source === "created_playlist") {
@@ -271,6 +347,17 @@ function selectShowcase(
     const item = selectById(payload.musicCards, resourceId, "providerCardId");
     return item ? { ...item, kind: "provider_music_card" } : null;
   }
+  if (source === "listening_duration") {
+    return payload.listeningDurationTotalSeconds === null
+      ? null
+      : {
+          kind: "duration",
+          label: "累计播放时间",
+          provenance: "provider_reported",
+          unit: "seconds",
+          value: payload.listeningDurationTotalSeconds
+        };
+  }
   const records = source === "weekly_track" ? payload.weeklyRecords : payload.allTimeRecords;
   const item = resourceId
     ? records.find((record) => record.track.providerTrackId === resourceId)
@@ -285,17 +372,25 @@ function selectShowcase(
     : null;
 }
 
-function showcaseSource(value: unknown) {
+type ShowcaseSource =
+  | "weekly_track"
+  | "all_time_track"
+  | "created_playlist"
+  | "medal"
+  | "listening_duration"
+  | "provider_music_card";
+
+function parseShowcaseSource(value: unknown): ShowcaseSource | null {
   return [
     "weekly_track",
     "all_time_track",
     "created_playlist",
     "medal",
+    "listening_duration",
     "provider_music_card"
   ].includes(typeof value === "string" ? value : "")
-    ? (value as
-        "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "provider_music_card")
-    : "all_time_track";
+    ? (value as ShowcaseSource)
+    : null;
 }
 
 function publicFields<T extends string>(
@@ -358,6 +453,10 @@ function playlistSummary(item: NeteaseNormalizedPayload["createdPlaylists"]["ite
 
 function selectById<T, K extends keyof T>(items: readonly T[], id: string | null, key: K) {
   return id ? items.find((item) => String(item[key]) === id) : items[0];
+}
+
+function isObject(value: unknown): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export function buildNeteaseOwnerDataCatalog(payload: NeteaseNormalizedPayload): JsonObject {

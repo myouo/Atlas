@@ -28,7 +28,7 @@ export function WidgetCard({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const definition = widgetRegistry.resolve(widget.type, widget.schemaVersion);
   const catalogQuery = useQuery({
-    enabled: Boolean(settingsOpen && definition?.resourcePicker === "netease-showcase"),
+    enabled: Boolean(settingsOpen && definition?.resourcePicker),
     queryFn: () => dashboardSource.getNeteaseDataCatalog(),
     queryKey: ["provider-data", "netease", dashboardSource.kind],
     retry: false
@@ -56,6 +56,8 @@ export function WidgetCard({
   const subtitle = definition.subtitle?.(widget as never);
   const controls = definition.presentationControls ?? [];
   const dataPresets = definition.dataPresets ?? [];
+  const configurable =
+    controls.length > 0 || dataPresets.length > 0 || Boolean(definition.resourcePicker);
   return (
     <>
       <ModuleShell
@@ -63,9 +65,7 @@ export function WidgetCard({
         editable={editable}
         icon={<Icon aria-hidden size={19} />}
         kind={definition.kind}
-        {...(editable && (controls.length > 0 || dataPresets.length > 0)
-          ? { onConfigure: () => setSettingsOpen(true) }
-          : {})}
+        {...(editable && configurable ? { onConfigure: () => setSettingsOpen(true) } : {})}
         onRemove={onRemove}
         stale={widget.stale}
         {...(subtitle ? { subtitle } : {})}
@@ -73,7 +73,7 @@ export function WidgetCard({
       >
         <Renderer widget={widget as never} />
       </ModuleShell>
-      {(controls.length > 0 || dataPresets.length > 0) && "presentationConfig" in widget ? (
+      {configurable && "presentationConfig" in widget ? (
         <WidgetDisplaySettingsDialog
           controls={controls}
           dataConfig={widget.dataConfig}
@@ -84,7 +84,11 @@ export function WidgetCard({
           onOpenChange={setSettingsOpen}
           open={settingsOpen}
           presentationConfig={widget.presentationConfig}
+          resourceMaxItems={definition.resourcePicker === "netease-showcase-gallery" ? 6 : 1}
           resourceOptions={neteaseResourceOptions(catalogQuery.data)}
+          resourceSelectionMode={
+            definition.resourcePicker === "netease-showcase-gallery" ? "gallery" : "single"
+          }
         />
       ) : null}
     </>
@@ -96,6 +100,13 @@ function neteaseResourceOptions(
 ): readonly WidgetDataResourceOption[] {
   if (!catalog) return [];
   const options: WidgetDataResourceOption[] = [];
+  if (typeof catalog.catalog.listening.totalDurationSeconds === "number") {
+    options.push({
+      label: "听歌数据 · 累计播放时间",
+      resourceId: "total",
+      source: "listening_duration"
+    });
+  }
   for (const item of catalog.catalog.weeklyRanking) {
     options.push({
       label: `本周歌曲 · ${item.track.name}`,

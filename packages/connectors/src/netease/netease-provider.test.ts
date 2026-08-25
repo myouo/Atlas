@@ -127,7 +127,39 @@ describe("NetEase Provider module", () => {
       targetFor("music.netease.ranking", { publicLimit: 10, range: "all_time" }),
       targetFor("music.netease.social", { publicLimit: 0, publicLists: [] }),
       targetFor("music.netease.playlists", { publicLimit: 2 }),
-      targetFor("music.netease.showcase", { source: "all_time_track" })
+      targetFor("music.netease.showcase", { source: "all_time_track" }),
+      targetFor(
+        "music.netease.ranking",
+        { publicLimit: 12, publicRanges: ["week", "all_time"] },
+        2
+      ),
+      targetFor(
+        "music.netease.showcase",
+        {
+          selections: [
+            { resourceId: "20001", source: "weekly_track" },
+            { resourceId: "20002", source: "all_time_track" },
+            { resourceId: "13001", source: "created_playlist" },
+            { resourceId: "medal-1", source: "medal" },
+            { resourceId: "total", source: "listening_duration" },
+            { resourceId: "fixture-card-1", source: "provider_music_card" },
+            { resourceId: "20003", source: "weekly_track" }
+          ]
+        },
+        2
+      ),
+      targetFor("music.netease.showcase", { selections: [] }, 2),
+      targetFor(
+        "music.netease.showcase",
+        {
+          selections: [
+            { resourceId: "20001", source: "unknown_source" },
+            { resourceId: "20001", source: "weekly_track" },
+            { resourceId: "20001", source: "weekly_track" }
+          ]
+        },
+        2
+      )
     ];
     const projections = await new NeteaseProjector().project(normalized, targets);
     const identity = projections[0]!.data as JsonObject;
@@ -154,6 +186,28 @@ describe("NetEase Provider module", () => {
       availability: "available",
       card: { kind: "track", track: { name: "Snow Light" } }
     });
+    expect(projections[6]!.data).toMatchObject({
+      allTime: { availability: "available", totalAvailable: 2 },
+      publicRanges: ["week", "all_time"],
+      week: { availability: "available", totalAvailable: 3 }
+    });
+    expect((projections[7]!.data as JsonObject).items).toHaveLength(6);
+    expect(projections[7]!.data).toMatchObject({
+      availability: "available",
+      items: [
+        { card: { kind: "track" }, source: "weekly_track" },
+        { card: { kind: "track" }, source: "all_time_track" },
+        { card: { kind: "playlist" }, source: "created_playlist" },
+        { card: { kind: "medal" }, source: "medal" },
+        { card: { kind: "duration" }, source: "listening_duration" },
+        { card: { kind: "provider_music_card" }, source: "provider_music_card" }
+      ],
+      maxItems: 6
+    });
+    expect((projections[8]!.data as JsonObject).items).toEqual([]);
+    expect((projections[9]!.data as JsonObject).items).toMatchObject([
+      { resourceId: "20001", source: "weekly_track" }
+    ]);
 
     const catalog = buildNeteaseOwnerDataCatalog(normalized.payload as NeteaseNormalizedPayload);
     expect(catalog.listening).toMatchObject({ totalDurationSeconds: 582420 });
@@ -392,7 +446,11 @@ function target(range: "7d" | "30d"): ProjectionTarget {
   };
 }
 
-function targetFor(type: ProjectionTarget["type"], dataConfig: JsonObject): ProjectionTarget {
+function targetFor(
+  type: ProjectionTarget["type"],
+  dataConfig: JsonObject,
+  schemaVersion = 1
+): ProjectionTarget {
   return {
     dataConfig,
     enabled: true,
@@ -400,7 +458,7 @@ function targetFor(type: ProjectionTarget["type"], dataConfig: JsonObject): Proj
     presentationConfig: {},
     projectionKey: type.padEnd(64, "a").slice(0, 64),
     provider: "netease",
-    schemaVersion: 1,
+    schemaVersion,
     title: type,
     type
   };

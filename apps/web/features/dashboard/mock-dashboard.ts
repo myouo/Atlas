@@ -351,6 +351,28 @@ export function createMockWidget(
     } as WidgetOf<"music.netease.listening">;
   }
   if (type === "music.netease.ranking") {
+    if (schemaVersion === 2) {
+      const unavailable = { availability: "unavailable" as const, reason: "not_synced" as const };
+      return {
+        data: {
+          allTime: unavailable,
+          provider: "netease",
+          publicLimit: 12,
+          publicRanges: ["week", "all_time"],
+          week: unavailable
+        },
+        dataConfig: { publicLimit: 12, publicRanges: ["week", "all_time"] },
+        enabled: true,
+        id,
+        presentationConfig: { rankingStyle: "editorial", showPlayCount: true },
+        provider: "netease",
+        schemaVersion: 2,
+        stale: true,
+        title: "网易云 · 听歌双榜",
+        type,
+        updatedAt
+      } as WidgetOf<"music.netease.ranking">;
+    }
     return {
       data: {
         availability: "available",
@@ -420,6 +442,21 @@ export function createMockWidget(
     } as WidgetOf<"music.netease.playlists">;
   }
   if (type === "music.netease.showcase") {
+    if (schemaVersion === 2) {
+      return {
+        data: { availability: "available", items: [], maxItems: 6, provider: "netease" },
+        dataConfig: { selections: [] },
+        enabled: true,
+        id,
+        presentationConfig: { galleryStyle: "editorial", showMeta: true },
+        provider: "netease",
+        schemaVersion: 2,
+        stale: true,
+        title: "网易云 · 音乐展柜",
+        type,
+        updatedAt
+      } as WidgetOf<"music.netease.showcase">;
+    }
     return {
       data: {
         availability: "unavailable",

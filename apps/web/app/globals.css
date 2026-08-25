@@ -109,11 +109,45 @@ select:focus-visible {
   background-color: rgba(239, 247, 255, 0.24);
 }
 
+.dashboard-grid .react-grid-layout {
+  transition: height 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dashboard-grid .react-grid-item {
+  will-change: transform, width, height;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+.dashboard-grid.is-interacting .react-grid-item:not(.react-draggable-dragging, .resizing) {
+  transition-duration: 220ms;
+}
+
+.dashboard-grid .react-grid-item.react-draggable-dragging,
+.dashboard-grid .react-grid-item.resizing {
+  z-index: 30;
+  transition: none;
+}
+
+.dashboard-grid .react-grid-item.react-draggable-dragging > .glass-surface,
+.dashboard-grid .react-grid-item.resizing > .glass-surface {
+  border-color: rgba(85, 128, 246, 0.82);
+  box-shadow: 0 20px 55px rgba(25, 69, 145, 0.24);
+  transform: scale(1.012);
+}
+
 .react-grid-item.react-grid-placeholder {
   border: 1px dashed var(--color-primary);
   border-radius: var(--radius-md);
   background: rgba(81, 138, 246, 0.16);
-  opacity: 1;
+  opacity: 0.82;
+  transition:
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 140ms ease,
+    height 140ms ease;
 }
 
 .react-grid-item > .react-resizable-handle::after {

@@ -2,7 +2,15 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import type { WidgetProjection } from "@nivalis/api-client";
-import { ArrowCounterClockwise, ShieldCheck, X } from "@phosphor-icons/react";
+import {
+  ArrowCounterClockwise,
+  ArrowDown,
+  ArrowUp,
+  Plus,
+  ShieldCheck,
+  Trash,
+  X
+} from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { WidgetDataPreset } from "./widget-registry";
@@ -23,14 +31,21 @@ interface WidgetDisplaySettingsDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly open: boolean;
   readonly presentationConfig: WidgetProjection["presentationConfig"];
+  readonly resourceMaxItems?: number;
   readonly resourceOptions?: readonly WidgetDataResourceOption[];
+  readonly resourceSelectionMode?: "gallery" | "single";
 }
 
 export interface WidgetDataResourceOption {
   readonly label: string;
   readonly resourceId: string;
   readonly source:
-    "weekly_track" | "all_time_track" | "created_playlist" | "medal" | "provider_music_card";
+    | "weekly_track"
+    | "all_time_track"
+    | "created_playlist"
+    | "medal"
+    | "listening_duration"
+    | "provider_music_card";
 }
 
 export function WidgetDisplaySettingsDialog({
@@ -43,7 +58,9 @@ export function WidgetDisplaySettingsDialog({
   onOpenChange,
   open,
   presentationConfig,
-  resourceOptions = []
+  resourceMaxItems = 1,
+  resourceOptions = [],
+  resourceSelectionMode = "single"
 }: WidgetDisplaySettingsDialogProps) {
   const [resourceQuery, setResourceQuery] = useState("");
   const visibleResources = filterResourceOptions(resourceOptions, resourceQuery);
@@ -122,40 +139,51 @@ export function WidgetDisplaySettingsDialog({
                 type="search"
                 value={resourceQuery}
               />
-              <select
-                aria-label="选择展示资源"
-                className="mt-3 h-10 w-full rounded-xl border border-white bg-white/90 px-3 text-xs font-bold text-ink"
-                onChange={(event) => {
-                  const selected = resourceOptions.find(
-                    (option) => `${option.source}:${option.resourceId}` === event.target.value
-                  );
-                  if (!selected) return;
-                  onDataConfigChange({
-                    ...dataConfig,
-                    resourceId: selected.resourceId,
-                    source: selected.source
-                  });
-                }}
-                value={
-                  typeof dataConfig.source === "string" && typeof dataConfig.resourceId === "string"
-                    ? `${dataConfig.source}:${dataConfig.resourceId}`
-                    : ""
-                }
-              >
-                <option value="">使用所选策略的第一项</option>
-                {resourceGroups.map((group) => (
-                  <optgroup key={group.source} label={group.label}>
-                    {group.options.map((option) => (
-                      <option
-                        key={`${option.source}:${option.resourceId}`}
-                        value={`${option.source}:${option.resourceId}`}
-                      >
-                        {option.label.replace(/^.*? · /, "")}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              {resourceSelectionMode === "gallery" ? (
+                <GalleryResourceEditor
+                  dataConfig={dataConfig}
+                  groups={resourceGroups}
+                  maxItems={resourceMaxItems}
+                  onChange={onDataConfigChange}
+                  options={resourceOptions}
+                />
+              ) : (
+                <select
+                  aria-label="选择展示资源"
+                  className="mt-3 h-10 w-full rounded-xl border border-white bg-white/90 px-3 text-xs font-bold text-ink"
+                  onChange={(event) => {
+                    const selected = resourceOptions.find(
+                      (option) => `${option.source}:${option.resourceId}` === event.target.value
+                    );
+                    if (!selected) return;
+                    onDataConfigChange({
+                      ...dataConfig,
+                      resourceId: selected.resourceId,
+                      source: selected.source
+                    });
+                  }}
+                  value={
+                    typeof dataConfig.source === "string" &&
+                    typeof dataConfig.resourceId === "string"
+                      ? `${dataConfig.source}:${dataConfig.resourceId}`
+                      : ""
+                  }
+                >
+                  <option value="">使用所选策略的第一项</option>
+                  {resourceGroups.map((group) => (
+                    <optgroup key={group.source} label={group.label}>
+                      {group.options.map((option) => (
+                        <option
+                          key={`${option.source}:${option.resourceId}`}
+                          value={`${option.source}:${option.resourceId}`}
+                        >
+                          {resourceName(option)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              )}
               {resourceQuery && visibleResources.length === 0 ? (
                 <span className="mt-2 block text-[9px] font-semibold text-amber-700">
                   当前数据目录中没有匹配资源
@@ -257,6 +285,177 @@ export function WidgetDisplaySettingsDialog({
   );
 }
 
+function GalleryResourceEditor({
+  dataConfig,
+  groups,
+  maxItems,
+  onChange,
+  options
+}: {
+  readonly dataConfig: WidgetProjection["dataConfig"];
+  readonly groups: ReturnType<typeof groupResourceOptions>;
+  readonly maxItems: number;
+  readonly onChange: (config: WidgetProjection["dataConfig"]) => void;
+  readonly options: readonly WidgetDataResourceOption[];
+}) {
+  const selected = gallerySelections(dataConfig.selections).slice(0, maxItems);
+  const selectedKeys = new Set(selected.map(selectionKey));
+  const update = (next: readonly ResourceSelection[]) =>
+    onChange({ ...dataConfig, selections: next.slice(0, maxItems) });
+
+  return (
+    <div className="mt-3 space-y-3">
+      <section className="rounded-2xl border border-white bg-white/65 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] font-extrabold text-ink">已入展</p>
+          <span className="rounded-full bg-blue-100 px-2 py-1 text-[9px] font-black text-blue-700">
+            {selected.length} / {maxItems}
+          </span>
+        </div>
+        {selected.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-dashed border-blue-200 px-3 py-4 text-center text-[9px] font-semibold text-ink-muted">
+            展柜为空。请从下方选择 1～{maxItems} 项音乐内容。
+          </p>
+        ) : (
+          <div className="mt-2 space-y-1.5">
+            {selected.map((selection, index) => {
+              const option = options.find(
+                (candidate) => resourceOptionKey(candidate) === selectionKey(selection)
+              );
+              return (
+                <div
+                  className="flex items-center gap-2 rounded-xl border border-blue-50 bg-white/85 px-2.5 py-2"
+                  key={selectionKey(selection)}
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[9px] font-black text-blue-700">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[10px] font-bold text-ink">
+                    {option?.label ?? selection.resourceId}
+                  </span>
+                  <button
+                    aria-label={`上移 ${option?.label ?? selection.resourceId}`}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-25"
+                    disabled={index === 0}
+                    onClick={() => update(moveSelection(selected, index, index - 1))}
+                    type="button"
+                  >
+                    <ArrowUp aria-hidden size={13} weight="bold" />
+                  </button>
+                  <button
+                    aria-label={`下移 ${option?.label ?? selection.resourceId}`}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-25"
+                    disabled={index === selected.length - 1}
+                    onClick={() => update(moveSelection(selected, index, index + 1))}
+                    type="button"
+                  >
+                    <ArrowDown aria-hidden size={13} weight="bold" />
+                  </button>
+                  <button
+                    aria-label={`移出展柜 ${option?.label ?? selection.resourceId}`}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
+                    onClick={() => update(selected.filter((_, candidate) => candidate !== index))}
+                    type="button"
+                  >
+                    <Trash aria-hidden size={13} weight="bold" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-white bg-white/45 p-3">
+        {groups.map((group) => (
+          <div key={group.source}>
+            <p className="mb-1.5 text-[9px] font-extrabold tracking-[0.08em] text-ink-muted uppercase">
+              {group.label}
+            </p>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {group.options.map((option) => {
+                const key = resourceOptionKey(option);
+                const isSelected = selectedKeys.has(key);
+                return (
+                  <button
+                    className={
+                      isSelected
+                        ? "flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-left text-[9px] font-bold text-emerald-800"
+                        : "flex min-h-10 items-center gap-2 rounded-xl border border-white bg-white/75 px-3 text-left text-[9px] font-bold text-ink transition hover:border-blue-200 hover:bg-blue-50 disabled:opacity-40"
+                    }
+                    disabled={isSelected || selected.length >= maxItems}
+                    key={key}
+                    onClick={() =>
+                      update([
+                        ...selected,
+                        { resourceId: option.resourceId, source: option.source }
+                      ])
+                    }
+                    type="button"
+                  >
+                    <Plus aria-hidden className="shrink-0" size={12} weight="bold" />
+                    <span className="line-clamp-2">{resourceName(option)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+interface ResourceSelection {
+  readonly resourceId: string;
+  readonly source: WidgetDataResourceOption["source"];
+}
+
+function gallerySelections(value: unknown): readonly ResourceSelection[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) return [];
+    const record = candidate as Record<string, unknown>;
+    if (typeof record.resourceId !== "string" || !isResourceSource(record.source)) return [];
+    return [{ resourceId: record.resourceId, source: record.source }];
+  });
+}
+
+function isResourceSource(value: unknown): value is WidgetDataResourceOption["source"] {
+  return [
+    "weekly_track",
+    "all_time_track",
+    "created_playlist",
+    "medal",
+    "listening_duration",
+    "provider_music_card"
+  ].includes(typeof value === "string" ? value : "");
+}
+
+function selectionKey(selection: ResourceSelection) {
+  return `${selection.source}:${selection.resourceId}`;
+}
+
+function resourceOptionKey(option: WidgetDataResourceOption) {
+  return `${option.source}:${option.resourceId}`;
+}
+
+function resourceName(option: WidgetDataResourceOption) {
+  return option.label.replace(/^.*? · /, "");
+}
+
+function moveSelection(
+  selections: readonly ResourceSelection[],
+  from: number,
+  to: number
+): readonly ResourceSelection[] {
+  if (to < 0 || to >= selections.length) return selections;
+  const next = [...selections];
+  const [selection] = next.splice(from, 1);
+  if (selection) next.splice(to, 0, selection);
+  return next;
+}
+
 function filterResourceOptions(options: readonly WidgetDataResourceOption[], query: string) {
   const normalized = query.trim().toLocaleLowerCase("zh-CN");
   if (normalized) {
@@ -277,6 +476,7 @@ function groupResourceOptions(options: readonly WidgetDataResourceOption[]) {
   const labels: Record<WidgetDataResourceOption["source"], string> = {
     all_time_track: "全部时间排行",
     created_playlist: "创建歌单",
+    listening_duration: "听歌数据",
     medal: "乐迷徽章",
     provider_music_card: "Provider 原生音乐卡片",
     weekly_track: "最近一周排行"

@@ -247,6 +247,15 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
       };
     }
     case "music.netease.ranking":
+      if (configuration.schemaVersion === 2) {
+        return {
+          allTime: { availability: "unavailable", reason: "not_synced" },
+          provider: "netease",
+          publicLimit: 12,
+          publicRanges: ["week", "all_time"],
+          week: { availability: "unavailable", reason: "not_synced" }
+        };
+      }
       return {
         availability: "available",
         coverage: "provider_top_100",
@@ -278,6 +287,9 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
         publicLimit: 0
       };
     case "music.netease.showcase":
+      if (configuration.schemaVersion === 2) {
+        return { availability: "available", items: [], maxItems: 6, provider: "netease" };
+      }
       return {
         availability: "unavailable",
         provider: "netease",

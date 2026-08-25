@@ -143,6 +143,7 @@ Application startup never creates tables. Seed is idempotent, development-only, 
 - `004`: Owner Auth/session, AEAD credentials, NetEase native tables, `source_kind`, config split, and NetEase Widget v2 upgrade.
 - `005`: encrypted, expiring Provider AuthAttempt state for QR and SMS login.
 - `006`: Owner-only Provider data catalog plus total-duration native metric support.
+- `007`: immutable current-Revision upgrade from single-range ranking/single-item pseudo-showcase to dual ranking and a manually curated six-item gallery.
 
 Migration rollback and user-facing Revision Restore are unrelated operations. Migration `004` preserves v1 history and creates immutable `schema_upgrade` successors for current NetEase Widget configurations.
 
@@ -178,6 +179,8 @@ pnpm test:provider
 The NetEase integration is deliberately read-only but now covers account/profile identity, level progress, VIP tiers, Provider-reported cumulative listening duration, weekly and all-time rankings, recent songs, weekly listening reports, bounded following/follower lists, created playlists, social status, and obtained/worn badges. It performs no Provider write, password login, IP spoofing, proxy rotation, or region bypass.
 
 After one successful sync, Settings exposes an authenticated **网易云完整数据** catalog. This is a normalized allowlist—not Raw Snapshot data—and never includes credentials, headers, login IPs, or other private Provider fields. Owner edit mode offers semantic public policies for NetEase identity, listening, ranking, social, playlist, and showcase cards. Public scope is enforced while building the Projection; display-only switches are not treated as privacy controls.
+
+The preferred ranking card contains both the recent-week and all-time Provider rankings and switches locally between them. The preferred music showcase is an explicitly ordered gallery of at most six items selected from the Owner catalog; it never auto-promotes the first listening-history record. Nivalis does not claim to mirror the Provider's own homepage arrangement until that read-only endpoint is independently validated.
 
 ## Test database and quality gates
 

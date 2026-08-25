@@ -68,6 +68,46 @@ test("resizes a module and persists the draft layout locally", async ({ page, is
   expect(persisted).toContain("manualOverrides");
 });
 
+test("keeps neighboring cards still while dragging and settles only after release", async ({
+  page,
+  isMobile
+}) => {
+  test.skip(isMobile, "Desktop grid has adjacent cards suitable for a collision swap");
+  await page.getByRole("button", { name: "编辑视图" }).click();
+  const dragged = page
+    .locator(".react-grid-item")
+    .filter({ has: page.getByRole("region", { name: /^累计运行天数/ }) });
+  const target = page
+    .locator(".react-grid-item")
+    .filter({ has: page.getByRole("region", { name: /^接入平台数/ }) });
+  const handle = dragged.getByRole("button", { name: /^拖动/ });
+  const [draggedBefore, handleBox, targetBefore] = await Promise.all([
+    dragged.boundingBox(),
+    handle.boundingBox(),
+    target.boundingBox()
+  ]);
+  expect(draggedBefore).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+  expect(targetBefore).not.toBeNull();
+
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    handleBox!.x + handleBox!.width / 2 + targetBefore!.x - draggedBefore!.x,
+    handleBox!.y + handleBox!.height / 2 + targetBefore!.y - draggedBefore!.y,
+    { steps: 12 }
+  );
+  const targetDuring = await target.boundingBox();
+  expect(targetDuring).not.toBeNull();
+  expect(Math.abs(targetDuring!.x - targetBefore!.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(targetDuring!.y - targetBefore!.y)).toBeLessThanOrEqual(1);
+
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await target.boundingBox())?.x)
+    .not.toBeCloseTo(targetBefore!.x, 0);
+});
+
 test("mobile layout remains within the viewport", async ({ page, isMobile }) => {
   test.skip(!isMobile, "Mobile project only");
   const overflow = await page.evaluate(
