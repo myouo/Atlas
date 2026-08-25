@@ -14,6 +14,7 @@ const INTERFACE_ORIGIN = "https://interface.music.163.com";
 const WEAPI_IV = Buffer.from("0102030405060708");
 const WEAPI_PRESET_KEY = Buffer.from("0CoJUm6Qyw8W8jud");
 const EAPI_KEY = Buffer.from("e82ckenh8dichen8");
+const ANDROID_APP_VERSION = "9.5.70";
 const BASE62 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const WEAPI_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDgtQn2JZ34ZC28NWYpAUd98iZ37BUrX/aKzmFbt7clFSs6sXqHauqKWqdtLkF2KexO40H1YTX8z2lSgBBOAxLsvaklV8k4cBFK9snQXE9/DDaFt6Rr7iVZMldczhC0JNgTz+SHXT6CBHuX3e9SdB1Ua44oncaTWz7OBGLbCiK45wIDAQAB
@@ -59,7 +60,9 @@ export class NeteaseClient {
     return this.eapi(
       "/api/personal/home/page/user",
       { userId: Number.isSafeInteger(numericUserId) ? numericUserId : userId },
-      credential
+      credential,
+      "/api/personal/home/page/user",
+      "android"
     );
   }
 
@@ -164,15 +167,17 @@ export class NeteaseClient {
     data: JsonObject,
     credential = "",
     acceptedProviderCodes: ReadonlySet<number> = new Set([200]),
-    signingPath = path
+    signingPath = path,
+    clientProfile: "android" | "pc" = "pc"
   ) {
     const header = {
       __csrf: "",
-      appver: "3.1.17.204416",
+      appver: clientProfile === "android" ? ANDROID_APP_VERSION : "3.1.17.204416",
       buildver: String(Math.floor(Date.now() / 1_000)),
       channel: "netease",
-      os: "pc",
-      osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
+      os: clientProfile,
+      osver:
+        clientProfile === "android" ? "15" : "Microsoft-Windows-10-Professional-build-19045-64bit",
       ...(credential ? { MUSIC_U: credential } : {})
     };
     const encrypted = encryptEapi(signingPath, { ...data, header });
@@ -180,8 +185,11 @@ export class NeteaseClient {
       new URL(path.replace("/api/", "/eapi/"), INTERFACE_ORIGIN),
       encrypted,
       credential,
-      {},
-      acceptedProviderCodes
+      clientProfile === "android"
+        ? { "user-agent": `NeteaseMusic/${ANDROID_APP_VERSION} (Linux; Android 15)` }
+        : {},
+      acceptedProviderCodes,
+      clientProfile
     );
   }
 
@@ -189,8 +197,16 @@ export class NeteaseClient {
     return (await this.weapiResponse(path, data, credential)).payload;
   }
 
-  private async eapi(path: string, data: JsonObject, credential: string, signingPath = path) {
-    return (await this.eapiResponse(path, data, credential, new Set([200]), signingPath)).payload;
+  private async eapi(
+    path: string,
+    data: JsonObject,
+    credential: string,
+    signingPath = path,
+    clientProfile: "android" | "pc" = "pc"
+  ) {
+    return (
+      await this.eapiResponse(path, data, credential, new Set([200]), signingPath, clientProfile)
+    ).payload;
   }
 
   private async request(
@@ -198,7 +214,8 @@ export class NeteaseClient {
     body: Record<string, string>,
     credential: string,
     extraHeaders: Record<string, string> = {},
-    acceptedProviderCodes: ReadonlySet<number> = new Set([200])
+    acceptedProviderCodes: ReadonlySet<number> = new Set([200]),
+    clientProfile: "android" | "pc" = "pc"
   ): Promise<NeteaseTransportResponse> {
     let response: Response;
     try {
@@ -206,7 +223,7 @@ export class NeteaseClient {
         body: new URLSearchParams(body),
         headers: {
           "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-          cookie: credentialCookie(credential),
+          cookie: credentialCookie(credential, clientProfile),
           "user-agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36",
           ...extraHeaders
@@ -298,11 +315,11 @@ function randomSecret() {
   return Array.from(bytes, (byte) => BASE62[byte % BASE62.length]).join("");
 }
 
-function credentialCookie(credential: string) {
+function credentialCookie(credential: string, clientProfile: "android" | "pc") {
   return [
     ...(credential ? [`MUSIC_U=${credential}`] : []),
-    "os=pc",
-    "appver=3.1.17.204416",
+    `os=${clientProfile}`,
+    `appver=${clientProfile === "android" ? ANDROID_APP_VERSION : "3.1.17.204416"}`,
     "__remember_me=true"
   ].join("; ");
 }

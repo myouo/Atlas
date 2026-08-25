@@ -365,6 +365,19 @@ describe("NetEase Provider module", () => {
       expect(request.headers.has("x-real-ip")).toBe(false);
       expect(request.headers.has("authorization")).toBe(false);
     }
+
+    const showcaseRequest = requests.find((request) =>
+      new URL(request.url).pathname.includes("personal/home/page/user")
+    );
+    expect(showcaseRequest?.headers.get("user-agent")).toContain("NeteaseMusic/9.5.70");
+    expect(showcaseRequest?.headers.get("cookie")).toContain("os=android");
+    expect(showcaseRequest?.headers.get("cookie")).toContain("appver=9.5.70");
+
+    const profileHomeRequest = requests.find((request) =>
+      new URL(request.url).pathname.includes("w/v1/user/detail")
+    );
+    expect(profileHomeRequest?.headers.get("user-agent")).toContain("Mozilla/5.0");
+    expect(profileHomeRequest?.headers.get("cookie")).toContain("os=pc");
   });
 
   it("invokes the default Fetch transport with the runtime global receiver", async () => {
