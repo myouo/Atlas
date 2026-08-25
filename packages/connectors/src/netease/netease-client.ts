@@ -11,10 +11,12 @@ import { NETEASE_CREDENTIAL_CODES, NETEASE_RETRYABLE_CODES } from "./errors";
 
 const MUSIC_ORIGIN = "https://music.163.com";
 const INTERFACE_ORIGIN = "https://interface.music.163.com";
+const MOBILE_INTERFACE_ORIGIN = "https://interface3.music.163.com";
 const WEAPI_IV = Buffer.from("0102030405060708");
 const WEAPI_PRESET_KEY = Buffer.from("0CoJUm6Qyw8W8jud");
 const EAPI_KEY = Buffer.from("e82ckenh8dichen8");
 const ANDROID_APP_VERSION = "9.5.70";
+const ANDROID_VERSION_CODE = "9005070";
 const BASE62 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const WEAPI_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDgtQn2JZ34ZC28NWYpAUd98iZ37BUrX/aKzmFbt7clFSs6sXqHauqKWqdtLkF2KexO40H1YTX8z2lSgBBOAxLsvaklV8k4cBFK9snQXE9/DDaFt6Rr7iVZMldczhC0JNgTz+SHXT6CBHuX3e9SdB1Ua44oncaTWz7OBGLbCiK45wIDAQAB
@@ -65,7 +67,8 @@ export class NeteaseClient {
       },
       credential,
       "/api/personal/home/page/user",
-      "android"
+      "android",
+      MOBILE_INTERFACE_ORIGIN
     );
   }
 
@@ -171,13 +174,22 @@ export class NeteaseClient {
     credential = "",
     acceptedProviderCodes: ReadonlySet<number> = new Set([200]),
     signingPath = path,
-    clientProfile: "android" | "pc" = "pc"
+    clientProfile: "android" | "pc" = "pc",
+    origin = INTERFACE_ORIGIN
   ) {
     const header = {
       __csrf: "",
       appver: clientProfile === "android" ? ANDROID_APP_VERSION : "3.1.17.204416",
       buildver: String(Math.floor(Date.now() / 1_000)),
       channel: "netease",
+      ...(clientProfile === "android"
+        ? {
+            mobilename: "",
+            requestId: createRequestId(),
+            resolution: "1920x1080",
+            versioncode: ANDROID_VERSION_CODE
+          }
+        : {}),
       os: clientProfile,
       osver:
         clientProfile === "android" ? "15" : "Microsoft-Windows-10-Professional-build-19045-64bit",
@@ -185,11 +197,14 @@ export class NeteaseClient {
     };
     const encrypted = encryptEapi(signingPath, { ...data, header });
     return this.request(
-      new URL(path.replace("/api/", "/eapi/"), INTERFACE_ORIGIN),
+      new URL(path.replace("/api/", "/eapi/"), origin),
       encrypted,
       credential,
       clientProfile === "android"
-        ? { "user-agent": `NeteaseMusic/${ANDROID_APP_VERSION} (Linux; Android 15)` }
+        ? {
+            cookie: eapiHeaderCookie(header),
+            "user-agent": `NeteaseMusic/${ANDROID_APP_VERSION} (${ANDROID_VERSION_CODE}); Linux; Android 15`
+          }
         : {},
       acceptedProviderCodes,
       clientProfile
@@ -205,10 +220,19 @@ export class NeteaseClient {
     data: JsonObject,
     credential: string,
     signingPath = path,
-    clientProfile: "android" | "pc" = "pc"
+    clientProfile: "android" | "pc" = "pc",
+    origin = INTERFACE_ORIGIN
   ) {
     return (
-      await this.eapiResponse(path, data, credential, new Set([200]), signingPath, clientProfile)
+      await this.eapiResponse(
+        path,
+        data,
+        credential,
+        new Set([200]),
+        signingPath,
+        clientProfile,
+        origin
+      )
     ).payload;
   }
 
@@ -325,6 +349,18 @@ function credentialCookie(credential: string, clientProfile: "android" | "pc") {
     `appver=${clientProfile === "android" ? ANDROID_APP_VERSION : "3.1.17.204416"}`,
     "__remember_me=true"
   ].join("; ");
+}
+
+function eapiHeaderCookie(header: object) {
+  return Object.entries(header)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join("; ");
+}
+
+function createRequestId() {
+  const bytes = randomBytes(2);
+  const suffix = ((((bytes[0] ?? 0) << 8) | (bytes[1] ?? 0)) % 1_000).toString().padStart(4, "0");
+  return `${Date.now()}_${suffix}`;
 }
 
 function responseCookies(headers: Headers): readonly string[] {

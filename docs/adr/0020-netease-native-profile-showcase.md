@@ -21,7 +21,10 @@ rank data.
 
 1. `NeteaseConnector` requests `/api/personal/home/page/user` through the existing credential-bound
    read-only EAPI client and stores the sanitized payload as immutable
-   `netease.profile_showcase` Raw evidence.
+   `netease.profile_showcase` Raw evidence. This route uses the current Android profile contract:
+   `newStyle=true`, the mobile `interface3` API host, and mutually consistent version/request
+   metadata in both the transport Cookie and encrypted EAPI header. It does not synthesize a device
+   identifier or spoof a client IP.
 2. The runtime validator checks the response envelope. If `PERSONAL_SHOWCASE` exists, every
    creative must use a known creative type and valid resource structure; unknown variants fail as
    schema drift instead of becoming fake empty data.
@@ -55,3 +58,5 @@ rank data.
   validation/fetch failures.
 - The source is an undocumented external interface and must remain fixture-tested and capability
   bounded.
+- Mobile host and version metadata remain Connector-local compatibility details and may need an
+  isolated update when the Provider changes its client routing.

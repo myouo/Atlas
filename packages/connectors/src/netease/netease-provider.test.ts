@@ -362,7 +362,9 @@ describe("NetEase Provider module", () => {
     expect(requests).toHaveLength(16);
     for (const request of requests) {
       expect(request.method).toBe("POST");
-      expect(["music.163.com", "interface.music.163.com"]).toContain(new URL(request.url).hostname);
+      expect(["music.163.com", "interface.music.163.com", "interface3.music.163.com"]).toContain(
+        new URL(request.url).hostname
+      );
       expect(request.headers.get("cookie")).toContain(`MUSIC_U=${secret}`);
       expect(request.headers.has("x-real-ip")).toBe(false);
       expect(request.headers.has("authorization")).toBe(false);
@@ -374,8 +376,15 @@ describe("NetEase Provider module", () => {
     expect(showcaseRequest?.headers.get("user-agent")).toContain("NeteaseMusic/9.5.70");
     expect(showcaseRequest?.headers.get("cookie")).toContain("os=android");
     expect(showcaseRequest?.headers.get("cookie")).toContain("appver=9.5.70");
+    expect(showcaseRequest?.headers.get("cookie")).toContain("versioncode=9005070");
+    expect(new URL(showcaseRequest!.url).hostname).toBe("interface3.music.163.com");
     await expect(decodeEapiRequest(showcaseRequest!)).resolves.toMatchObject({
-      header: { appver: "9.5.70", os: "android" },
+      header: {
+        appver: "9.5.70",
+        os: "android",
+        requestId: expect.any(String),
+        versioncode: "9005070"
+      },
       newStyle: true,
       userId: 10001
     });
