@@ -1,3 +1,5 @@
+import { createDecipheriv } from "node:crypto";
+
 import {
   ProviderCredentialError,
   ProviderSchemaMismatchError,
@@ -372,6 +374,11 @@ describe("NetEase Provider module", () => {
     expect(showcaseRequest?.headers.get("user-agent")).toContain("NeteaseMusic/9.5.70");
     expect(showcaseRequest?.headers.get("cookie")).toContain("os=android");
     expect(showcaseRequest?.headers.get("cookie")).toContain("appver=9.5.70");
+    await expect(decodeEapiRequest(showcaseRequest!)).resolves.toMatchObject({
+      header: { appver: "9.5.70", os: "android" },
+      newStyle: true,
+      userId: 10001
+    });
 
     const profileHomeRequest = requests.find((request) =>
       new URL(request.url).pathname.includes("w/v1/user/detail")
@@ -582,4 +589,22 @@ function payloadForPath(pathname: string) {
     return normalNeteaseFixture[NETEASE_SOURCE.socialStatus];
   }
   return { code: 404 };
+}
+
+async function decodeEapiRequest(request: Request) {
+  const body = new URLSearchParams(await request.text());
+  const encrypted = body.get("params");
+  if (!encrypted) throw new Error("Expected encrypted EAPI params.");
+  const decipher = createDecipheriv(
+    "aes-128-ecb",
+    Buffer.from("e82ckenh8dichen8"),
+    Buffer.alloc(0)
+  );
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(encrypted, "hex")),
+    decipher.final()
+  ]).toString();
+  const [, json] = plaintext.split("-36cd479b6b5-");
+  if (!json) throw new Error("Expected a signed EAPI payload.");
+  return JSON.parse(json) as JsonObject;
 }

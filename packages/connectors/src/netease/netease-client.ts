@@ -59,7 +59,10 @@ export class NeteaseClient {
     const numericUserId = Number(userId);
     return this.eapi(
       "/api/personal/home/page/user",
-      { userId: Number.isSafeInteger(numericUserId) ? numericUserId : userId },
+      {
+        newStyle: true,
+        userId: Number.isSafeInteger(numericUserId) ? numericUserId : userId
+      },
       credential,
       "/api/personal/home/page/user",
       "android"
