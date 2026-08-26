@@ -1,5 +1,6 @@
 export * from "./fixture/fixture-provider";
 export * from "./netease/netease-client";
+export * from "./netease/netease-music-cards-probe";
 export * from "./netease/netease-auth-client";
 export * from "./netease/fixtures";
 export * from "./netease/netease-connector";

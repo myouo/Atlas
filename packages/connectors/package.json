@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "probe:netease-music-cards": "node --import tsx scripts/probe-netease-music-cards.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

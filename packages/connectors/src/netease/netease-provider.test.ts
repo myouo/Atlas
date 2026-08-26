@@ -23,6 +23,7 @@ import { NeteaseClient } from "./netease-client";
 import { NeteaseAuthClient } from "./netease-auth-client";
 import { NeteaseConnector, sanitizeNeteasePayload } from "./netease-connector";
 import { NeteaseNormalizer } from "./netease-normalizer";
+import { probeNeteaseMusicCards } from "./netease-music-cards-probe";
 import { NeteaseProjector, buildNeteaseOwnerDataCatalog } from "./netease-projector";
 import {
   NETEASE_SOURCE,
@@ -35,6 +36,26 @@ const connectionId = "00000000-0000-4000-8000-000000000501";
 const secret = "private-cookie-value-for-tests";
 
 describe("NetEase Provider module", () => {
+  it("probes the real music-card path without API, Worker, Queue, or database infrastructure", async () => {
+    const result = await probeNeteaseMusicCards(
+      new NeteaseClient({ timeoutMs: 2_000 }, createNeteaseHttpFixtureFetcher("normal")),
+      secret
+    );
+
+    expect(result).toMatchObject({ cardLimit: 6, open: true, songDetailsResolved: 5 });
+    expect(result.cards).toHaveLength(6);
+    expect(result.cards[0]).toMatchObject({
+      resourceType: "song_rank",
+      subtitle: null,
+      title: "听歌排行"
+    });
+    expect(result.cards[1]).toMatchObject({
+      artists: ["Aimer"],
+      resourceType: "song",
+      subtitle: "Aimer"
+    });
+  });
+
   it("acquires MUSIC_U through QR and SMS without returning a full Cookie collection", async () => {
     const qrClient = new NeteaseAuthClient(
       { timeoutMs: 2_000 },

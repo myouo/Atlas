@@ -40,6 +40,7 @@
     "lint:openapi": "redocly lint openapi/nivalis.openapi.yaml",
     "lint:secrets": "node scripts/check-secrets.mjs",
     "provider:replay": "pnpm --filter @nivalis/worker provider:replay",
+    "test:netease:cards": "pnpm --filter @nivalis/connectors probe:netease-music-cards",
     "preview:edge": "wrangler dev --config infra/providers/cloudflare/edge/wrangler.jsonc",
     "test": "vitest run",
     "test:contract": "vitest run --config vitest.integration.config.ts --testNamePattern contract",

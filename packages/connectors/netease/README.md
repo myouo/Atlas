@@ -7,3 +7,8 @@ The module is intentionally read-only and capability-bounded. It covers account/
 Interactive credential acquisition supports QR scan and SMS OTP through `NeteaseAuthClient`. It returns only semantic status or one in-memory `MUSIC_U` candidate to the Worker. Full Cookies, phone numbers, OTP values, and QR private state are not Raw Snapshot data.
 
 It does not implement password login, Provider writes, IP spoofing, proxy rotation, region bypass, playback unlocking, or a community API runtime service. See ADR 0012, ADR 0013, ADR 0014, and ADR 0020.
+
+The focused `pnpm test:netease:cards` probe reads an ignored root `.env.local`, invokes only the
+production account, Exhibition Window, and song-detail client paths, validates each response, and
+prints a sanitized title/artist summary. `--fixture` runs the same path without credentials or any
+database/runtime service. This is the required pre-deployment check for music-card changes.

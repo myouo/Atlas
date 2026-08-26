@@ -165,6 +165,29 @@ Commit updates Native/Projection data in one transaction. Replay never creates a
 
 ## Optional real Provider test
 
+For fast music-card verification, no database, API, Worker, Queue, migration, or deployment is
+required. Put the credential only in the ignored repository-root `.env.local`:
+
+```dotenv
+NETEASE_INTEGRATION_MUSIC_U=<MUSIC_U value only>
+```
+
+Then run the focused probe:
+
+```bash
+pnpm test:netease:cards
+```
+
+It reuses the production `NeteaseClient` and Runtime Schemas, calls only account, Exhibition Window,
+and batched song-detail reads, and prints a sanitized ordered summary containing titles and artists.
+It never prints IDs, URLs, Raw payloads, or the credential. A database-free deterministic check is:
+
+```bash
+pnpm test:netease:cards --fixture
+```
+
+Use this probe before deploying any future music-card transport or normalization change.
+
 Ordinary CI uses sanitized fixtures only. A real read-only contract test runs only when both variables are supplied explicitly outside Git:
 
 ```dotenv
