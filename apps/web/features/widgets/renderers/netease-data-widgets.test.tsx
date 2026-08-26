@@ -161,9 +161,12 @@ describe("NetEase semantic data widgets", () => {
   });
 
   it("renders following and followers as separate views with separate entrances", () => {
-    const { rerender } = render(<NeteaseSocialWidget widget={socialWidget("following")} />);
+    const { container, rerender } = render(
+      <NeteaseSocialWidget widget={socialWidget("following")} />
+    );
     expect(screen.getByText("关注")).toBeInTheDocument();
     expect(screen.queryByText("粉丝")).not.toBeInTheDocument();
+    expect(container.querySelector(".netease-social .netease-stat")).toBeNull();
     expect(screen.getByRole("link", { name: "在网易云查看关注" })).toHaveAttribute(
       "href",
       "https://music.163.com/user/follows?id=10001"

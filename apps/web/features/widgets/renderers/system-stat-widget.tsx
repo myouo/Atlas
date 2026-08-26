@@ -23,7 +23,7 @@ export function SystemStatWidget({ widget }: Readonly<{ widget: WidgetOf<"system
   const showIcon = presentationToggle(widget.presentationConfig, "showIcon");
 
   return (
-    <div className="flex h-full items-center justify-between gap-3 px-5 py-4 sm:px-6">
+    <div className="system-stat flex h-full items-center justify-between gap-3 px-5 py-4">
       <div className="min-w-0">
         {showLabel ? (
           <p className="truncate text-[11px] font-semibold tracking-wide text-ink-muted">
@@ -31,7 +31,7 @@ export function SystemStatWidget({ widget }: Readonly<{ widget: WidgetOf<"system
           </p>
         ) : null}
         {showValue ? (
-          <p className="mt-2 flex items-baseline gap-1 text-2xl font-extrabold tracking-[-0.03em] text-ink sm:text-[28px]">
+          <p className="system-stat-value mt-2 flex items-baseline gap-1 text-[28px] font-extrabold tracking-[-0.03em] text-ink">
             {value}
             {showUnit ? (
               <span className="text-xs font-bold text-ink-muted">{presentation.suffix}</span>
@@ -40,7 +40,7 @@ export function SystemStatWidget({ widget }: Readonly<{ widget: WidgetOf<"system
         ) : null}
       </div>
       {showIcon ? (
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white/60 text-blue-500 shadow-sm">
+        <span className="system-stat-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white/60 text-blue-500 shadow-sm">
           <presentation.Icon aria-hidden size={28} weight="duotone" />
         </span>
       ) : null}

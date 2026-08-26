@@ -337,7 +337,7 @@ const localNeteaseWidgets = [
   {
     id: "00000000-0000-4000-8000-000000009202",
     schemaVersion: 1,
-    sizes: { lg: { h: 4, w: 4 }, md: { h: 4, w: 4 }, sm: { h: 6, w: 4 } },
+    sizes: { lg: { h: 5, w: 4 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
     type: "music.netease.identity"
   },
   {

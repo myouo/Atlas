@@ -14,12 +14,12 @@ export function ProfileHeroWidget({ widget }: Readonly<{ widget: WidgetOf<"profi
   const showBadge = presentationToggle(widget.presentationConfig, "showBadge");
 
   return (
-    <div className="flex h-full items-center gap-4 px-5 py-3 sm:px-6">
+    <div className="profile-hero flex h-full items-center gap-4 px-5 py-3">
       {showAvatar ? (
         <div className="relative shrink-0">
           <Image
             alt={`${data.displayName} 的头像`}
-            className="h-[80px] w-[80px] rounded-full border-[4px] border-white/85 object-cover shadow-[0_10px_25px_rgba(27,93,171,0.2)] sm:h-[96px] sm:w-[96px]"
+            className="profile-hero-avatar h-[96px] w-[96px] rounded-full border-[4px] border-white/85 object-cover shadow-[0_10px_25px_rgba(27,93,171,0.2)]"
             height={160}
             priority
             src={data.avatarUrl}
@@ -58,7 +58,7 @@ export function ProfileHeroWidget({ widget }: Readonly<{ widget: WidgetOf<"profi
           </p>
         ) : null}
         {showTags ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="profile-hero-tags mt-3 flex flex-wrap gap-2">
             {data.tags.map((tag, index) => (
               <span
                 className={

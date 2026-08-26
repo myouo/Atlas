@@ -55,9 +55,9 @@ function Empty({ children }: { children: string }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/80 bg-white/48 px-3 py-2.5">
-      <p className="text-[9px] font-semibold text-ink-muted">{label}</p>
-      <p className="mt-1 text-base font-black text-ink">{value}</p>
+    <div className="netease-stat rounded-2xl border border-white/80 bg-white/48 px-3 py-2.5">
+      <p className="netease-stat-label text-[9px] font-semibold text-ink-muted">{label}</p>
+      <p className="netease-stat-value mt-1 text-base font-black text-ink">{value}</p>
     </div>
   );
 }
@@ -73,15 +73,15 @@ export function NeteaseIdentityWidget({
     profile.playlistCount === undefined ? null : ["歌单", profile.playlistCount]
   ].filter((item): item is [string, number] => item !== null);
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="netease-identity flex h-full min-h-0 flex-col gap-4">
       <NeteaseWebLink
-        className="flex min-w-0 items-center gap-4 rounded-2xl"
+        className="netease-identity-profile flex min-w-0 items-center gap-4 rounded-2xl"
         href={profile.webUrl}
         indicator
         label={`在网易云查看 ${displayName}`}
       >
         {profile.avatarUrl !== undefined ? (
-          <div className="relative">
+          <div className="netease-identity-avatar relative">
             <Artwork label={`${displayName} 的网易云头像`} size="lg" url={profile.avatarUrl} />
             {profile.avatarDecorationUrl ? (
               <span
@@ -97,7 +97,7 @@ export function NeteaseIdentityWidget({
           {profile.displayName !== undefined ? (
             <p className="truncate text-xl font-black tracking-[-0.03em] text-ink">{displayName}</p>
           ) : null}
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="netease-identity-badges mt-2 flex flex-wrap gap-1.5">
             {profile.level !== undefined && profile.level !== null ? (
               <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-extrabold text-blue-700">
                 Lv.{profile.level}
@@ -123,14 +123,19 @@ export function NeteaseIdentityWidget({
         </div>
       </NeteaseWebLink>
       {counts.length > 0 ? (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="netease-identity-counts flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-rose-100/65 pt-2.5">
           {counts.map(([label, value]) => (
-            <Stat key={label} label={label} value={value.toLocaleString("zh-CN")} />
+            <span className="netease-identity-count inline-flex items-baseline gap-1.5" key={label}>
+              <span className="text-base font-black text-[#ff4668]">
+                {value.toLocaleString("zh-CN")}
+              </span>
+              <span className="text-[9px] font-bold text-ink-muted">{label}</span>
+            </span>
           ))}
         </div>
       ) : null}
       {medals.availability === "available" && medals.items.length > 0 ? (
-        <div className="mt-auto flex items-center gap-2 overflow-hidden">
+        <div className="netease-identity-medals mt-auto flex items-center gap-2 overflow-hidden">
           <Medal aria-hidden className="shrink-0 text-amber-500" size={18} weight="duotone" />
           {medals.items.map((item) => (
             <span
@@ -170,14 +175,14 @@ export function NeteaseListeningWidget({
       : null
   ].filter((item): item is [string, string] => item !== null);
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="netease-listening flex h-full min-h-0 flex-col">
+      <div className="netease-listening-metrics grid grid-cols-2 gap-2">
         {metrics.map(([label, value]) => (
           <Stat key={label} label={label} value={value} />
         ))}
       </div>
       {trend.availability === "available" && trend.points.length > 0 ? (
-        <div className="mt-4 min-h-0 flex-1">
+        <div className="netease-listening-trend mt-4 min-h-0 flex-1">
           <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold text-ink-muted">
             <ClockCounterClockwise aria-hidden size={14} /> 周期收听分布
           </p>
@@ -245,15 +250,15 @@ function NeteaseRankingWidgetV2({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="inline-flex rounded-xl border border-white/90 bg-white/55 p-1 shadow-sm">
+      <div className="netease-ranking-toolbar mb-3 flex flex-wrap items-center gap-2">
+        <div className="netease-ranking-tabs inline-flex shrink-0 rounded-xl border border-white/90 bg-white/55 p-1 shadow-sm">
           {availableRanges.map((candidate) => (
             <button
               aria-pressed={range === candidate}
               className={
                 range === candidate
-                  ? "rounded-lg bg-[#ff4668] px-3 py-1.5 text-[10px] font-extrabold text-white shadow-sm transition"
-                  : "rounded-lg px-3 py-1.5 text-[10px] font-bold text-ink-muted transition hover:bg-white/75"
+                  ? "rounded-lg bg-[#ff4668] px-3 py-1.5 text-[10px] font-extrabold whitespace-nowrap text-white shadow-sm transition"
+                  : "rounded-lg px-3 py-1.5 text-[10px] font-bold whitespace-nowrap text-ink-muted transition hover:bg-white/75"
               }
               key={candidate}
               onClick={() => setRequestedRange(candidate)}
@@ -264,12 +269,12 @@ function NeteaseRankingWidgetV2({
           ))}
         </div>
         {selected.availability === "available" ? (
-          <span className="shrink-0 text-[9px] font-bold text-ink-muted">
+          <span className="netease-ranking-meta ml-auto shrink-0 text-[9px] font-bold text-ink-muted">
             已公开 {selected.items.length} / Provider {selected.totalAvailable}
           </span>
         ) : null}
         <NeteaseWebLink
-          className="inline-flex shrink-0 items-center rounded-full border border-white/75 bg-white/45 px-2.5 py-1 text-[9px] font-bold text-blue-700"
+          className="netease-ranking-web-link inline-flex shrink-0 items-center rounded-full border border-white/75 bg-white/45 px-2.5 py-1 text-[9px] font-bold whitespace-nowrap text-blue-700"
           href={widget.data.webUrl}
           label="在网易云查看听歌榜单"
         >
@@ -514,20 +519,25 @@ export function NeteaseSocialWidget({
         ? [followers]
         : [following, followers];
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className={sections.length === 1 ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
-        {sections.map(([label, count, , webUrl]) => (
-          <NeteaseWebLink
-            className="rounded-2xl"
-            href={webUrl}
-            indicator
-            key={label}
-            label={`在网易云查看${label}`}
-          >
-            <Stat label={label} value={count.toLocaleString("zh-CN")} />
-          </NeteaseWebLink>
-        ))}
-      </div>
+    <div className="netease-social flex h-full min-h-0 flex-col">
+      {sections.map(([label, count, , webUrl]) => (
+        <NeteaseWebLink
+          className="netease-social-entry flex items-end justify-between gap-4 border-b border-rose-100/70 px-1 pb-3"
+          href={webUrl}
+          key={label}
+          label={`在网易云查看${label}`}
+        >
+          <span>
+            <span className="block text-[10px] font-bold tracking-[0.08em] text-[#e83d5b]">
+              {label}
+            </span>
+            <span className="mt-1 block text-[28px] leading-none font-black tracking-[-0.04em] text-[#ff4668]">
+              {count.toLocaleString("zh-CN")}
+            </span>
+          </span>
+          <span className="pb-0.5 text-[9px] font-bold text-[#e83d5b]">查看网易云 {label} →</span>
+        </NeteaseWebLink>
+      ))}
       <div
         className={
           sections.length === 1
@@ -571,10 +581,10 @@ export function NeteasePlaylistsWidget({
   const { data } = widget;
   if (data.items.length === 0) return <Empty>没有公开歌单，或歌单数据尚未同步</Empty>;
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+    <div className="netease-playlists grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto">
       {data.items.map((item) => (
         <NeteaseWebLink
-          className="flex min-w-0 items-center gap-3 rounded-2xl bg-white/42 p-2.5"
+          className="netease-playlist-item flex min-w-0 items-center gap-3 rounded-2xl bg-white/42 p-2.5"
           href={item.webUrl}
           indicator
           key={item.providerPlaylistId}

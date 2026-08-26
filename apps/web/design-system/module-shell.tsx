@@ -51,6 +51,7 @@ export function ModuleShell({
         "transition-[box-shadow,border-color,transform] duration-200",
         editable && "border-dashed !border-blue-400/80 shadow-[0_13px_40px_rgba(45,94,205,0.18)]"
       )}
+      data-kind={kind}
       data-testid="module-shell"
     >
       {editable ? (
@@ -91,7 +92,12 @@ export function ModuleShell({
       ) : null}
 
       {showHeader ? (
-        <header className={clsx("flex items-center gap-3 px-5 pt-4 pb-3", editable && "pt-8")}>
+        <header
+          className={clsx(
+            "module-shell-header flex shrink-0 items-center gap-3 px-5 pt-4 pb-3",
+            editable && "pt-8"
+          )}
+        >
           {icon ? (
             <span
               className={clsx(
@@ -104,7 +110,7 @@ export function ModuleShell({
           ) : null}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
+              <h2 className="module-shell-title truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
                 {title}
               </h2>
               {stale ? (
@@ -120,7 +126,9 @@ export function ModuleShell({
               ) : null}
             </div>
             {subtitle ? (
-              <p className="mt-0.5 truncate text-[11px] font-medium text-ink-muted">{subtitle}</p>
+              <p className="module-shell-subtitle mt-0.5 truncate text-[11px] font-medium text-ink-muted">
+                {subtitle}
+              </p>
             ) : null}
           </div>
         </header>

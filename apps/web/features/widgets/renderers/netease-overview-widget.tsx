@@ -46,7 +46,7 @@ export function NeteaseOverviewWidget({
   const { data } = widget;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="netease-overview-legacy flex h-full min-h-0 flex-col">
       <div className="grid grid-cols-2 gap-3 border-b border-blue-100/70 pb-3 sm:grid-cols-4">
         <Metric emphasis label="播放总数" value={data.plays.toLocaleString("zh-CN")} />
         <Metric emphasis label="收听时长" value={`${data.minutes.toLocaleString("zh-CN")} 分钟`} />
@@ -219,7 +219,7 @@ function NeteaseOverviewWidgetV2({
         : "sm:grid-cols-1";
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="netease-overview-v2 flex h-full min-h-0 flex-col">
       {data.account.availability === "available" ? (
         <div className="mb-2 flex justify-end">
           <NeteaseWebLink
@@ -232,12 +232,14 @@ function NeteaseOverviewWidgetV2({
         </div>
       ) : null}
       {metrics.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 border-b border-blue-100/70 pb-3 sm:grid-cols-4">
+        <div className="netease-overview-metrics grid grid-cols-2 gap-3 border-b border-blue-100/70 pb-3">
           {metrics}
         </div>
       ) : null}
 
-      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-3 pt-3 ${detailGrid}`}>
+      <div
+        className={`netease-overview-details grid min-h-0 flex-1 grid-cols-1 gap-3 pt-3 ${detailGrid}`}
+      >
         {showTopTracks ? (
           <section className="min-w-0 border-blue-100/70 sm:border-r sm:pr-3">
             <p className="text-[10px] font-bold text-ink-muted">本周 Top Tracks</p>
