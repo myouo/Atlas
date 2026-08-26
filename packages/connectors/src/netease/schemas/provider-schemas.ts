@@ -49,6 +49,7 @@ const PlaylistSchema = Type.Object(
     id: ProviderIdSchema,
     name: Type.String({ minLength: 1 }),
     playCount: Type.Optional(Type.Integer({ minimum: 0 })),
+    privacy: Type.Optional(Type.Integer({ minimum: 0 })),
     subscribed: Type.Optional(Type.Boolean()),
     subscribedCount: Type.Optional(Type.Integer({ minimum: 0 })),
     tags: Type.Optional(Type.Array(Type.String())),

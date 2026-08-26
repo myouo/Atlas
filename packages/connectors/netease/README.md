@@ -10,6 +10,11 @@ albums, and Exhibition resources. Raw `orpheus:` deep links remain evidence but 
 Web navigation. Statistics, trends, VIP state, and medals stay non-clickable unless NetEase provides
 an equally precise Web resource.
 
+Created-playlist responses retain their Provider `count` before privacy filtering. Playlist rows
+whose official numeric `privacy` value is `10` are excluded before Native/Projection/catalog output,
+while `providerTotal` and pagination completeness continue to describe the original Provider total.
+Sanitized Raw Snapshots remain immutable evidence of the unfiltered response.
+
 Interactive credential acquisition supports QR scan and SMS OTP through `NeteaseAuthClient`. It returns only semantic status or one in-memory `MUSIC_U` candidate to the Worker. Full Cookies, phone numbers, OTP values, and QR private state are not Raw Snapshot data.
 
 It does not implement password login, Provider writes, IP spoofing, proxy rotation, region bypass, playback unlocking, or a community API runtime service. See ADR 0012, ADR 0013, ADR 0014, and ADR 0020.

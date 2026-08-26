@@ -158,6 +158,7 @@ export class NeteaseNormalizer implements ProviderNormalizer {
             (playlist) =>
               playlist.userId === undefined || String(playlist.userId) === providerUserId
           )
+          .filter((playlist) => playlist.privacy !== 10)
           .map(normalizePlaylist),
         providerTotal: playlistTotal
       },

@@ -316,6 +316,11 @@ describe("NetEase Provider module", () => {
       sourceAvailability: "available"
     });
     expect((catalog.musicCards as JsonObject).items).toHaveLength(6);
+    expect(catalog.createdPlaylists).toMatchObject({
+      items: [expect.objectContaining({ name: "Snow Archive" })],
+      providerTotal: 2
+    });
+    expect(JSON.stringify(catalog.createdPlaylists)).not.toContain("Private Fixture Playlist");
     expect(JSON.stringify(catalog)).not.toMatch(/lastLoginIP|MUSIC_U|authorization/i);
   });
 

@@ -418,7 +418,7 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
   [NETEASE_SOURCE.createdPlaylists]: {
     code: 200,
     data: {
-      count: 1,
+      count: 2,
       more: false,
       playlist: [
         {
@@ -427,8 +427,20 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
           id: 13001,
           name: "Snow Archive",
           playCount: 820,
+          privacy: 0,
           subscribed: false,
           trackCount: 48,
+          userId: 10001
+        },
+        {
+          coverImgUrl: "https://p1.music.126.net/sanitized-fixture/private-playlist.jpg",
+          createTime: 1_700_000_000_100,
+          id: 13002,
+          name: "Private Fixture Playlist",
+          playCount: 12,
+          privacy: 10,
+          subscribed: false,
+          trackCount: 3,
           userId: 10001
         }
       ]
