@@ -3,17 +3,30 @@ import process from "node:process";
 
 const host = "127.0.0.1";
 const configuredPort = Number(process.env.NIVALIS_PREVIEW_PORT ?? "3000");
+const apiPort = Number(process.env.NIVALIS_PREVIEW_API_PORT ?? "4174");
 
 if (!Number.isInteger(configuredPort) || configuredPort < 1 || configuredPort > 65_535) {
   console.error("NIVALIS_PREVIEW_PORT must be an integer between 1 and 65535.");
   process.exit(1);
 }
+if (!Number.isInteger(apiPort) || apiPort < 1 || apiPort > 65_535) {
+  console.error("NIVALIS_PREVIEW_API_PORT must be an integer between 1 and 65535.");
+  process.exit(1);
+}
 
-console.log("Starting the complete Nivalis frontend in explicit Mock Mode.");
-console.log("No API, database, Worker, Queue, or Provider credential will be used.");
+console.log("Starting the complete Nivalis frontend with a loopback-only Preview API.");
+console.log("NetEase uses the real local Cookie pipeline; unconnected platforms remain fixtures.");
 console.log(`Preview: http://${host}:${configuredPort}`);
 
-const child = spawn(
+const childEnvironment = {
+  ...process.env,
+  NIVALIS_PREVIEW_API_PORT: String(apiPort)
+};
+const api = spawn(process.execPath, ["--import", "tsx", "scripts/local-preview-api.ts"], {
+  env: childEnvironment,
+  stdio: "inherit"
+});
+const web = spawn(
   "pnpm",
   [
     "--filter",
@@ -28,24 +41,36 @@ const child = spawn(
   ],
   {
     env: {
-      ...process.env,
-      NEXT_PUBLIC_API_BASE_URL: "",
-      NEXT_PUBLIC_DASHBOARD_SOURCE: "mock"
+      ...childEnvironment,
+      NEXT_PUBLIC_API_BASE_URL: `http://${host}:${apiPort}`,
+      NEXT_PUBLIC_DASHBOARD_SOURCE: "api"
     },
     stdio: "inherit"
   }
 );
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.once(signal, () => child.kill(signal));
+const children = [api, web];
+let stopping = false;
+function stop(signal = "SIGTERM") {
+  if (stopping) return;
+  stopping = true;
+  for (const child of children) child.kill(signal);
 }
 
-child.once("error", (error) => {
-  console.error(`Frontend preview failed to start: ${error.message}`);
-  process.exitCode = 1;
-});
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => stop(signal));
+}
 
-child.once("exit", (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exitCode = code ?? 1;
-});
+for (const child of children) {
+  child.once("error", (error) => {
+    console.error(`Frontend preview process failed to start: ${error.message}`);
+    process.exitCode = 1;
+    stop();
+  });
+  child.once("exit", (code, signal) => {
+    if (!stopping) {
+      process.exitCode = code ?? (signal ? 1 : 0);
+      stop();
+    }
+  });
+}

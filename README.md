@@ -53,14 +53,26 @@ For a repeatable full frontend preview, use the explicit launcher:
 pnpm preview:web
 ```
 
-Open `http://127.0.0.1:3000`. This launcher forces `MockDashboardSource` even when local environment
-files contain API or Provider settings. It includes the Owner display/edit controls and the complete
-Profile, Statistics, NetEase, GitHub, Bilibili, Steam, and Bangumi fixture Dashboard with drag,
-resize, add/remove, responsive layouts, and LocalStorage persistence. It starts no API, database,
-Worker, Queue, or Provider request. To use another local port:
+Open `http://127.0.0.1:3000`. The launcher starts Next.js plus a loopback-only, in-memory Nivalis
+Preview API. The Preview API reads `NETEASE_INTEGRATION_MUSIC_U` only on the server, runs the real
+Connector → Normalizer → Projector pipeline, and combines those projections with the configured
+Published Dashboard. The browser never receives the Cookie. GitHub, Bilibili, Steam, and Bangumi
+remain explicitly marked Fixture data until their real Connectors exist. No database, D1, Queue,
+deployed API, or Worker is required.
+
+Configure the ignored root `.env.local`:
+
+```dotenv
+NETEASE_INTEGRATION_MUSIC_U=<MUSIC_U value only>
+NIVALIS_PREVIEW_DASHBOARD_URL=<public Nivalis Dashboard endpoint>
+```
+
+The local API returns an Owner fixture session, so display/edit controls, drag, resize, add/remove,
+responsive layouts, and in-memory save/publish are available. The Sync button refreshes real NetEase
+data in memory without touching production. To use other local ports:
 
 ```bash
-NIVALIS_PREVIEW_PORT=3100 pnpm preview:web
+NIVALIS_PREVIEW_PORT=3100 NIVALIS_PREVIEW_API_PORT=4274 pnpm preview:web
 ```
 
 Use a private browser window or clear the `nivalis.dashboard.v3` LocalStorage key when you want a
