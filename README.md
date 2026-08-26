@@ -47,6 +47,25 @@ NEXT_PUBLIC_API_BASE_URL=
 pnpm dev:web
 ```
 
+For a repeatable full frontend preview, use the explicit launcher:
+
+```bash
+pnpm preview:web
+```
+
+Open `http://127.0.0.1:3000`. This launcher forces `MockDashboardSource` even when local environment
+files contain API or Provider settings. It includes the Owner display/edit controls and the complete
+Profile, Statistics, NetEase, GitHub, Bilibili, Steam, and Bangumi fixture Dashboard with drag,
+resize, add/remove, responsive layouts, and LocalStorage persistence. It starts no API, database,
+Worker, Queue, or Provider request. To use another local port:
+
+```bash
+NIVALIS_PREVIEW_PORT=3100 pnpm preview:web
+```
+
+Use a private browser window or clear the `nivalis.dashboard.v3` LocalStorage key when you want a
+fresh preview Draft.
+
 It keeps the lightweight LocalStorage Draft/Published model for UI development and does not call any Provider.
 
 Provider authentication is intentionally disabled in Mock Mode. QR/SMS/manual credential controls do not simulate success; use a fully configured API Mode for real NetEase login.

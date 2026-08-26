@@ -42,6 +42,7 @@
     "provider:replay": "pnpm --filter @nivalis/worker provider:replay",
     "test:netease:cards": "pnpm --filter @nivalis/connectors probe:netease-music-cards",
     "preview:edge": "wrangler dev --config infra/providers/cloudflare/edge/wrangler.jsonc",
+    "preview:web": "node scripts/preview-web.mjs",
     "test": "vitest run",
     "test:contract": "vitest run --config vitest.integration.config.ts --testNamePattern contract",
     "test:concurrency": "vitest run --config vitest.integration.config.ts --testNamePattern \"concurrent|stale|If-Match|conflict\"",
