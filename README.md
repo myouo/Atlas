@@ -68,7 +68,9 @@ NETEASE_INTEGRATION_MUSIC_U=<MUSIC_U value only>
 
 The local API returns an Owner fixture session, so display/edit controls, drag, resize, add/remove,
 responsive layouts, and in-memory save/publish are available. The Sync button refreshes real NetEase
-data in memory without touching production. To use other local ports:
+data in memory without touching production. Draft dataConfig changes are immediately re-projected in
+memory, so stale LocalStorage or an older compatible Draft cannot make Owner loading disappear. To
+use other local ports:
 
 ```bash
 NIVALIS_PREVIEW_PORT=3100 NIVALIS_PREVIEW_API_PORT=4274 pnpm preview:web

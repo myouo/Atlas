@@ -11,7 +11,12 @@ import type {
   WidgetConfiguration,
   WidgetProjection
 } from "@nivalis/api-client";
-import type { ProjectionTarget, RawSnapshot, SyncRun } from "@nivalis/domain";
+import type {
+  NormalizedProviderData,
+  ProjectionTarget,
+  RawSnapshot,
+  SyncRun
+} from "@nivalis/domain";
 
 import {
   buildNeteaseOwnerDataCatalog,
@@ -47,6 +52,7 @@ interface PreviewState {
   readonly catalog: Record<string, unknown>;
   readonly dataVersion: string;
   readonly generatedAt: string;
+  readonly normalized: NormalizedProviderData;
   readonly widgets: readonly WidgetProjection[];
 }
 
@@ -99,7 +105,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (request.method === "GET" && url.pathname === "/v1/public/dashboards/about") {
-      send(response, 200, publicDashboard(state), cors, {
+      send(response, 200, await publicDashboard(state), cors, {
         ETag: `"view:${state.dataVersion}"`
       });
       return;
@@ -130,15 +136,16 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (request.method === "GET" && url.pathname === "/v1/me/dashboards/about/data") {
+      const draft = draftOverride ?? configurationState(state, "draft");
       send(
         response,
         200,
         {
-          configurationRevisionId: (draftOverride ?? configurationState(state, "draft")).revisionId,
+          configurationRevisionId: draft.revisionId,
           dashboardId: "about",
           generatedAt: state.generatedAt,
           projectionVersions: [],
-          widgets: state.widgets
+          widgets: await projectConfigurations(state, draft.widgets)
         },
         cors,
         { ETag: `"data:${state.dataVersion}"` }
@@ -315,6 +322,7 @@ async function buildPreviewState(): Promise<PreviewState> {
     catalog: buildNeteaseOwnerDataCatalog(normalized.payload) as Record<string, unknown>,
     dataVersion: crypto.randomUUID(),
     generatedAt,
+    normalized,
     widgets
   };
 }
@@ -417,20 +425,59 @@ function configurationState(state: PreviewState, mode: "draft" | "published"): D
   };
 }
 
-function publicDashboard(state: PreviewState): DashboardReadModel {
+async function publicDashboard(state: PreviewState): Promise<DashboardReadModel> {
   const configuration = publishedOverride;
   if (!configuration) return { ...state.base, widgets: state.widgets };
-  const liveById = new Map(state.widgets.map((widget) => [widget.id, widget]));
   return {
     dashboardId: "about",
     layout: configuration.layout,
     profile: configuration.profile,
     revision: configuration.revision,
-    widgets: configuration.widgets.flatMap((widget) => {
-      const live = liveById.get(widget.id);
-      return live ? [{ ...live, ...widget }] : [];
-    })
+    widgets: await projectConfigurations(state, configuration.widgets)
   };
+}
+
+async function projectConfigurations(
+  state: PreviewState,
+  configurations: readonly WidgetConfiguration[]
+): Promise<readonly WidgetProjection[]> {
+  const targets = configurations.flatMap((widget, index): ProjectionTarget[] =>
+    widget.provider === "netease" && widget.type.startsWith("music.netease.")
+      ? [
+          {
+            dataConfig: widget.dataConfig,
+            enabled: widget.enabled,
+            id: widget.id,
+            presentationConfig: widget.presentationConfig,
+            projectionKey: `local-draft-${index}`.padEnd(64, "0").slice(0, 64),
+            provider: "netease",
+            schemaVersion: widget.schemaVersion,
+            title: widget.title,
+            type: widget.type
+          }
+        ]
+      : []
+  );
+  const built = await new NeteaseProjector().project(state.normalized, targets);
+  const builtById = new Map(built.map((projection) => [projection.widgetId, projection]));
+  const existingById = new Map(state.widgets.map((widget) => [widget.id, widget]));
+  return configurations.map((configuration): WidgetProjection => {
+    const projection = builtById.get(configuration.id);
+    if (projection) {
+      return {
+        ...configuration,
+        data: projection.data,
+        stale: false,
+        updatedAt: state.generatedAt
+      } as WidgetProjection;
+    }
+    const existing = existingById.get(configuration.id);
+    if (existing) return { ...existing, ...configuration } as WidgetProjection;
+    return {
+      ...createMockWidget(configuration.type, configuration.id, configuration.schemaVersion),
+      ...configuration
+    } as WidgetProjection;
+  });
 }
 
 function toConfiguration(widget: WidgetProjection): WidgetConfiguration {
