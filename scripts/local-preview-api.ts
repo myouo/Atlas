@@ -29,12 +29,13 @@ if (existsSync(localEnvironment)) process.loadEnvFile(localEnvironment);
 
 const host = "127.0.0.1";
 const port = integerEnvironment("NIVALIS_PREVIEW_API_PORT", 4174);
+const webPort = integerEnvironment("NIVALIS_PREVIEW_WEB_PORT", 3000);
 const credential = process.env.NETEASE_INTEGRATION_MUSIC_U?.trim();
 if (!credential) throw new Error("NETEASE_INTEGRATION_MUSIC_U is required in .env.local.");
 
 const actorId = "00000000-0000-4000-8000-000000000001";
 const providerConnectionId = "00000000-0000-4000-8000-000000000501";
-const allowedOrigins = new Set(["http://127.0.0.1:3000", "http://localhost:3000"]);
+const allowedOrigins = new Set([`http://127.0.0.1:${webPort}`, `http://localhost:${webPort}`]);
 let current: PreviewState | null = null;
 let loading: Promise<PreviewState> | null = null;
 let draftOverride: DashboardState | null = null;
@@ -74,11 +75,11 @@ const server = createServer(async (request, response) => {
 
   const url = new URL(request.url ?? "/", `http://${host}:${port}`);
   try {
-    const state = await getPreviewState();
     if (request.method === "GET" && url.pathname === "/health") {
       send(response, 200, { mode: "local-preview", status: "ok" }, cors);
       return;
     }
+    const state = await getPreviewState();
     if (request.method === "GET" && url.pathname === "/v1/auth/session") {
       send(
         response,
@@ -209,6 +210,17 @@ const server = createServer(async (request, response) => {
       cors
     );
   }
+});
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `Local Preview API port ${port} is already in use. Reuse the running preview or choose NIVALIS_PREVIEW_API_PORT.`
+    );
+  } else {
+    console.error(`Local Preview API failed to listen: ${error.message}`);
+  }
+  process.exit(1);
 });
 
 server.listen(port, host, () => {

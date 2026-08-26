@@ -74,6 +74,10 @@ data in memory without touching production. To use other local ports:
 NIVALIS_PREVIEW_PORT=3100 NIVALIS_PREVIEW_API_PORT=4274 pnpm preview:web
 ```
 
+Starting the command twice no longer throws an unhandled port error. If the existing local Nivalis
+preview owns both ports, the second command reports its URL and exits successfully. If unrelated
+processes own either port, the launcher identifies the conflicting port and asks for another pair.
+
 Use a private browser window or clear the `nivalis.dashboard.v3` LocalStorage key when you want a
 fresh preview Draft.
 

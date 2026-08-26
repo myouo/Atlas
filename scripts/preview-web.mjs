@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createConnection } from "node:net";
 import process from "node:process";
 
 const host = "127.0.0.1";
@@ -14,13 +15,40 @@ if (!Number.isInteger(apiPort) || apiPort < 1 || apiPort > 65_535) {
   process.exit(1);
 }
 
+const [webOccupied, apiOccupied] = await Promise.all([
+  portIsOccupied(host, configuredPort),
+  portIsOccupied(host, apiPort)
+]);
+if (webOccupied || apiOccupied) {
+  if (webOccupied && apiOccupied && (await existingPreviewIsHealthy())) {
+    console.log(`Nivalis local preview is already running at http://${host}:${configuredPort}`);
+    console.log(
+      "Reuse that browser tab, or stop its original terminal with Ctrl+C before restart."
+    );
+    process.exit(0);
+  }
+  console.error(
+    `Cannot start Nivalis preview: ${[
+      webOccupied ? `frontend port ${configuredPort}` : null,
+      apiOccupied ? `API port ${apiPort}` : null
+    ]
+      .filter(Boolean)
+      .join(" and ")} ${webOccupied && apiOccupied ? "are" : "is"} already in use.`
+  );
+  console.error(
+    "Stop the process using that port, or set NIVALIS_PREVIEW_PORT and NIVALIS_PREVIEW_API_PORT to another pair."
+  );
+  process.exit(1);
+}
+
 console.log("Starting the complete Nivalis frontend with a loopback-only Preview API.");
 console.log("NetEase uses the real local Cookie pipeline; unconnected platforms remain fixtures.");
 console.log(`Preview: http://${host}:${configuredPort}`);
 
 const childEnvironment = {
   ...process.env,
-  NIVALIS_PREVIEW_API_PORT: String(apiPort)
+  NIVALIS_PREVIEW_API_PORT: String(apiPort),
+  NIVALIS_PREVIEW_WEB_PORT: String(configuredPort)
 };
 const api = spawn(process.execPath, ["--import", "tsx", "scripts/local-preview-api.ts"], {
   env: childEnvironment,
@@ -73,4 +101,37 @@ for (const child of children) {
       stop();
     }
   });
+}
+
+function portIsOccupied(address, port) {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: address, port });
+    let settled = false;
+    const finish = (occupied) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(occupied);
+    };
+    socket.setTimeout(500, () => finish(false));
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+  });
+}
+
+async function existingPreviewIsHealthy() {
+  try {
+    const [apiResponse, webResponse] = await Promise.all([
+      fetch(`http://${host}:${apiPort}/health`, { signal: AbortSignal.timeout(1_500) }),
+      fetch(`http://${host}:${configuredPort}`, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(1_500)
+      })
+    ]);
+    if (!apiResponse.ok || !webResponse.ok) return false;
+    const health = await apiResponse.json();
+    return health?.mode === "local-preview" && health?.status === "ok";
+  } catch {
+    return false;
+  }
 }
