@@ -209,7 +209,13 @@ describe("NetEase Provider module", () => {
             title: "听歌排行"
           }
         },
-        { card: { cardKind: "song", title: "Window Song 1" } },
+        {
+          card: {
+            artists: [{ name: "Aimer", providerArtistId: "30001" }],
+            cardKind: "song",
+            title: "Window Song 1"
+          }
+        },
         { card: { cardKind: "song", title: "Window Song 2" } },
         { card: { cardKind: "song", title: "Window Song 3" } },
         { card: { cardKind: "song", title: "Window Song 4" } },
@@ -291,7 +297,8 @@ describe("NetEase Provider module", () => {
     const historical = snapshots(normalNeteaseFixture).filter(
       (snapshot) =>
         snapshot.sourceKind !== NETEASE_SOURCE.profileShowcase &&
-        snapshot.sourceKind !== NETEASE_SOURCE.profileMusicCards
+        snapshot.sourceKind !== NETEASE_SOURCE.profileMusicCards &&
+        snapshot.sourceKind !== NETEASE_SOURCE.musicCardTracks
     );
     const normalized = await new NeteaseNormalizer().normalize(historical);
     expect(normalized.payload).toMatchObject({
@@ -421,6 +428,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.profileHome,
       NETEASE_SOURCE.profileShowcase,
       NETEASE_SOURCE.profileMusicCards,
+      NETEASE_SOURCE.musicCardTracks,
       NETEASE_SOURCE.userLevel,
       NETEASE_SOURCE.vipInfo,
       NETEASE_SOURCE.listenTotal,
@@ -435,7 +443,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.socialStatus
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
-    expect(requests).toHaveLength(17);
+    expect(requests).toHaveLength(18);
     for (const request of requests) {
       expect(request.method).toBe("POST");
       expect(["music.163.com", "interface.music.163.com", "interface3.music.163.com"]).toContain(
@@ -476,6 +484,11 @@ describe("NetEase Provider module", () => {
       rnVersion: 1_786_085_676,
       userId: "10001"
     });
+    const musicCardTracksRequest = requests.find((request) =>
+      new URL(request.url).pathname.includes("v3/song/detail")
+    );
+    expect(musicCardTracksRequest).toBeDefined();
+    expect(new URL(musicCardTracksRequest!.url).hostname).toBe("music.163.com");
 
     const profileHomeRequest = requests.find((request) =>
       new URL(request.url).pathname.includes("w/v1/user/detail")
@@ -764,6 +777,9 @@ function payloadForPath(pathname: string) {
   }
   if (pathname.includes("user/page/window/get")) {
     return normalNeteaseFixture[NETEASE_SOURCE.profileMusicCards];
+  }
+  if (pathname.includes("v3/song/detail")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.musicCardTracks];
   }
   if (pathname.includes("v1/user/detail")) {
     return normalNeteaseFixture[NETEASE_SOURCE.userDetail];

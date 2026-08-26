@@ -35,6 +35,11 @@ export class NeteaseConnector implements ProviderConnector {
     snapshots.push(...(await profileHomePageSnapshots(this.client, credential, userId, this.now)));
     const profileMusicCards = await this.client.getProfileMusicCards(credential, userId);
     snapshots.push(snapshot(NETEASE_SOURCE.profileMusicCards, profileMusicCards, this.now()));
+    const musicCardTrackIds = profileMusicCardSongIds(profileMusicCards);
+    if (musicCardTrackIds.length > 0) {
+      const musicCardTracks = await this.client.getSongDetails(credential, musicCardTrackIds);
+      snapshots.push(snapshot(NETEASE_SOURCE.musicCardTracks, musicCardTracks, this.now()));
+    }
     const level = await this.client.getUserLevel(credential);
     snapshots.push(snapshot(NETEASE_SOURCE.userLevel, level, this.now()));
     const vip = await this.client.getVipInfo(credential, userId);
@@ -79,6 +84,22 @@ export class NeteaseConnector implements ProviderConnector {
     snapshots.push(snapshot(NETEASE_SOURCE.socialStatus, socialStatus, this.now()));
     return snapshots;
   }
+}
+
+function profileMusicCardSongIds(payload: JsonValue) {
+  if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.cardVOList)) {
+    return [];
+  }
+  return [
+    ...new Set(
+      payload.data.cardVOList.flatMap((card) => {
+        if (!isObject(card)) return [];
+        if (card.resType !== "song" && card.resType !== "latest_heart_song") return [];
+        if (typeof card.resId !== "string" || !/^\d+$/.test(card.resId)) return [];
+        return [card.resId];
+      })
+    )
+  ].slice(0, 6);
 }
 
 const MAX_PROVIDER_LIST_ITEMS = 500;

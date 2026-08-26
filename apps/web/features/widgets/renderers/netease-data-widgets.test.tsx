@@ -82,6 +82,59 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.getByText("音乐浓度")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "听歌时长 的图片组合" })).toBeInTheDocument();
   });
+
+  it("hides Provider resource codes and uses real artists as song subtitles", () => {
+    const widget = showcaseWidget();
+    render(
+      <NeteaseShowcaseWidget
+        widget={{
+          ...widget,
+          data: {
+            availability: "available",
+            items: [
+              {
+                card: {
+                  artists: [],
+                  cardKind: "ranking",
+                  coverUrl: null,
+                  imageUrls: [],
+                  kind: "provider_music_card",
+                  providerCardId: "ranking",
+                  resourceType: "song_rank",
+                  title: "听歌排行"
+                },
+                resourceId: "ranking",
+                source: "provider_music_card"
+              },
+              {
+                card: {
+                  artists: [{ name: "酔シグレ" }, { name: "Lucia" }],
+                  cardKind: "song",
+                  coverUrl: null,
+                  imageUrls: [],
+                  kind: "provider_music_card",
+                  providerCardId: "song-one",
+                  resourceType: "song",
+                  title: "ロスト・シルフィード"
+                },
+                resourceId: "song-one",
+                source: "provider_music_card"
+              }
+            ],
+            maxItems: 6,
+            mode: "provider",
+            provider: "netease"
+          },
+          dataConfig: { mode: "provider" }
+        }}
+      />
+    );
+
+    expect(screen.getByText("听歌排行")).toBeInTheDocument();
+    expect(screen.getByText("酔シグレ / Lucia")).toBeInTheDocument();
+    expect(screen.queryByText("song_rank")).not.toBeInTheDocument();
+    expect(screen.queryByText("song")).not.toBeInTheDocument();
+  });
 });
 
 function rankingWidget(): Extract<WidgetOf<"music.netease.ranking">, { schemaVersion: 2 }> {

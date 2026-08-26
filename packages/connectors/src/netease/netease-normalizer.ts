@@ -21,6 +21,7 @@ import {
   NeteaseProfileMusicCardsResponseSchema,
   NeteaseProfileShowcaseResponseSchema,
   NeteaseRecentSongsResponseSchema,
+  NeteaseSongDetailResponseSchema,
   NeteaseSocialStatusResponseSchema,
   NeteaseUserDetailResponseSchema,
   NeteaseUserLevelResponseSchema,
@@ -55,6 +56,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const profileMusicCardsSnapshot = snapshots.find(
       (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.profileMusicCards
     );
+    const musicCardTracksSnapshot = snapshots.find(
+      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.musicCardTracks
+    );
     const profileShowcaseSnapshots = optionalMatchingSnapshots(
       snapshots,
       NETEASE_SOURCE.profileShowcase
@@ -83,6 +87,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     checked(NeteaseProfileHomeResponseSchema, profileHomeSnapshot);
     const profileMusicCards = profileMusicCardsSnapshot
       ? checked(NeteaseProfileMusicCardsResponseSchema, profileMusicCardsSnapshot)
+      : null;
+    const musicCardTracks = musicCardTracksSnapshot
+      ? checked(NeteaseSongDetailResponseSchema, musicCardTracksSnapshot)
       : null;
     const profileShowcasePages = profileShowcaseSnapshots.map((snapshot) =>
       checked(NeteaseProfileShowcaseResponseSchema, snapshot)
@@ -117,7 +124,7 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const followerTotal = profile.followeds ?? followerPages[0]!.size ?? null;
     const followingTotal = profile.follows ?? null;
     const musicCards = profileMusicCards
-      ? normalizeExhibitionMusicCards(profileMusicCards)
+      ? normalizeExhibitionMusicCards(profileMusicCards, musicCardTracks?.songs ?? [])
       : profileShowcasePages.length > 0
         ? normalizeProfileMusicCards(profileShowcasePages)
         : normalizeLegacyMusicCards(profileHomeSnapshot.payload);
@@ -217,14 +224,18 @@ export class NeteaseNormalizer implements ProviderNormalizer {
 }
 
 function normalizeExhibitionMusicCards(
-  payload: Static<typeof NeteaseProfileMusicCardsResponseSchema>
+  payload: Static<typeof NeteaseProfileMusicCardsResponseSchema>,
+  tracks: Static<typeof NeteaseSongDetailResponseSchema>["songs"]
 ): {
   readonly available: boolean;
   readonly items: readonly NeteaseNormalizedMusicCard[];
 } {
+  const tracksById = new Map(tracks.map((track) => [String(track.id), normalizeTrack(track)]));
   const items = payload.data.cardVOList.map((card) => {
     const coverUrl = safeArtworkUrl(card.cover);
+    const track = tracksById.get(card.resId);
     return {
+      artists: track?.artists ?? [],
       badgeIconUrl: null,
       badgeText: null,
       cardKind: exhibitionCardKind(card.resType),
@@ -409,6 +420,7 @@ function normalizeLegacyMusicCards(payload: unknown): {
         : "unknown";
       return [
         {
+          artists: [],
           badgeIconUrl: null,
           badgeText: null,
           cardKind,
@@ -547,6 +559,7 @@ function normalizeProfileMusicBlock(block: JsonObject): NeteaseNormalizedMusicCa
               resourceIndex
             );
       items.push({
+        artists: [],
         badgeIconUrl: safeArtworkUrl(stringValue(superscript?.picUrl)),
         badgeText: nonEmpty(superscript?.text),
         cardKind: profileMusicCardKind(

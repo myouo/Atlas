@@ -60,6 +60,16 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       open: true
     }
   },
+  [NETEASE_SOURCE.musicCardTracks]: {
+    code: 200,
+    songs: [
+      track(20_001, "Window Song 1", 30_001, "Aimer"),
+      track(20_002, "Window Song 2", 30_002, "Kalafina"),
+      track(20_003, "Window Song 3", 30_003, "ヨルシカ"),
+      track(20_004, "Window Song 4", 30_004, "Lucia"),
+      track(20_005, "Window Song 5", 30_005, "cheluce")
+    ]
+  },
   [NETEASE_SOURCE.profileShowcase]: {
     code: 200,
     data: {
@@ -452,6 +462,7 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
 
 export const emptyNeteaseFixture: SanitizedNeteaseFixture = {
   ...normalNeteaseFixture,
+  [NETEASE_SOURCE.musicCardTracks]: { code: 200, songs: [] },
   [NETEASE_SOURCE.profileMusicCards]: {
     code: 200,
     data: { cardLimit: 6, cardVOList: [], open: true }
@@ -626,6 +637,9 @@ export function createNeteaseHttpFixtureFetcher(
     }
     if (url.pathname.includes("user/page/window/get")) {
       return Response.json(fixture[NETEASE_SOURCE.profileMusicCards]);
+    }
+    if (url.pathname.includes("v3/song/detail")) {
+      return Response.json(fixture[NETEASE_SOURCE.musicCardTracks]);
     }
     if (url.pathname.includes("v1/user/detail")) {
       return Response.json(fixture[NETEASE_SOURCE.userDetail]);

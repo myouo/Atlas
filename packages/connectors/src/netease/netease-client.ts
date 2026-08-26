@@ -95,6 +95,16 @@ export class NeteaseClient {
     );
   }
 
+  getSongDetails(credential: string, trackIds: readonly string[]) {
+    return this.weapi(
+      "/api/v3/song/detail",
+      {
+        c: JSON.stringify(trackIds.map((id) => ({ id: Number(id) })))
+      },
+      credential
+    );
+  }
+
   getProfileHomeTabs(credential: string, userId: string | number) {
     const numericUserId = Number(userId);
     return this.eapi(

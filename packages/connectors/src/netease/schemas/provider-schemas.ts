@@ -70,6 +70,14 @@ export const NeteaseTrackSchema = Type.Object(
   { additionalProperties: true }
 );
 
+export const NeteaseSongDetailResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    songs: Type.Array(NeteaseTrackSchema)
+  },
+  { additionalProperties: true }
+);
+
 export const NeteaseAccountResponseSchema = Type.Object(
   {
     code: Type.Literal(200),

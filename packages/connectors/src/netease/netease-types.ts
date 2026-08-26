@@ -9,6 +9,7 @@ export const NETEASE_SOURCE = {
   listenTotal: "netease.listen_total",
   listenReportWeek: "netease.listen_report.week",
   medals: "netease.medals",
+  musicCardTracks: "netease.music_card_tracks",
   profileHome: "netease.profile_home",
   profileMusicCards: "netease.profile_music_cards",
   profileShowcase: "netease.profile_showcase",
@@ -84,6 +85,7 @@ export interface NeteaseNormalizedMembership extends JsonObject {
 }
 
 export interface NeteaseNormalizedMusicCard extends JsonObject {
+  readonly artists: readonly NeteaseNormalizedArtist[];
   readonly cardKind:
     "album" | "duration" | "favorite" | "medal" | "playlist" | "ranking" | "song" | "unknown";
   readonly badgeIconUrl: string | null;

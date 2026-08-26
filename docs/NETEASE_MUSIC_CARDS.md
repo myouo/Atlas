@@ -28,6 +28,11 @@ rn-exhibition-page@index
 `personal/home/page/user` 属于旧 Profile V3 普通主页 block read model。它仍可提供音乐品味、
 代表歌曲、专辑架、歌单等补充数据，但不是用户编排的音乐卡片顺序，不能将其前六项当作展柜。
 
+`cardVOList` 的歌曲卡片只返回 `resId`、标题和封面，生产 Raw 已确认 `extra={}`；它不包含歌手。
+Connector 因此把最多六个歌曲 `resId` 批量交给只读 `/api/v3/song/detail`，并将其独立保存为
+`netease.music_card_tracks` Raw Snapshot。Normalizer 只使用歌曲详情中经过 Schema 验证的
+`ar[]` 作为歌手来源；若详情缺失，前端保持副标题为空，不从标题或历史记录猜测。
+
 ---
 
 ## 0. 关键事实速览

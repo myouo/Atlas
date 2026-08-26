@@ -31,6 +31,10 @@ from generic Profile V3 blocks.
    treat Exhibition as authoritative.
 6. Unknown card resource types remain explicit `unknown` values. No field, ordering, or semantic label
    is fabricated.
+7. Exhibition song cards contain no artist metadata (`extra` is empty in production evidence).
+   The Connector batches their `resId` values through the read-only `/api/v3/song/detail` capability,
+   stores the response as separate Raw evidence, and the Normalizer derives artist subtitles only from
+   the validated `ar[]` field.
 
 ## Consequences
 

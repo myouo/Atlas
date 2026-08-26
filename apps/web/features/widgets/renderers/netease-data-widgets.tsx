@@ -812,6 +812,10 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
       title: stringValue(card.label) ?? "累计播放时间"
     };
   }
+  const resourceType = stringValue(card.resourceType);
+  const artists = Array.isArray(card.artists)
+    ? card.artists.flatMap((artist) => stringValue(objectValue(artist)?.name) ?? [])
+    : [];
   return {
     coverUrl:
       stringValue(card.coverUrl) ??
@@ -820,12 +824,20 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
     imageUrls: Array.isArray(card.imageUrls)
       ? card.imageUrls.filter((url): url is string => typeof url === "string").slice(0, 3)
       : [],
-    meta: stringValue(card.badgeText) ?? stringValue(card.resourceType),
+    meta:
+      stringValue(card.badgeText) ??
+      (resourceType === "song" || resourceType === "song_rank" ? null : resourceType),
     subtitle:
-      stringValue(card.description) ??
-      (Array.isArray(card.textLines)
-        ? card.textLines.filter((line): line is string => typeof line === "string").join(" · ")
-        : null),
+      resourceType === "song_rank"
+        ? null
+        : resourceType === "song" && artists.length > 0
+          ? artists.join(" / ")
+          : (stringValue(card.description) ??
+            (Array.isArray(card.textLines)
+              ? card.textLines
+                  .filter((line): line is string => typeof line === "string")
+                  .join(" · ")
+              : null)),
     title: stringValue(card.title) || "网易云音乐卡片"
   };
 }
