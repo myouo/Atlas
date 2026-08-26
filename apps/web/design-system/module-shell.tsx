@@ -1,8 +1,15 @@
 "use client";
 
-import { DotsSixVertical, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
+import * as Dialog from "@radix-ui/react-dialog";
+import {
+  ArrowsOutSimple,
+  DotsSixVertical,
+  SlidersHorizontal,
+  WarningCircle,
+  X
+} from "@phosphor-icons/react";
 import clsx from "clsx";
-import type { ReactNode } from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 
 export type WidgetAccent = "blue" | "coral" | "ink" | "lilac" | "rose";
 export type ModuleShellKind = "hero" | "standard" | "stat";
@@ -11,13 +18,24 @@ interface ModuleShellProps {
   readonly accent: WidgetAccent;
   readonly children: ReactNode;
   readonly editable: boolean;
+  readonly expandable?: boolean;
   readonly icon?: ReactNode;
   readonly kind?: ModuleShellKind;
   readonly onConfigure?: () => void;
   readonly onRemove?: () => void;
   readonly stale?: boolean;
-  readonly subtitle?: string;
   readonly title: string;
+}
+
+interface ModuleShellFrameProps extends ModuleShellProps {
+  readonly expandControl?: ReactNode;
+  readonly expanded?: boolean;
+}
+
+const ModuleShellExpansionContext = createContext(false);
+
+export function useModuleShellExpansion() {
+  return useContext(ModuleShellExpansionContext);
 }
 
 const accentClasses: Record<WidgetAccent, { badge: string; icon: string }> = {
@@ -28,18 +46,96 @@ const accentClasses: Record<WidgetAccent, { badge: string; icon: string }> = {
   rose: { badge: "bg-pink-50 text-pink-700", icon: "bg-[#ff4f91] text-white" }
 };
 
-export function ModuleShell({
+export function ModuleShell(props: ModuleShellProps) {
+  return props.expandable ? <ExpandableModuleShell {...props} /> : <ModuleShellFrame {...props} />;
+}
+
+function ExpandableModuleShell(props: ModuleShellProps) {
+  const [expanded, setExpanded] = useState(false);
+  const styles = accentClasses[props.accent];
+  const expandPosition = props.editable
+    ? props.onRemove && props.onConfigure
+      ? "right-[72px]"
+      : props.onRemove || props.onConfigure
+        ? "right-10"
+        : "right-2"
+    : "right-3";
+
+  return (
+    <Dialog.Root onOpenChange={setExpanded} open={expanded}>
+      <ModuleShellFrame
+        {...props}
+        expandControl={
+          <Dialog.Trigger asChild>
+            <button
+              aria-label={`放大 ${props.title}`}
+              className={clsx(
+                "absolute top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/88 text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white",
+                expandPosition
+              )}
+              type="button"
+            >
+              <ArrowsOutSimple aria-hidden size={14} weight="bold" />
+            </button>
+          </Dialog.Trigger>
+        }
+        expanded={expanded}
+      />
+
+      <Dialog.Portal>
+        <Dialog.Overlay className="module-expand-overlay fixed inset-0 z-[90] bg-[#071a3d]/45 backdrop-blur-md" />
+        <Dialog.Content className="module-shell-expanded glass-surface-strong fixed inset-3 z-[100] flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.35)] outline-none sm:inset-6 sm:p-6">
+          <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-xl font-black tracking-[-0.025em] text-ink">
+            {props.icon ? (
+              <span
+                className={clsx(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
+                  styles.icon
+                )}
+              >
+                {props.icon}
+              </span>
+            ) : null}
+            <span className="truncate">{props.title}</span>
+            {props.stale ? (
+              <span className={clsx("rounded-full px-2 py-1 text-[10px] font-bold", styles.badge)}>
+                待更新
+              </span>
+            ) : null}
+          </Dialog.Title>
+          <Dialog.Description className="sr-only">
+            {props.title} 的完整内容。按 Escape 或关闭按钮返回 Dashboard。
+          </Dialog.Description>
+          <Dialog.Close
+            aria-label={`关闭 ${props.title} 全屏视图`}
+            className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/85 bg-white/85 text-ink shadow-sm transition hover:bg-white sm:top-6 sm:right-6"
+          >
+            <X aria-hidden size={17} weight="bold" />
+          </Dialog.Close>
+          <div className="module-shell-expanded-content mt-4 min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-white/65 bg-white/34 p-3 sm:mt-5 sm:p-5">
+            <ModuleShellExpansionContext.Provider value>
+              {props.children}
+            </ModuleShellExpansionContext.Provider>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function ModuleShellFrame({
   accent,
   children,
   editable,
+  expandControl,
+  expanded = false,
   icon,
   kind = "standard",
   onConfigure,
   onRemove,
   stale = false,
-  subtitle,
   title
-}: ModuleShellProps) {
+}: ModuleShellFrameProps) {
   const showHeader = kind === "standard";
   const styles = accentClasses[accent];
 
@@ -91,11 +187,14 @@ export function ModuleShell({
         </button>
       ) : null}
 
+      {showHeader ? expandControl : null}
+
       {showHeader ? (
         <header
           className={clsx(
-            "module-shell-header flex shrink-0 items-center gap-3 px-5 pt-4 pb-3",
-            editable && "pt-8"
+            "module-shell-header flex shrink-0 items-center gap-3 px-5 pt-4 pb-2.5",
+            editable && "pt-8",
+            expandControl && !editable && "pr-12"
           )}
         >
           {icon ? (
@@ -125,11 +224,6 @@ export function ModuleShell({
                 </span>
               ) : null}
             </div>
-            {subtitle ? (
-              <p className="module-shell-subtitle mt-0.5 truncate text-[11px] font-medium text-ink-muted">
-                {subtitle}
-              </p>
-            ) : null}
           </div>
         </header>
       ) : null}
@@ -137,7 +231,11 @@ export function ModuleShell({
       <div
         className={clsx("module-shell-content min-h-0 flex-1", showHeader ? "px-5 pb-5" : "h-full")}
       >
-        {children}
+        {expanded ? null : (
+          <ModuleShellExpansionContext.Provider value={false}>
+            {children}
+          </ModuleShellExpansionContext.Provider>
+        )}
       </div>
     </section>
   );

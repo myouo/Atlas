@@ -349,24 +349,8 @@ const localNeteaseWidgets = [
   {
     id: "00000000-0000-4000-8000-000000009204",
     schemaVersion: 2,
-    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 10, w: 4 } },
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 7, w: 4 } },
     type: "music.netease.ranking"
-  },
-  {
-    dataConfig: { publicLimit: 8, publicLists: ["following"], view: "following" },
-    id: "00000000-0000-4000-8000-000000009205",
-    schemaVersion: 1,
-    sizes: { lg: { h: 5, w: 4 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
-    title: "网易云 · 关注",
-    type: "music.netease.social"
-  },
-  {
-    dataConfig: { publicLimit: 8, publicLists: ["followers"], view: "followers" },
-    id: "00000000-0000-4000-8000-000000009208",
-    schemaVersion: 1,
-    sizes: { lg: { h: 5, w: 4 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
-    title: "网易云 · 粉丝",
-    type: "music.netease.social"
   },
   {
     id: "00000000-0000-4000-8000-000000009206",

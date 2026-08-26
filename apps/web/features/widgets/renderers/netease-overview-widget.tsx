@@ -1,6 +1,7 @@
 import { ArrowUpRight } from "@phosphor-icons/react";
 import Image from "next/image";
 
+import { useModuleShellExpansion } from "../../../design-system/module-shell";
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
 import { NeteaseWebLink } from "./netease-web-link";
@@ -184,6 +185,7 @@ function NeteaseOverviewWidgetV2({
 }: Readonly<{
   widget: Extract<WidgetOf<"music.netease.overview">, { schemaVersion: 2 }>;
 }>) {
+  const expanded = useModuleShellExpansion();
   const { data } = widget;
   const weekly = data.weeklyListening;
   const recent = data.recentListening;
@@ -196,9 +198,10 @@ function NeteaseOverviewWidgetV2({
     "recent",
     "none"
   ]);
-  const listLimit = Number(
+  const configuredListLimit = Number(
     presentationSelection(widget.presentationConfig, "listLimit", "4", ["2", "4", "6"])
   );
+  const listLimit = expanded ? Number.POSITIVE_INFINITY : configuredListLimit;
   const metrics = [
     presentationToggle(widget.presentationConfig, "showTotalListenCount") ? (
       <Metric emphasis key="total" label="累计听歌" value={metricValue(total, "首")} />

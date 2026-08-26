@@ -1,18 +1,32 @@
-import type { DashboardDataSource } from "../../api/dashboard-source";
+import type { DashboardDataSource, DashboardEditableDraft } from "../../api/dashboard-source";
 import { RevisionConflictError } from "../../api/dashboard-source";
+import type { ResponsiveLayout, WidgetProjection } from "@nivalis/api-client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { mockDashboard } from "./mock-dashboard";
+import { createMockWidget, mockDashboard } from "./mock-dashboard";
 import { AboutPage } from "./about-page";
 import { useDashboardStore } from "./dashboard-store";
 import { mockDashboardSource } from "../../api/mock-dashboard-source";
 
 vi.mock("./dashboard-canvas", () => ({
-  DashboardCanvas: ({ editable }: { readonly editable: boolean }) => (
-    <div data-editable={String(editable)} data-testid="dashboard-canvas" />
+  DashboardCanvas: ({
+    editable,
+    layout,
+    widgets
+  }: {
+    readonly editable: boolean;
+    readonly layout: ResponsiveLayout;
+    readonly widgets: readonly WidgetProjection[];
+  }) => (
+    <div
+      data-editable={String(editable)}
+      data-layout-ids={layout.lg.map((item) => item.i).join(",")}
+      data-testid="dashboard-canvas"
+      data-widget-types={widgets.map((widget) => widget.type).join(",")}
+    />
   )
 }));
 
@@ -57,6 +71,63 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("API persistence failure UX", () => {
+  it("retires NetEase following and follower cards from rendering and the next saved Draft", async () => {
+    const social = createMockWidget("music.netease.social", "00000000-0000-4000-8000-000000009205");
+    const dashboardWithSocial = {
+      ...mockDashboard,
+      layout: {
+        ...mockDashboard.layout,
+        lg: [...mockDashboard.layout.lg, { h: 5, i: social.id, w: 4, x: 0, y: 20 }]
+      },
+      widgets: [...mockDashboard.widgets, social]
+    };
+    const saveDraft = vi.fn(async (input: DashboardEditableDraft) => {
+      return {
+        concurrencyToken: '"rev:two"',
+        dashboard: { ...draft, layout: input.layout, widgets: input.widgets }
+      };
+    });
+    const source: DashboardDataSource = {
+      ...mockDashboardSource,
+      kind: "api",
+      async load() {
+        return {
+          draft: {
+            concurrencyToken: '"rev:one"',
+            dashboard: {
+              ...dashboardWithSocial,
+              revisionId: "00000000-0000-4000-8000-000000000301",
+              state: "draft" as const,
+              updatedAt: "2026-08-23T04:30:00.000Z"
+            }
+          },
+          providerStatuses: [],
+          published: dashboardWithSocial,
+          session: ownerSession
+        };
+      },
+      saveDraft
+    };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AboutPage source={source} />
+      </QueryClientProvider>
+    );
+
+    const canvas = await screen.findByTestId("dashboard-canvas");
+    expect(canvas.getAttribute("data-widget-types")).not.toContain("social");
+    expect(canvas.getAttribute("data-layout-ids")).not.toContain(social.id);
+    expect(useDashboardStore.getState().dirty).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: "编辑视图" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await waitFor(() => expect(saveDraft).toHaveBeenCalledOnce());
+    const saved = saveDraft.mock.calls[0]?.[0];
+    expect(saved?.widgets.some((widget) => widget.type === "music.netease.social")).toBe(false);
+    expect(saved?.layout.lg.some((item) => item.i === social.id)).toBe(false);
+  });
+
   it("keeps the public homepage content-only until an Owner session exists", async () => {
     const unsupported = async () => {
       throw new Error("Owner capability is unavailable.");

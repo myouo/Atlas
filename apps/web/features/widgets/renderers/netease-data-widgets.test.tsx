@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { ModuleShell } from "../../../design-system/module-shell";
 import type { WidgetOf } from "../widget-types";
 import {
   NeteaseRankingWidget,
@@ -30,15 +31,22 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.queryByText("Weekly One")).not.toBeInTheDocument();
   });
 
-  it("pages ranking rows without exposing a native scrollbar", async () => {
-    const { container } = render(<NeteaseRankingWidget widget={rankingWidget()} />);
+  it("uses a dense preview and reveals both complete rankings in the full-screen card", async () => {
+    const { container } = render(
+      <ModuleShell accent="coral" editable={false} expandable title="网易云 · 听歌双榜">
+        <NeteaseRankingWidget widget={rankingWidget()} />
+      </ModuleShell>
+    );
     expect(container.querySelector(".overflow-y-auto")).toBeNull();
     expect(screen.getByText("Weekly 6")).toBeInTheDocument();
     expect(screen.queryByText("Weekly 7")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下一组排名" })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "下一组排名" }));
-    expect(screen.getByText("Weekly 7")).toBeInTheDocument();
-    expect(screen.queryByText("Weekly 6")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 听歌双榜" }));
+    expect(await screen.findByRole("dialog", { name: "网易云 · 听歌双榜" })).toBeVisible();
+    expect(screen.getByText("Weekly 12")).toBeInTheDocument();
+    expect(screen.getByText("All-time One")).toBeInTheDocument();
+    expect(screen.getByText("All-time 12")).toBeInTheDocument();
   });
 
   it("renders a curated multi-item showcase without auto-selecting history", () => {

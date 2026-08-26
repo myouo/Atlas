@@ -18,7 +18,8 @@ describe("WidgetRegistry", () => {
     expect(widgetRegistry.preferred("music.netease.overview")?.schemaVersion).toBe(2);
     expect(widgetRegistry.preferred("music.netease.ranking")?.schemaVersion).toBe(2);
     expect(widgetRegistry.preferred("music.netease.showcase")?.schemaVersion).toBe(2);
-    expect(widgetRegistry.list()).toHaveLength(13);
+    expect(widgetRegistry.list()).toHaveLength(12);
+    expect(widgetRegistry.list().some((item) => item.type === "music.netease.social")).toBe(false);
   });
 
   it("rejects duplicate registrations", () => {
@@ -49,11 +50,15 @@ describe("WidgetRegistry", () => {
     expect(screen.getByText(/其它模块仍可正常显示/)).toBeInTheDocument();
   });
 
-  it("labels unconnected Provider projections as Fixture", () => {
+  it("keeps card headers concise without a secondary subtitle", () => {
     const github = mockWidgets.find((widget) => widget.type === "github.profile");
     expect(github).toBeDefined();
-    renderWidget(<WidgetCard editable={false} onRemove={() => undefined} widget={github!} />);
-    expect(screen.getByText(/Fixture · @nivalis/)).toBeInTheDocument();
+    const { container } = renderWidget(
+      <WidgetCard editable={false} onRemove={() => undefined} widget={github!} />
+    );
+    expect(screen.getByRole("heading", { name: "GitHub" })).toBeInTheDocument();
+    expect(container.querySelector(".module-shell-subtitle")).toBeNull();
+    expect(screen.queryByText(/Fixture · @nivalis/)).not.toBeInTheDocument();
   });
 
   it("edits display fields through Registry-driven presentation controls", async () => {

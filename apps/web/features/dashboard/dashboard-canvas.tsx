@@ -2,10 +2,10 @@
 
 import type { ResponsiveLayout, WidgetProjection } from "@nivalis/api-client";
 import clsx from "clsx";
-import { noCompactor, Responsive, useContainerWidth } from "react-grid-layout";
+import { noCompactor, Responsive } from "react-grid-layout";
 import { getCompactor } from "react-grid-layout/core";
 import type { Layout, LayoutItem, ResponsiveLayouts } from "react-grid-layout";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { WidgetCard } from "../widgets/widget-card";
 import { widgetRegistry } from "../widgets/widget-registry";
@@ -52,6 +52,33 @@ function stripLayout(layout: Layout): DashboardLayoutItem[] {
 
 const overlapWhileEditing = getCompactor(null, true);
 
+function useDashboardContainerWidth(initialWidth = 1200) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const [width, setWidth] = useState(initialWidth);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (typeof ResizeObserver === "undefined") {
+      setWidth(container.clientWidth || initialWidth);
+      setMounted(true);
+      return;
+    }
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const nextWidth = entry.contentRect.width;
+      if (nextWidth <= 0) return;
+      setWidth((current) => (Math.abs(current - nextWidth) < 0.5 ? current : nextWidth));
+      setMounted(true);
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [initialWidth]);
+
+  return { containerRef, mounted, width };
+}
+
 function DashboardCanvasComponent({
   editable,
   layout,
@@ -61,7 +88,7 @@ function DashboardCanvasComponent({
   onRemoveWidget,
   widgets
 }: DashboardCanvasProps) {
-  const { containerRef, mounted, width } = useContainerWidth({ initialWidth: 1200 });
+  const { containerRef, mounted, width } = useDashboardContainerWidth();
   const [breakpoint, setBreakpoint] = useState<DashboardBreakpoint>("lg");
   const [interacting, setInteracting] = useState(false);
   const gridLayouts = useMemo(() => buildGridLayouts(layout, widgets), [layout, widgets]);

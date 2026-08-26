@@ -23,7 +23,7 @@ import {
 import { ProfileHeroWidget } from "./renderers/profile-hero-widget";
 import { SystemStatWidget } from "./renderers/system-stat-widget";
 import type { WidgetOf } from "./widget-types";
-import { presentationToggle, type WidgetPresentationControl } from "./widget-presentation";
+import type { WidgetPresentationControl } from "./widget-presentation";
 
 interface RegistryIconProps {
   readonly className?: string;
@@ -36,13 +36,13 @@ export interface WidgetDefinition {
   readonly catalogVisible?: boolean;
   readonly description: string;
   readonly dataPresets?: readonly WidgetDataPreset[];
+  readonly expandable?: boolean;
   readonly Icon: ComponentType<RegistryIconProps>;
   readonly kind: ModuleShellKind;
   readonly name: string;
   readonly Renderer: ComponentType<{ readonly widget: WidgetProjection }>;
   readonly schemaVersion: number;
   readonly sizes: WidgetGridSizes;
-  readonly subtitle?: (widget: WidgetProjection) => string | undefined;
   readonly presentationControls?: readonly WidgetPresentationControl[];
   readonly resourcePicker?: "netease-showcase" | "netease-showcase-gallery";
   readonly type: WidgetType;
@@ -111,28 +111,24 @@ const toggle = (
 
 const metricControls = {
   bangumi: [
-    toggle("showLevel", "等级", "在卡片副标题显示 Bangumi 等级"),
     toggle("showEntries", "收藏条目", "显示收藏条目总数"),
     toggle("showWatched", "看过", "显示看过条目数"),
     toggle("showWatching", "在看", "显示正在观看的条目数"),
     toggle("showReviews", "短评", "显示短评数量")
   ],
   bilibili: [
-    toggle("showLevel", "等级", "在卡片副标题显示 Bilibili 等级"),
     toggle("showFollowing", "关注", "显示关注数量"),
     toggle("showFollowers", "粉丝", "显示粉丝数量"),
     toggle("showViews", "播放", "显示累计播放量"),
     toggle("showLikes", "获赞", "显示累计获赞数")
   ],
   github: [
-    toggle("showHandle", "账号标识", "在卡片副标题显示 GitHub Handle"),
     toggle("showRepositories", "仓库", "显示公开仓库数量"),
     toggle("showStars", "Star", "显示仓库 Star 汇总"),
     toggle("showFollowers", "关注者", "显示关注者数量"),
     toggle("showContributions", "贡献", "显示贡献统计")
   ],
   steam: [
-    toggle("showLevel", "等级", "在卡片副标题显示 Steam 等级"),
     toggle("showGames", "游戏", "显示游戏数量"),
     toggle("showPlaytime", "游戏时长", "显示累计游戏时长"),
     toggle("showAchievements", "成就", "显示成就数量"),
@@ -145,7 +141,7 @@ export const widgetRegistry = new WidgetRegistry()
     type: "profile.hero",
     schemaVersion: 1,
     name: "个人档案",
-    description: "头像、身份标签与个人简介",
+    description: "头像、身份与简介",
     Icon: UserCircle,
     accent: "blue",
     kind: "hero",
@@ -170,7 +166,7 @@ export const widgetRegistry = new WidgetRegistry()
     type: "system.stats",
     schemaVersion: 1,
     name: "统计信息",
-    description: "运行、平台、同步或数据量指标",
+    description: "关键统计指标",
     Icon: ChartLineUp,
     accent: "blue",
     kind: "stat",
@@ -192,7 +188,7 @@ export const widgetRegistry = new WidgetRegistry()
     type: "music.netease.overview",
     schemaVersion: 1,
     name: "网易云音乐",
-    description: "播放、时长、偏好与趋势概览",
+    description: "音乐数据概览",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
@@ -203,18 +199,18 @@ export const widgetRegistry = new WidgetRegistry()
       md: { w: 5, h: 6, minW: 5, minH: 5 },
       sm: { w: 4, h: 12, minW: 4, minH: 10 }
     },
-    subtitle: () => "Legacy Fixture Projection",
     Renderer: adaptRenderer(NeteaseOverviewWidget)
   })
   .register({
     type: "music.netease.identity",
     schemaVersion: 1,
     name: "网易云 · 身份档案",
-    description: "头像、等级、VIP、徽章与公开社交计数",
+    description: "等级、VIP 与账号信息",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    expandable: true,
     sizes: {
       lg: { w: 5, h: 5, minW: 4, minH: 4 },
       md: { w: 4, h: 5, minW: 4, minH: 4 },
@@ -274,14 +270,13 @@ export const widgetRegistry = new WidgetRegistry()
         }
       }
     ],
-    subtitle: () => "账号身份 · 服务端公开白名单",
     Renderer: adaptRenderer(NeteaseIdentityWidget)
   })
   .register({
     type: "music.netease.listening",
     schemaVersion: 1,
     name: "网易云 · 收听足迹",
-    description: "累计听歌、官方总时长、本周时长与趋势",
+    description: "听歌次数、时长与趋势",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
@@ -313,19 +308,19 @@ export const widgetRegistry = new WidgetRegistry()
         dataConfig: { publicFields: ["total_duration", "weekly_duration"] }
       }
     ],
-    subtitle: () => "官方听歌足迹",
     Renderer: adaptRenderer(NeteaseListeningWidget)
   })
   .register({
     type: "music.netease.ranking",
     schemaVersion: 1,
     name: "网易云 · 听歌排行",
-    description: "最近一周或全部时间 Top 100 中的公开范围",
+    description: "周榜或总榜",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
     catalogVisible: false,
+    expandable: true,
     sizes: {
       lg: { w: 5, h: 6, minW: 4, minH: 5 },
       md: { w: 4, h: 6, minW: 4, minH: 5 },
@@ -351,27 +346,22 @@ export const widgetRegistry = new WidgetRegistry()
         dataConfig: { publicLimit: 10, range: "all_time" }
       }
     ],
-    subtitle: (widget) =>
-      widget.type === "music.netease.ranking" &&
-      widget.schemaVersion === 1 &&
-      widget.data.range === "all_time"
-        ? "全部时间 · Provider Top 100"
-        : "最近一周 · Provider Top 100",
     Renderer: adaptRenderer(NeteaseRankingWidget)
   })
   .register({
     type: "music.netease.ranking",
     schemaVersion: 2,
     name: "网易云 · 听歌双榜",
-    description: "同一卡片流畅切换最近一周与全部时间排行",
+    description: "周榜与总榜",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    expandable: true,
     sizes: {
-      lg: { w: 7, h: 7, minW: 5, minH: 6 },
-      md: { w: 5, h: 7, minW: 4, minH: 6 },
-      sm: { w: 4, h: 11, minW: 4, minH: 9 }
+      lg: { w: 7, h: 6, minW: 5, minH: 5 },
+      md: { w: 5, h: 6, minW: 4, minH: 5 },
+      sm: { w: 4, h: 7, minW: 4, minH: 6 }
     },
     dataPresets: [
       {
@@ -407,7 +397,6 @@ export const widgetRegistry = new WidgetRegistry()
       },
       toggle("showPlayCount", "播放次数", "显示每首歌的 Provider 播放次数")
     ],
-    subtitle: () => "最近一周 · 全部时间",
     Renderer: adaptRenderer(NeteaseRankingWidget)
   })
   .register({
@@ -419,6 +408,7 @@ export const widgetRegistry = new WidgetRegistry()
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    catalogVisible: false,
     sizes: {
       lg: { w: 5, h: 5, minW: 4, minH: 4 },
       md: { w: 4, h: 5, minW: 4, minH: 4 },
@@ -454,25 +444,18 @@ export const widgetRegistry = new WidgetRegistry()
         }
       }
     ],
-    subtitle: (widget) =>
-      widget.type === "music.netease.social"
-        ? widget.data.view === "following"
-          ? "关注列表"
-          : widget.data.view === "followers"
-            ? "粉丝列表"
-            : "关注 · 粉丝"
-        : undefined,
     Renderer: adaptRenderer(NeteaseSocialWidget)
   })
   .register({
     type: "music.netease.playlists",
     schemaVersion: 1,
     name: "网易云 · 创建歌单",
-    description: "公开自己创建的歌单，不混入收藏歌单",
+    description: "公开创建的歌单",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    expandable: true,
     sizes: {
       lg: { w: 7, h: 5, minW: 5, minH: 4 },
       md: { w: 4, h: 5, minW: 4, minH: 4 },
@@ -498,14 +481,13 @@ export const widgetRegistry = new WidgetRegistry()
         dataConfig: { publicLimit: 0 }
       }
     ],
-    subtitle: () => "仅创建歌单",
     Renderer: adaptRenderer(NeteasePlaylistsWidget)
   })
   .register({
     type: "music.netease.showcase",
     schemaVersion: 1,
     name: "网易云 · 单项名片",
-    description: "从真实歌曲、歌单、徽章或 Provider 原生卡片中选择一个焦点",
+    description: "单项音乐展示",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
@@ -543,14 +525,13 @@ export const widgetRegistry = new WidgetRegistry()
       }
     ],
     resourcePicker: "netease-showcase",
-    subtitle: () => "Nivalis 可编排音乐名片",
     Renderer: adaptRenderer(NeteaseShowcaseWidget)
   })
   .register({
     type: "music.netease.showcase",
     schemaVersion: 2,
     name: "网易云 · 音乐展柜",
-    description: "跟随官方主页音乐卡片，或自定义最多 6 项展示内容",
+    description: "主页音乐卡片",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
@@ -575,28 +556,24 @@ export const widgetRegistry = new WidgetRegistry()
       toggle("showMeta", "资源说明", "显示歌曲播放次数、歌单曲目数或徽章状态")
     ],
     resourcePicker: "netease-showcase-gallery",
-    subtitle: (widget) =>
-      widget.type === "music.netease.showcase" && widget.schemaVersion === 2
-        ? `${widget.data.items.length} / 6 项 · ${widget.data.mode === "provider" ? "网易云主页" : "Nivalis 自定义"}`
-        : undefined,
     Renderer: adaptRenderer(NeteaseShowcaseWidget)
   })
   .register({
     type: "music.netease.overview",
     schemaVersion: 2,
     name: "网易云音乐",
-    description: "真实 Provider 计数、周排行、最近播放与可用性",
+    description: "音乐数据概览",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
+    expandable: true,
     sizes: {
       lg: { w: 8, h: 6, minW: 6, minH: 5 },
       md: { w: 5, h: 6, minW: 5, minH: 5 },
       sm: { w: 4, h: 12, minW: 4, minH: 10 }
     },
     presentationControls: [
-      toggle("showAccount", "账号标识", "在卡片副标题显示网易云账号"),
       toggle("showTotalListenCount", "累计听歌", "显示 Provider 报告的累计听歌数"),
       toggle("showListeningDuration", "本周时长", "显示本周收听分钟数"),
       toggle("showRankedPlayCount", "排行播放次数", "显示周榜记录的播放次数汇总"),
@@ -628,107 +605,57 @@ export const widgetRegistry = new WidgetRegistry()
         ]
       }
     ],
-    subtitle: (widget) =>
-      widget.type === "music.netease.overview" && widget.schemaVersion === 2
-        ? presentationToggle(widget.presentationConfig, "showAccount") &&
-          widget.data.account.availability === "available"
-          ? `网易云 · ${widget.data.account.displayName ?? widget.data.account.providerUserId}`
-          : widget.data.account.availability === "available"
-            ? "网易云"
-            : "网易云 · 尚未同步"
-        : undefined,
     Renderer: adaptRenderer(NeteaseOverviewWidget)
   })
   .register({
     type: "github.profile",
     schemaVersion: 1,
     name: "GitHub",
-    description: "仓库、Star、关注与贡献",
+    description: "仓库与贡献",
     Icon: SiGithub,
     accent: "ink",
     kind: "standard",
     allowMultiple: true,
     sizes: platformSizes,
     presentationControls: metricControls.github,
-    subtitle: (widget) =>
-      widget.type === "github.profile"
-        ? fixtureSubtitle(
-            widget.provider,
-            presentationToggle(widget.presentationConfig, "showHandle")
-              ? widget.data.handle
-              : undefined
-          )
-        : undefined,
     Renderer: adaptRenderer(GithubProfileWidget)
   })
   .register({
     type: "bilibili.profile",
     schemaVersion: 1,
     name: "Bilibili",
-    description: "等级、粉丝、播放与获赞",
+    description: "粉丝、播放与获赞",
     Icon: SiBilibili,
     accent: "rose",
     kind: "standard",
     allowMultiple: true,
     sizes: platformSizes,
     presentationControls: metricControls.bilibili,
-    subtitle: (widget) =>
-      widget.type === "bilibili.profile"
-        ? fixtureSubtitle(
-            widget.provider,
-            presentationToggle(widget.presentationConfig, "showLevel")
-              ? `等级 Lv.${widget.data.level}`
-              : undefined
-          )
-        : undefined,
     Renderer: adaptRenderer(BilibiliProfileWidget)
   })
   .register({
     type: "steam.profile",
     schemaVersion: 1,
     name: "Steam",
-    description: "游戏、时长、成就与截图",
+    description: "游戏、时长与成就",
     Icon: SiSteam,
     accent: "ink",
     kind: "standard",
     allowMultiple: true,
     sizes: platformSizes,
     presentationControls: metricControls.steam,
-    subtitle: (widget) =>
-      widget.type === "steam.profile"
-        ? fixtureSubtitle(
-            widget.provider,
-            presentationToggle(widget.presentationConfig, "showLevel")
-              ? `等级 ${widget.data.level}`
-              : undefined
-          )
-        : undefined,
     Renderer: adaptRenderer(SteamProfileWidget)
   })
   .register({
     type: "bangumi.collection",
     schemaVersion: 1,
     name: "Bangumi",
-    description: "收藏、看过、在看与短评",
+    description: "收藏与观看进度",
     Icon: Books,
     accent: "rose",
     kind: "standard",
     allowMultiple: true,
     sizes: platformSizes,
     presentationControls: metricControls.bangumi,
-    subtitle: (widget) =>
-      widget.type === "bangumi.collection"
-        ? fixtureSubtitle(
-            widget.provider,
-            presentationToggle(widget.presentationConfig, "showLevel")
-              ? `等级 Lv.${widget.data.level}`
-              : undefined
-          )
-        : undefined,
     Renderer: adaptRenderer(BangumiCollectionWidget)
   });
-
-function fixtureSubtitle(provider: string, subtitle?: string) {
-  if (provider === "fixture") return subtitle ? `Fixture · ${subtitle}` : "Fixture";
-  return subtitle;
-}

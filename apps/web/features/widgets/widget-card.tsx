@@ -38,7 +38,6 @@ function WidgetCardComponent({
         icon={<PuzzlePiece aria-hidden size={19} weight="duotone" />}
         onRemove={onRemove}
         stale={widget.stale}
-        subtitle={`${widget.type}@${widget.schemaVersion}`}
         title="暂不支持的模块"
       >
         <div className="flex h-full items-center rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-xs leading-relaxed text-violet-800">
@@ -49,7 +48,6 @@ function WidgetCardComponent({
   }
 
   const { Icon, Renderer } = definition;
-  const subtitle = definition.subtitle?.(widget as never);
   const controls = definition.presentationControls ?? [];
   const dataPresets = definition.dataPresets ?? [];
   const configurable =
@@ -61,10 +59,10 @@ function WidgetCardComponent({
         editable={editable}
         icon={<Icon aria-hidden size={19} />}
         kind={definition.kind}
+        {...(definition.expandable ? { expandable: true } : {})}
         {...(editable && configurable ? { onConfigure: () => setSettingsOpen(true) } : {})}
         onRemove={onRemove}
         stale={widget.stale}
-        {...(subtitle ? { subtitle } : {})}
         title={widget.title}
       >
         <Renderer widget={widget as never} />

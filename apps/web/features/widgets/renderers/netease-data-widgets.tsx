@@ -1,7 +1,5 @@
 import {
   ArrowUpRight,
-  CaretLeft,
-  CaretRight,
   ClockCounterClockwise,
   Crown,
   Headphones,
@@ -14,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { useModuleShellExpansion } from "../../../design-system/module-shell";
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
 import { NeteaseWebLink, safeNeteaseWebUrl } from "./netease-web-link";
@@ -276,16 +275,10 @@ export function NeteaseListeningWidget({
 export function NeteaseRankingWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.ranking"> }>) {
+  const expanded = useModuleShellExpansion();
   if (widget.schemaVersion === 2) return <NeteaseRankingWidgetV2 widget={widget} />;
   const { data } = widget;
-  return (
-    <RankingBoard
-      items={data.items}
-      showPlayCount
-      style="compact"
-      totalAvailable={data.totalAvailable}
-    />
-  );
+  return <RankingBoard expanded={expanded} items={data.items} showPlayCount style="compact" />;
 }
 
 function NeteaseRankingWidgetV2({
@@ -309,10 +302,55 @@ function NeteaseRankingWidgetV2({
     "editorial",
     "compact"
   ]);
+  const expanded = useModuleShellExpansion();
+
+  if (expanded) {
+    return (
+      <div className="min-h-full">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rose-100/70 pb-3">
+          <p className="text-xs font-bold text-ink-muted">完整公开榜单</p>
+          <NeteaseWebLink
+            className="inline-flex items-center rounded-full border border-white/80 bg-white/65 px-3 py-1.5 text-[10px] font-bold text-blue-700"
+            href={widget.data.webUrl}
+            label="在网易云查看听歌榜单"
+          >
+            网易云榜单
+          </NeteaseWebLink>
+        </div>
+        <div className="grid items-start gap-4 xl:grid-cols-2">
+          {availableRanges.map((candidate) => {
+            const ranking = candidate === "week" ? data.week : data.allTime;
+            if (ranking.availability !== "available") return null;
+            return (
+              <section
+                className="rounded-[20px] border border-white/80 bg-white/42 p-3 sm:p-4"
+                key={candidate}
+              >
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <h3 className="text-sm font-black text-ink">
+                    {candidate === "week" ? "最近一周" : "全部时间"}
+                  </h3>
+                  <span className="text-[9px] font-bold text-ink-muted">
+                    {ranking.items.length} / {ranking.totalAvailable}
+                  </span>
+                </div>
+                <RankingBoard
+                  expanded
+                  items={ranking.items}
+                  showPlayCount={presentationToggle(widget.presentationConfig, "showPlayCount")}
+                  style="compact"
+                />
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="netease-ranking-toolbar mb-3 flex flex-wrap items-center gap-2">
+      <div className="netease-ranking-toolbar mb-2 flex items-center gap-1.5">
         <div className="netease-ranking-tabs inline-flex shrink-0 rounded-xl border border-white/90 bg-white/55 p-1 shadow-sm">
           {availableRanges.map((candidate) => (
             <button
@@ -331,26 +369,26 @@ function NeteaseRankingWidgetV2({
           ))}
         </div>
         {selected.availability === "available" ? (
-          <span className="netease-ranking-meta ml-auto shrink-0 text-[9px] font-bold text-ink-muted">
-            已公开 {selected.items.length} / Provider {selected.totalAvailable}
+          <span className="netease-ranking-meta ml-auto shrink-0 text-[8px] font-bold text-ink-muted">
+            {selected.items.length}/{selected.totalAvailable}
           </span>
         ) : null}
         <NeteaseWebLink
-          className="netease-ranking-web-link inline-flex shrink-0 items-center rounded-full border border-white/75 bg-white/45 px-2.5 py-1 text-[9px] font-bold whitespace-nowrap text-blue-700"
+          className="netease-ranking-web-link flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/60 text-blue-700 shadow-sm"
           href={widget.data.webUrl}
           label="在网易云查看听歌榜单"
         >
-          网易云榜单
+          <ArrowUpRight aria-hidden size={12} weight="bold" />
         </NeteaseWebLink>
       </div>
 
       {selected.availability === "available" ? (
         <RankingBoard
+          expanded={false}
           key={range}
           items={selected.items}
           showPlayCount={presentationToggle(widget.presentationConfig, "showPlayCount")}
           style={style}
-          totalAvailable={selected.totalAvailable}
         />
       ) : (
         <Empty>当前榜单未加入公开范围</Empty>
@@ -373,159 +411,29 @@ interface RankingEntry {
 }
 
 function RankingBoard({
+  expanded,
   items,
   showPlayCount,
-  style,
-  totalAvailable
+  style
 }: {
+  readonly expanded: boolean;
   readonly items: readonly RankingEntry[];
   readonly showPlayCount: boolean;
   readonly style: string;
-  readonly totalAvailable: number;
 }) {
-  const [requestedPage, setRequestedPage] = useState(0);
   if (items.length === 0) return <Empty>这是一个有效空榜单</Empty>;
-  if (style === "compact") {
-    const pageSize = 5;
-    const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
-    const page = Math.min(requestedPage, pageCount - 1);
-    const visible = items.slice(page * pageSize, page * pageSize + pageSize);
-    return (
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <div className="grid min-h-0 content-start gap-1.5 sm:grid-cols-2">
-          {visible.map((item) => (
-            <RankingRow
-              item={item}
-              key={item.track.providerTrackId}
-              showPlayCount={showPlayCount}
-            />
-          ))}
-          <RankingPager
-            count={items.length}
-            onChange={setRequestedPage}
-            page={page}
-            pageCount={pageCount}
-            pageSize={pageSize}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  const podium = items.slice(0, 3);
-  const remaining = items.slice(3);
-  const pageSize = 3;
-  const pageCount = Math.max(1, Math.ceil(remaining.length / pageSize));
-  const page = Math.min(requestedPage, pageCount - 1);
-  const visibleRemaining = remaining.slice(page * pageSize, page * pageSize + pageSize);
+  const visible = expanded ? items : items.slice(0, style === "compact" ? 8 : 6);
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {podium.map((item) => (
-          <NeteaseWebLink
-            className={
-              item.rank === 1
-                ? "relative col-span-2 flex min-w-0 items-center gap-2 overflow-hidden rounded-[16px] border border-amber-200/80 bg-gradient-to-br from-amber-50 via-white/75 to-rose-50 p-2 shadow-sm sm:col-span-1"
-                : "relative flex min-w-0 items-center gap-2 overflow-hidden rounded-[16px] border border-white/80 bg-white/48 p-2"
-            }
-            href={item.track.webUrl}
-            indicator
-            key={item.track.providerTrackId}
-            label={`在网易云打开歌曲 ${item.track.name}`}
-          >
-            <span
-              className={
-                item.rank === 1
-                  ? "absolute top-1.5 left-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-white"
-                  : "absolute top-1.5 left-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-700/75 px-1 text-[9px] font-black text-white"
-              }
-            >
-              {item.rank === 1 ? <Trophy aria-hidden size={10} weight="fill" /> : item.rank}
-            </span>
-            <Artwork label={item.track.name} size="sm" url={item.track.coverUrl} />
-            <div className="min-w-0 flex-1 pt-1">
-              <p className="truncate text-[10px] font-extrabold text-ink">{item.track.name}</p>
-              <p className="mt-0.5 truncate text-[8px] text-ink-muted">
-                {item.track.artists.map((artist) => artist.name).join(" / ")}
-              </p>
-              {showPlayCount ? (
-                <p className="mt-1 text-[8px] font-bold text-[#e83d5b]">{item.playCount} 次</p>
-              ) : null}
-            </div>
-          </NeteaseWebLink>
-        ))}
-      </div>
-
-      {remaining.length > 0 ? (
-        <div className="mt-2.5 min-h-0 flex-1">
-          <div className="grid min-h-0 content-start gap-1.5 sm:grid-cols-2">
-            {visibleRemaining.map((item) => (
-              <RankingRow
-                item={item}
-                key={item.track.providerTrackId}
-                showPlayCount={showPlayCount}
-              />
-            ))}
-            <RankingPager
-              count={remaining.length}
-              offset={3}
-              onChange={setRequestedPage}
-              page={page}
-              pageCount={pageCount}
-              pageSize={pageSize}
-            />
-          </div>
-        </div>
-      ) : (
-        <p className="mt-auto pt-3 text-center text-[8px] font-semibold text-ink-muted">
-          Provider 当前返回 {totalAvailable} 条排行记录
-        </p>
-      )}
-    </div>
-  );
-}
-
-function RankingPager({
-  count,
-  offset = 0,
-  onChange,
-  page,
-  pageCount,
-  pageSize
-}: {
-  readonly count: number;
-  readonly offset?: number;
-  readonly onChange: (page: number) => void;
-  readonly page: number;
-  readonly pageCount: number;
-  readonly pageSize: number;
-}) {
-  if (pageCount <= 1) return null;
-  const first = offset + page * pageSize + 1;
-  const last = offset + Math.min(count, page * pageSize + pageSize);
-  return (
-    <div className="flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/55 bg-white/24 px-2">
-      <button
-        aria-label="上一组排名"
-        className="flex h-6 w-6 items-center justify-center rounded-full border border-white/90 bg-white/65 text-blue-600 shadow-sm transition hover:bg-white disabled:opacity-30"
-        disabled={page === 0}
-        onClick={() => onChange(page - 1)}
-        type="button"
-      >
-        <CaretLeft aria-hidden size={12} weight="bold" />
-      </button>
-      <span className="min-w-20 text-center text-[8px] font-extrabold text-ink-muted">
-        {first}–{last} / {offset + count}
-      </span>
-      <button
-        aria-label="下一组排名"
-        className="flex h-6 w-6 items-center justify-center rounded-full border border-white/90 bg-white/65 text-blue-600 shadow-sm transition hover:bg-white disabled:opacity-30"
-        disabled={page === pageCount - 1}
-        onClick={() => onChange(page + 1)}
-        type="button"
-      >
-        <CaretRight aria-hidden size={12} weight="bold" />
-      </button>
+    <div
+      className={
+        expanded
+          ? "grid min-h-0 content-start gap-1.5 md:grid-cols-2"
+          : "netease-ranking-list grid min-h-0 content-start gap-1"
+      }
+    >
+      {visible.map((item) => (
+        <RankingRow item={item} key={item.track.providerTrackId} showPlayCount={showPlayCount} />
+      ))}
     </div>
   );
 }
@@ -533,23 +441,37 @@ function RankingPager({
 function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount: boolean }) {
   return (
     <NeteaseWebLink
-      className="group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/40 px-2.5 py-1 transition hover:border-white/90 hover:bg-white/65"
+      className={
+        item.rank <= 3
+          ? "group flex min-w-0 items-center gap-2 rounded-xl border border-rose-100/80 bg-gradient-to-r from-rose-50/80 to-white/50 px-2 py-1.5 transition hover:border-white hover:bg-white/75"
+          : "group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/34 px-2 py-1.5 transition hover:border-white/90 hover:bg-white/65"
+      }
       href={item.track.webUrl}
       label={`在网易云打开歌曲 ${item.track.name}`}
     >
-      <span className="w-5 shrink-0 text-center text-[10px] font-black text-blue-500">
-        {item.rank}
+      <span
+        className={
+          item.rank === 1
+            ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-400 text-[9px] font-black text-white shadow-sm"
+            : item.rank <= 3
+              ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#ff6a82] text-[9px] font-black text-white"
+              : "w-6 shrink-0 text-center text-[9px] font-black text-blue-500"
+        }
+      >
+        {item.rank === 1 ? <Trophy aria-hidden size={11} weight="fill" /> : item.rank}
       </span>
       <Artwork label={item.track.name} size="xs" url={item.track.coverUrl} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[10px] font-extrabold text-ink">{item.track.name}</p>
-        <p className="truncate text-[8px] text-ink-muted">
+        <p className="truncate text-[10px] leading-tight font-extrabold text-ink">
+          {item.track.name}
+        </p>
+        <p className="mt-0.5 truncate text-[8px] leading-tight text-ink-muted">
           {item.track.artists.map((artist) => artist.name).join(" / ")}
         </p>
       </div>
       {showPlayCount ? (
-        <span className="shrink-0 rounded-full bg-rose-50 px-2 py-1 text-[8px] font-bold text-[#e83d5b]">
-          {item.playCount}
+        <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[8px] font-black text-[#e83d5b]">
+          {item.playCount} 次
         </span>
       ) : null}
     </NeteaseWebLink>
@@ -640,10 +562,17 @@ export function NeteaseSocialWidget({
 export function NeteasePlaylistsWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.playlists"> }>) {
+  const expanded = useModuleShellExpansion();
   const { data } = widget;
   if (data.items.length === 0) return <Empty>没有公开歌单，或歌单数据尚未同步</Empty>;
   return (
-    <div className="netease-playlists grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto">
+    <div
+      className={
+        expanded
+          ? "grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          : "netease-playlists grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto"
+      }
+    >
       {data.items.map((item) => (
         <NeteaseWebLink
           className="netease-playlist-item flex min-w-0 items-center gap-3 rounded-2xl bg-white/42 p-2.5"

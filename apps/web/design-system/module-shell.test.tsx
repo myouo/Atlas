@@ -28,4 +28,18 @@ describe("ModuleShell", () => {
     await userEvent.click(screen.getByRole("button", { name: "移除 GitHub" }));
     expect(onRemove).toHaveBeenCalledOnce();
   });
+
+  it("opens expandable content in an accessible viewport overlay", async () => {
+    render(
+      <ModuleShell accent="coral" editable={false} expandable title="听歌榜单">
+        <p>完整榜单内容</p>
+      </ModuleShell>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "放大 听歌榜单" }));
+    expect(await screen.findByRole("dialog", { name: "听歌榜单" })).toBeVisible();
+    expect(screen.getByText("完整榜单内容")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "关闭 听歌榜单 全屏视图" }));
+    expect(screen.queryByRole("dialog", { name: "听歌榜单" })).not.toBeInTheDocument();
+  });
 });

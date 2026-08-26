@@ -1,18 +1,19 @@
 "use client";
 
-import type { WidgetProjection, WidgetType } from "@nivalis/api-client";
+import type { WidgetType } from "@nivalis/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { dashboardSource } from "../../api/dashboard-source-factory";
 import type { DashboardDataSource, DashboardEditableDraft } from "../../api/dashboard-source";
 import { RevisionConflictError } from "../../api/dashboard-source";
-import { createMockWidget } from "./mock-dashboard";
 import { AddWidgetDialog } from "./add-widget-dialog";
 import { DashboardCanvas } from "./dashboard-canvas";
 import { useDashboardStore } from "./dashboard-store";
 import type { LocalDashboardSnapshot } from "./dashboard-store";
 import { EditToolbar } from "./edit-toolbar";
+import { removeWidgetFromLayouts } from "./layout-engine";
+import { createMockWidget } from "./mock-dashboard";
 import { ModuleCatalog } from "./module-catalog";
 import { RevisionConflictDialog } from "./revision-conflict-dialog";
 import { RevisionHistoryDialog } from "./revision-history-dialog";
@@ -256,6 +257,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         query.data.draft.concurrencyToken
       );
     }
+    if (query.data.draft) retireDeprecatedWidgetsFromDraft();
   }, [initializeLocal, query.data, replaceFromRemote, replacePublic, source.kind]);
 
   useEffect(() => {
@@ -325,16 +327,14 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   const isOwner = source.kind === "mock" || session?.role === "owner";
   const effectiveMode = isOwner ? store.mode : "display";
   const snapshot = effectiveMode === "edit" ? store.draft : store.published;
+  const visibleSnapshot = withoutRetiredWidgets(snapshot);
   const providerStatuses = query.data?.providerStatuses ?? [];
 
   const addWidget = (type: WidgetType) => {
     const definition = widgetRegistry.preferred(type);
     if (!definition) return;
     const id = crypto.randomUUID();
-    const widget = withInstanceDefaults(
-      createMockWidget(type, id, definition.schemaVersion),
-      snapshot.widgets
-    );
+    const widget = createMockWidget(type, id, definition.schemaVersion);
     store.addWidget(widget, definition.sizes);
     showNotice(`${definition.name} 已加入本地草稿`);
   };
@@ -425,7 +425,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         <div className="mt-2">
           <DashboardCanvas
             editable={isOwner && effectiveMode === "edit"}
-            layout={snapshot.layout}
+            layout={visibleSnapshot.layout}
             onLayoutChange={store.updateBreakpointLayout}
             onDataConfigChange={store.updateWidgetDataConfig}
             onPresentationConfigChange={store.updateWidgetPresentationConfig}
@@ -433,7 +433,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
               store.removeWidget(widgetId);
               showNotice("模块已从本地草稿移除，可通过重置恢复");
             }}
-            widgets={snapshot.widgets.filter((widget) => widget.enabled)}
+            widgets={visibleSnapshot.widgets.filter((widget) => widget.enabled)}
           />
         </div>
 
@@ -441,7 +441,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           <ModuleCatalog
             onAdd={addWidget}
             onOpenCatalog={() => setAddDialogOpen(true)}
-            widgets={snapshot.widgets}
+            widgets={visibleSnapshot.widgets}
           />
         ) : null}
 
@@ -463,7 +463,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           onAdd={addWidget}
           onOpenChange={setAddDialogOpen}
           open={addDialogOpen}
-          widgets={snapshot.widgets}
+          widgets={visibleSnapshot.widgets}
         />
       ) : null}
 
@@ -507,38 +507,30 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   );
 }
 
-function withInstanceDefaults(
-  widget: WidgetProjection,
-  existing: readonly WidgetProjection[]
-): WidgetProjection {
-  if (widget.type !== "music.netease.social") return widget;
-  const existingViews = existing
-    .filter((candidate) => candidate.type === "music.netease.social")
-    .map((candidate) => candidate.dataConfig.view);
-  const view = !existingViews.includes("following")
-    ? "following"
-    : !existingViews.includes("followers")
-      ? "followers"
-      : "combined";
-  const publicLists = view === "combined" ? [] : [view];
-  return {
-    ...widget,
-    data: { ...widget.data, view },
-    dataConfig: { publicLimit: view === "combined" ? 0 : 8, publicLists, view },
-    title:
-      view === "following"
-        ? "网易云 · 关注"
-        : view === "followers"
-          ? "网易云 · 粉丝"
-          : "网易云 · 乐友关系"
-  } as WidgetProjection;
+function toDraftUpdate(snapshot: LocalDashboardSnapshot): DashboardEditableDraft {
+  return withoutRetiredWidgets(snapshot);
 }
 
-function toDraftUpdate(snapshot: LocalDashboardSnapshot): DashboardEditableDraft {
+function withoutRetiredWidgets(snapshot: LocalDashboardSnapshot): DashboardEditableDraft {
+  const retiredIds = snapshot.widgets
+    .filter((widget) => widget.type === "music.netease.social")
+    .map((widget) => widget.id);
+  if (retiredIds.length === 0) {
+    return { layout: snapshot.layout, widgets: snapshot.widgets };
+  }
   return {
-    layout: snapshot.layout,
-    widgets: snapshot.widgets
+    layout: retiredIds.reduce(removeWidgetFromLayouts, snapshot.layout),
+    widgets: snapshot.widgets.filter((widget) => widget.type !== "music.netease.social")
   };
+}
+
+function retireDeprecatedWidgetsFromDraft() {
+  const state = useDashboardStore.getState();
+  const retiredIds =
+    state.draft?.widgets
+      .filter((widget) => widget.type === "music.netease.social")
+      .map((widget) => widget.id) ?? [];
+  retiredIds.forEach(state.removeWidget);
 }
 
 function toSyncUiState(status: "queued" | "running" | "retrying" | "completed" | "failed") {

@@ -106,8 +106,6 @@ select:focus-visible {
   isolation: isolate;
   container-name: module-shell;
   container-type: size;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 260px;
   animation: module-shell-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transition:
     transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -124,6 +122,50 @@ select:focus-visible {
 
 .module-shell[data-kind="standard"] .module-shell-content::-webkit-scrollbar {
   display: none;
+}
+
+.module-shell-expanded {
+  container-name: module-shell;
+  container-type: size;
+  animation: module-expand-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.module-expand-overlay {
+  animation: module-overlay-in 180ms ease-out both;
+}
+
+.module-shell-expanded-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(92, 119, 176, 0.3) transparent;
+}
+
+.module-shell-expanded-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.module-shell-expanded-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(92, 119, 176, 0.3);
+}
+
+@keyframes module-expand-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes module-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .module-shell::after {
@@ -279,6 +321,12 @@ select:focus-visible {
   }
 }
 
+@container module-shell (min-width: 360px) {
+  .netease-ranking-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @container module-shell (max-width: 380px) {
   .module-shell-header {
     gap: 0.6rem;
@@ -300,10 +348,6 @@ select:focus-visible {
 
   .module-shell-title {
     font-size: 0.82rem;
-  }
-
-  .module-shell-subtitle {
-    font-size: 0.58rem;
   }
 
   .netease-identity-profile {
@@ -331,21 +375,6 @@ select:focus-visible {
   .netease-playlist-item {
     gap: 0.55rem;
     padding: 0.55rem;
-  }
-
-  .netease-ranking-tabs {
-    order: 1;
-  }
-
-  .netease-ranking-web-link {
-    order: 2;
-    margin-left: auto;
-  }
-
-  .netease-ranking-meta {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
   }
 }
 
