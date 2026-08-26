@@ -734,10 +734,14 @@ export interface components {
         };
         NeteaseTrackSummaryV2: {
             providerTrackId: string;
+            /** Format: uri */
+            webUrl: string | null;
             name: string;
             artists: {
                 providerArtistId: string;
                 name: string;
+                /** Format: uri */
+                webUrl: string | null;
             }[];
             albumName: string | null;
             /** Format: uri */
@@ -758,6 +762,8 @@ export interface components {
             availability: "available";
             providerUserId: string;
             displayName: string | null;
+            /** Format: uri */
+            webUrl: string | null;
         };
         NeteaseWeeklyAvailableV2: {
             /** @constant */
@@ -778,6 +784,8 @@ export interface components {
                 providerArtistId: string;
                 name: string;
                 rankedPlayCount: number;
+                /** Format: uri */
+                webUrl: string | null;
             }[];
         };
         NeteaseRecentAvailableV2: {
@@ -817,6 +825,8 @@ export interface components {
         };
         NeteaseUserSummaryV1: {
             providerUserId: string;
+            /** Format: uri */
+            webUrl: string | null;
             displayName: string;
             /** Format: uri */
             avatarUrl: string | null;
@@ -827,6 +837,8 @@ export interface components {
         };
         NeteasePlaylistSummaryV1: {
             providerPlaylistId: string;
+            /** Format: uri */
+            webUrl: string | null;
             name: string;
             /** Format: uri */
             coverUrl: string | null;
@@ -864,6 +876,8 @@ export interface components {
                 /** @constant */
                 availability: "available";
                 providerUserId?: string;
+                /** Format: uri */
+                webUrl?: string | null;
                 displayName?: string | null;
                 /** Format: uri */
                 avatarUrl?: string | null;
@@ -924,6 +938,8 @@ export interface components {
             availability: "available";
             /** @constant */
             provider: "netease";
+            /** Format: uri */
+            webUrl: string | null;
             /** @enum {string} */
             range: "week" | "all_time";
             /** @constant */
@@ -943,6 +959,8 @@ export interface components {
         NeteaseRankingDataV2: {
             /** @constant */
             provider: "netease";
+            /** Format: uri */
+            webUrl: string | null;
             publicLimit: number;
             publicRanges: ("week" | "all_time")[];
             week: components["schemas"]["NeteaseRankingRangeV2"] | components["schemas"]["DataUnavailable"];
@@ -957,6 +975,8 @@ export interface components {
         NeteaseSocialDataV1: {
             /** @constant */
             provider: "netease";
+            /** Format: uri */
+            webUrl: string | null;
             followingCount: number;
             followerCount: number;
             publicLists: ("following" | "followers")[];

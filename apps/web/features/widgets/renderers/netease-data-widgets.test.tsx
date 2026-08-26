@@ -12,6 +12,14 @@ describe("NetEase semantic data widgets", () => {
     render(<NeteaseRankingWidget widget={rankingWidget()} />);
     expect(screen.getByText("Weekly One")).toBeInTheDocument();
     expect(screen.queryByText("All-time One")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "在网易云查看听歌榜单" })).toHaveAttribute(
+      "href",
+      "https://music.163.com/user/songs/rank?id=10001"
+    );
+    expect(screen.getByRole("link", { name: "在网易云打开歌曲 Weekly One" })).toHaveAttribute(
+      "href",
+      "https://music.163.com/song?id=1"
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "全部时间" }));
     expect(screen.getByText("All-time One")).toBeInTheDocument();
@@ -161,6 +169,7 @@ function rankingWidget(): Extract<WidgetOf<"music.netease.ranking">, { schemaVer
       provider: "netease",
       publicLimit: 12,
       publicRanges: ["week", "all_time"],
+      webUrl: "https://music.163.com/user/songs/rank?id=10001",
       week: {
         availability: "available",
         coverage: "provider_top_100",
@@ -264,10 +273,17 @@ function rankingItems(idPrefix: string, namePrefix: string) {
 function track(id: string, name: string) {
   return {
     albumName: "Fixture Album",
-    artists: [{ name: "Fixture Artist", providerArtistId: "artist-1" }],
+    artists: [
+      {
+        name: "Fixture Artist",
+        providerArtistId: "30001",
+        webUrl: "https://music.163.com/artist?id=30001"
+      }
+    ],
     coverUrl: null,
     durationMs: 240_000,
     name,
-    providerTrackId: id
+    providerTrackId: id,
+    webUrl: `https://music.163.com/song?id=${id.replace(/\D/g, "") || "20001"}`
   };
 }

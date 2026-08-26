@@ -208,6 +208,40 @@ select:focus-visible {
   transform: scale(0.985);
 }
 
+.netease-web-link {
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 200ms ease;
+}
+
+.netease-web-link:hover {
+  border-color: rgba(255, 255, 255, 0.92);
+  background-color: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 8px 22px rgba(35, 75, 138, 0.1);
+  transform: translate3d(0, -1px, 0);
+}
+
+.netease-web-link:active {
+  transform: scale(0.985);
+}
+
+.netease-web-link-indicator {
+  opacity: 0.72;
+  transition:
+    opacity 180ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.netease-web-link:hover .netease-web-link-indicator {
+  opacity: 1;
+  transform: translate3d(1px, -1px, 0);
+}
+
 @keyframes module-shell-enter {
   from {
     opacity: 0;

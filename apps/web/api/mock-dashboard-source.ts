@@ -140,11 +140,18 @@ export const mockDashboardSource: DashboardDataSource = {
             score: 100,
             track: {
               albumName: "Fixture Album",
-              artists: [{ name: "Aimer", providerArtistId: "30001" }],
+              artists: [
+                {
+                  name: "Aimer",
+                  providerArtistId: "30001",
+                  webUrl: "https://music.163.com/artist?id=30001"
+                }
+              ],
               coverUrl: "https://p1.music.126.net/sanitized-fixture/20001.jpg",
               durationMs: 240000,
               name: "Snow Light",
-              providerTrackId: "20001"
+              providerTrackId: "20001",
+              webUrl: "https://music.163.com/song?id=20001"
             }
           }
         ],
@@ -180,11 +187,18 @@ export const mockDashboardSource: DashboardDataSource = {
             score: 100,
             track: {
               albumName: "Fixture Album",
-              artists: [{ name: "Aimer", providerArtistId: "30001" }],
+              artists: [
+                {
+                  name: "Aimer",
+                  providerArtistId: "30001",
+                  webUrl: "https://music.163.com/artist?id=30001"
+                }
+              ],
               coverUrl: "https://p1.music.126.net/sanitized-fixture/20001.jpg",
               durationMs: 240000,
               name: "Snow Light",
-              providerTrackId: "20001"
+              providerTrackId: "20001",
+              webUrl: "https://music.163.com/song?id=20001"
             }
           }
         ]

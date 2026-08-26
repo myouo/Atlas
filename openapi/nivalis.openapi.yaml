@@ -1415,10 +1415,13 @@ components:
     NeteaseTrackSummaryV2:
       type: object
       additionalProperties: false
-      required: [providerTrackId, name, artists, albumName, coverUrl, durationMs]
+      required: [providerTrackId, name, artists, albumName, coverUrl, durationMs, webUrl]
       properties:
         providerTrackId:
           type: string
+        webUrl:
+          type: [string, "null"]
+          format: uri
         name:
           type: string
         artists:
@@ -1426,12 +1429,15 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [providerArtistId, name]
+            required: [providerArtistId, name, webUrl]
             properties:
               providerArtistId:
                 type: string
               name:
                 type: string
+              webUrl:
+                type: [string, "null"]
+                format: uri
         albumName:
           type: [string, "null"]
         coverUrl:
@@ -1460,7 +1466,7 @@ components:
     NeteaseAccountAvailableV2:
       type: object
       additionalProperties: false
-      required: [availability, providerUserId, displayName]
+      required: [availability, providerUserId, displayName, webUrl]
       properties:
         availability:
           type: string
@@ -1469,6 +1475,9 @@ components:
           type: string
         displayName:
           type: [string, "null"]
+        webUrl:
+          type: [string, "null"]
+          format: uri
     NeteaseWeeklyAvailableV2:
       type: object
       additionalProperties: false
@@ -1509,7 +1518,7 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [providerArtistId, name, rankedPlayCount]
+            required: [providerArtistId, name, rankedPlayCount, webUrl]
             properties:
               providerArtistId:
                 type: string
@@ -1518,6 +1527,9 @@ components:
               rankedPlayCount:
                 type: integer
                 minimum: 0
+              webUrl:
+                type: [string, "null"]
+                format: uri
     NeteaseRecentAvailableV2:
       type: object
       additionalProperties: false
@@ -1612,10 +1624,14 @@ components:
     NeteaseUserSummaryV1:
       type: object
       additionalProperties: false
-      required: [providerUserId, displayName, avatarUrl, avatarDecorationUrl, signature, vipType]
+      required:
+        [providerUserId, displayName, avatarUrl, avatarDecorationUrl, signature, vipType, webUrl]
       properties:
         providerUserId:
           type: string
+        webUrl:
+          type: [string, "null"]
+          format: uri
         displayName:
           type: string
         avatarUrl:
@@ -1632,10 +1648,14 @@ components:
     NeteasePlaylistSummaryV1:
       type: object
       additionalProperties: false
-      required: [providerPlaylistId, name, coverUrl, trackCount, playCount, subscribedCount, tags]
+      required:
+        [providerPlaylistId, name, coverUrl, trackCount, playCount, subscribedCount, tags, webUrl]
       properties:
         providerPlaylistId:
           type: string
+        webUrl:
+          type: [string, "null"]
+          format: uri
         name:
           type: string
         coverUrl:
@@ -1740,6 +1760,9 @@ components:
               const: available
             providerUserId:
               type: string
+            webUrl:
+              type: [string, "null"]
+              format: uri
             displayName:
               type: [string, "null"]
             avatarUrl:
@@ -1882,7 +1905,8 @@ components:
     NeteaseRankingDataV1:
       type: object
       additionalProperties: false
-      required: [availability, provider, range, coverage, publicLimit, totalAvailable, items]
+      required:
+        [availability, provider, range, coverage, publicLimit, totalAvailable, items, webUrl]
       properties:
         availability:
           type: string
@@ -1890,6 +1914,9 @@ components:
         provider:
           type: string
           const: netease
+        webUrl:
+          type: [string, "null"]
+          format: uri
         range:
           type: string
           enum: [week, all_time]
@@ -1928,11 +1955,14 @@ components:
     NeteaseRankingDataV2:
       type: object
       additionalProperties: false
-      required: [provider, publicLimit, publicRanges, week, allTime]
+      required: [provider, publicLimit, publicRanges, week, allTime, webUrl]
       properties:
         provider:
           type: string
           const: netease
+        webUrl:
+          type: [string, "null"]
+          format: uri
         publicLimit:
           type: integer
           minimum: 1
@@ -1970,11 +2000,23 @@ components:
       type: object
       additionalProperties: false
       required:
-        [provider, followingCount, followerCount, publicLists, publicLimit, following, followers]
+        [
+          provider,
+          followingCount,
+          followerCount,
+          publicLists,
+          publicLimit,
+          following,
+          followers,
+          webUrl
+        ]
       properties:
         provider:
           type: string
           const: netease
+        webUrl:
+          type: [string, "null"]
+          format: uri
         followingCount:
           type: integer
           minimum: 0

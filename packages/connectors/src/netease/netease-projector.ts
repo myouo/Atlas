@@ -113,6 +113,7 @@ function identity(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
     publicFields: fields,
     profile: {
       availability: "available",
+      webUrl: neteaseWebUrl("user/home", payload.account.providerUserId),
       ...(has("display_name") ? { displayName: payload.account.displayName } : {}),
       ...(has("avatar") ? { avatarUrl: payload.account.avatarUrl } : {}),
       ...(has("avatar_decoration") ? { avatarDecorationUrl: payload.account.avatarFrameUrl } : {}),
@@ -207,7 +208,8 @@ function ranking(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Jso
     provider: "netease",
     publicLimit: limit,
     range,
-    totalAvailable: records.length
+    totalAvailable: records.length,
+    webUrl: neteaseWebUrl("user/songs/rank", payload.account.providerUserId)
   };
 }
 
@@ -221,6 +223,7 @@ function rankingV2(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): J
     provider: "netease",
     publicLimit: limit,
     publicRanges: ranges,
+    webUrl: neteaseWebUrl("user/songs/rank", payload.account.providerUserId),
     week: ranges.includes("week")
       ? rankingRange(payload.weeklyRecords, limit)
       : { availability: "unavailable", reason: "not_public" }
@@ -265,7 +268,8 @@ function social(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Json
     followingCount: payload.account.followingCount,
     provider: "netease",
     publicLists: lists,
-    publicLimit: limit
+    publicLimit: limit,
+    webUrl: neteaseWebUrl("user/home", payload.account.providerUserId)
   };
 }
 
@@ -456,7 +460,8 @@ function people(
       displayName: item.displayName,
       providerUserId: item.providerUserId,
       signature: item.signature,
-      vipType: item.vipType
+      vipType: item.vipType,
+      webUrl: neteaseWebUrl("user/home", item.providerUserId)
     }))
   };
 }
@@ -469,7 +474,8 @@ function playlistSummary(item: NeteaseNormalizedPayload["createdPlaylists"]["ite
     providerPlaylistId: item.providerPlaylistId,
     subscribedCount: item.subscribedCount,
     tags: item.tags,
-    trackCount: item.trackCount
+    trackCount: item.trackCount,
+    webUrl: neteaseWebUrl("playlist", item.providerPlaylistId)
   };
 }
 
@@ -541,7 +547,8 @@ function overview(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
     account: {
       availability: "available",
       displayName: payload.account.displayName,
-      providerUserId: payload.account.providerUserId
+      providerUserId: payload.account.providerUserId,
+      webUrl: neteaseWebUrl("user/home", payload.account.providerUserId)
     },
     listeningDuration:
       payload.listeningDurationMinutes === null
@@ -595,7 +602,8 @@ function overview(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
               .map(([providerArtistId, artist]) => ({
                 name: artist.name,
                 providerArtistId,
-                rankedPlayCount: artist.plays
+                rankedPlayCount: artist.plays,
+                webUrl: neteaseWebUrl("artist", providerArtistId)
               })),
             topTracks: payload.weeklyRecords.slice(0, 100).map((record) => ({
               playCount: record.playCount,
@@ -609,10 +617,21 @@ function overview(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Js
 function trackSummary(track: NeteaseNormalizedPayload["weeklyRecords"][number]["track"]) {
   return {
     albumName: track.albumName,
-    artists: track.artists,
+    artists: track.artists.map((artist) => ({
+      ...artist,
+      webUrl: neteaseWebUrl("artist", artist.providerArtistId)
+    })),
     coverUrl: track.coverUrl,
     durationMs: track.durationMs,
     name: track.name,
-    providerTrackId: track.providerTrackId
+    providerTrackId: track.providerTrackId,
+    webUrl: neteaseWebUrl("song", track.providerTrackId)
   };
+}
+
+function neteaseWebUrl(path: string, providerId: string) {
+  if (!/^\d+$/.test(providerId)) return null;
+  const url = new URL(`/${path}`, "https://music.163.com");
+  url.searchParams.set("id", providerId);
+  return url.toString();
 }

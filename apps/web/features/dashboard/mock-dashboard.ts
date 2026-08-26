@@ -359,6 +359,7 @@ export function createMockWidget(
           provider: "netease",
           publicLimit: 12,
           publicRanges: ["week", "all_time"],
+          webUrl: null,
           week: unavailable
         },
         dataConfig: { publicLimit: 12, publicRanges: ["week", "all_time"] },
@@ -381,7 +382,8 @@ export function createMockWidget(
         provider: "netease",
         publicLimit: 10,
         range: "week",
-        totalAvailable: 0
+        totalAvailable: 0,
+        webUrl: null
       },
       dataConfig: { publicLimit: 10, range: "week" },
       enabled: true,
@@ -405,7 +407,8 @@ export function createMockWidget(
         followingCount: 36,
         provider: "netease",
         publicLimit: 0,
-        publicLists: []
+        publicLists: [],
+        webUrl: null
       },
       dataConfig: { publicLimit: 0, publicLists: [] },
       enabled: true,

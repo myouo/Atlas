@@ -16,6 +16,7 @@ import { type ReactNode, useState } from "react";
 
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
+import { NeteaseWebLink, safeNeteaseWebUrl } from "./netease-web-link";
 
 function Artwork({
   label,
@@ -73,7 +74,12 @@ export function NeteaseIdentityWidget({
   ].filter((item): item is [string, number] => item !== null);
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex min-w-0 items-center gap-4">
+      <NeteaseWebLink
+        className="flex min-w-0 items-center gap-4 rounded-2xl"
+        href={profile.webUrl}
+        indicator
+        label={`在网易云查看 ${displayName}`}
+      >
         {profile.avatarUrl !== undefined ? (
           <div className="relative">
             <Artwork label={`${displayName} 的网易云头像`} size="lg" url={profile.avatarUrl} />
@@ -115,7 +121,7 @@ export function NeteaseIdentityWidget({
             </p>
           ) : null}
         </div>
-      </div>
+      </NeteaseWebLink>
       {counts.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
           {counts.map(([label, value]) => (
@@ -262,6 +268,13 @@ function NeteaseRankingWidgetV2({
             已公开 {selected.items.length} / Provider {selected.totalAvailable}
           </span>
         ) : null}
+        <NeteaseWebLink
+          className="inline-flex shrink-0 items-center rounded-full border border-white/75 bg-white/45 px-2.5 py-1 text-[9px] font-bold text-blue-700"
+          href={widget.data.webUrl}
+          label="在网易云查看听歌榜单"
+        >
+          网易云榜单
+        </NeteaseWebLink>
       </div>
 
       {selected.availability === "available" ? (
@@ -288,6 +301,7 @@ interface RankingEntry {
     readonly coverUrl: string | null;
     readonly name: string;
     readonly providerTrackId: string;
+    readonly webUrl: string | null;
   };
 }
 
@@ -341,13 +355,16 @@ function RankingBoard({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {podium.map((item) => (
-          <div
+          <NeteaseWebLink
             className={
               item.rank === 1
                 ? "relative col-span-2 flex min-w-0 items-center gap-2 overflow-hidden rounded-[16px] border border-amber-200/80 bg-gradient-to-br from-amber-50 via-white/75 to-rose-50 p-2 shadow-sm sm:col-span-1"
                 : "relative flex min-w-0 items-center gap-2 overflow-hidden rounded-[16px] border border-white/80 bg-white/48 p-2"
             }
+            href={item.track.webUrl}
+            indicator
             key={item.track.providerTrackId}
+            label={`在网易云打开歌曲 ${item.track.name}`}
           >
             <span
               className={
@@ -368,7 +385,7 @@ function RankingBoard({
                 <p className="mt-1 text-[8px] font-bold text-[#e83d5b]">{item.playCount} 次</p>
               ) : null}
             </div>
-          </div>
+          </NeteaseWebLink>
         ))}
       </div>
 
@@ -448,7 +465,11 @@ function RankingPager({
 
 function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount: boolean }) {
   return (
-    <div className="group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/40 px-2.5 py-1 transition hover:border-white/90 hover:bg-white/65">
+    <NeteaseWebLink
+      className="group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/40 px-2.5 py-1 transition hover:border-white/90 hover:bg-white/65"
+      href={item.track.webUrl}
+      label={`在网易云打开歌曲 ${item.track.name}`}
+    >
       <span className="w-5 shrink-0 text-center text-[10px] font-black text-blue-500">
         {item.rank}
       </span>
@@ -464,7 +485,7 @@ function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount
           {item.playCount}
         </span>
       ) : null}
-    </div>
+    </NeteaseWebLink>
   );
 }
 
@@ -478,10 +499,15 @@ export function NeteaseSocialWidget({
   ] as const;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid grid-cols-2 gap-2">
+      <NeteaseWebLink
+        className="grid grid-cols-2 gap-2 rounded-2xl"
+        href={data.webUrl}
+        indicator
+        label="在网易云查看用户主页"
+      >
         <Stat label="关注" value={data.followingCount.toLocaleString("zh-CN")} />
         <Stat label="粉丝" value={data.followerCount.toLocaleString("zh-CN")} />
-      </div>
+      </NeteaseWebLink>
       <div className="mt-3 grid min-h-0 flex-1 gap-3 sm:grid-cols-2">
         {sections.map(([label, list, Icon]) =>
           list.availability === "available" ? (
@@ -492,12 +518,17 @@ export function NeteaseSocialWidget({
               </p>
               <div className="space-y-1.5">
                 {list.items.map((person) => (
-                  <div className="flex items-center gap-2" key={person.providerUserId}>
+                  <NeteaseWebLink
+                    className="flex items-center gap-2 rounded-xl p-1"
+                    href={person.webUrl}
+                    key={person.providerUserId}
+                    label={`在网易云查看用户 ${person.displayName}`}
+                  >
                     <Artwork label={person.displayName} size="sm" url={person.avatarUrl} />
                     <span className="truncate text-[10px] font-bold text-ink">
                       {person.displayName}
                     </span>
-                  </div>
+                  </NeteaseWebLink>
                 ))}
               </div>
             </section>
@@ -516,9 +547,12 @@ export function NeteasePlaylistsWidget({
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
       {data.items.map((item) => (
-        <div
+        <NeteaseWebLink
           className="flex min-w-0 items-center gap-3 rounded-2xl bg-white/42 p-2.5"
+          href={item.webUrl}
+          indicator
           key={item.providerPlaylistId}
+          label={`在网易云打开歌单 ${item.name}`}
         >
           <Artwork label={item.name} url={item.coverUrl} />
           <div className="min-w-0 flex-1">
@@ -527,7 +561,7 @@ export function NeteasePlaylistsWidget({
               {item.trackCount} 首 · {item.playCount.toLocaleString("zh-CN")} 播放
             </p>
           </div>
-        </div>
+        </NeteaseWebLink>
       ))}
     </div>
   );
@@ -807,7 +841,7 @@ function ShowcaseArtwork({
 }
 
 function showcaseSummary(card: Record<string, unknown>, source: string) {
-  const jumpUrl = safeNeteaseJumpUrl(card.jumpUrl);
+  const jumpUrl = safeNeteaseWebUrl(card.jumpUrl);
   const track = objectValue(card.track);
   if (track) {
     const artists = Array.isArray(track.artists)
@@ -890,23 +924,6 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
               : null)),
     title: stringValue(card.title) || "网易云音乐卡片"
   };
-}
-
-function safeNeteaseJumpUrl(value: unknown) {
-  const target = stringValue(value);
-  if (!target) return null;
-  try {
-    const url = new URL(target);
-    if (
-      url.protocol === "https:" &&
-      (url.hostname === "music.163.com" || url.hostname.endsWith(".music.163.com"))
-    ) {
-      return url.toString();
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 function formatDuration(value: number, unit: "plays" | "seconds" | "minutes") {

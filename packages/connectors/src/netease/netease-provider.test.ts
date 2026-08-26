@@ -118,7 +118,11 @@ describe("NetEase Provider module", () => {
     const [projection] = await new NeteaseProjector().project(normalized, [target("7d")]);
     expect(projection?.projectionSchemaVersion).toBe(2);
     expect(projection?.data).toMatchObject({
-      account: { availability: "available", providerUserId: "10001" },
+      account: {
+        availability: "available",
+        providerUserId: "10001",
+        webUrl: "https://music.163.com/user/home?id=10001"
+      },
       listeningDuration: {
         availability: "available",
         provenance: "provider_reported",
@@ -133,7 +137,15 @@ describe("NetEase Provider module", () => {
         availability: "available",
         coverage: "top_records",
         provenance: "nivalis_derived",
-        rankedPlayCount: 22
+        rankedPlayCount: 22,
+        topArtists: expect.arrayContaining([
+          expect.objectContaining({ webUrl: "https://music.163.com/artist?id=30001" })
+        ]),
+        topTracks: expect.arrayContaining([
+          expect.objectContaining({
+            track: expect.objectContaining({ webUrl: "https://music.163.com/song?id=20001" })
+          })
+        ])
       }
     });
   });
@@ -209,6 +221,15 @@ describe("NetEase Provider module", () => {
       following: { availability: "unavailable", reason: "not_public" }
     });
     expect(projections[4]!.data).toMatchObject({ items: [{ name: "Snow Archive" }] });
+    expect(projections[2]!.data).toMatchObject({
+      webUrl: "https://music.163.com/user/songs/rank?id=10001"
+    });
+    expect(projections[3]!.data).toMatchObject({
+      webUrl: "https://music.163.com/user/home?id=10001"
+    });
+    expect(projections[4]!.data).toMatchObject({
+      items: [expect.objectContaining({ webUrl: "https://music.163.com/playlist?id=13001" })]
+    });
     expect(projections[5]!.data).toMatchObject({
       availability: "available",
       card: { kind: "track", track: { name: "Snow Light" } }

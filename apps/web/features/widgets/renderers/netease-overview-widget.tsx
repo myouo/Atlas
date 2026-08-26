@@ -14,6 +14,7 @@ import {
 
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
+import { NeteaseWebLink } from "./netease-web-link";
 
 const genreColors = ["#ff4f67", "#ff8a55", "#6f7df4", "#d356dd", "#48a6d7"];
 
@@ -219,6 +220,17 @@ function NeteaseOverviewWidgetV2({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {data.account.availability === "available" ? (
+        <div className="mb-2 flex justify-end">
+          <NeteaseWebLink
+            className="inline-flex items-center rounded-full border border-white/75 bg-white/45 px-2.5 py-1 text-[9px] font-bold text-blue-700"
+            href={data.account.webUrl}
+            label="在网易云查看账号主页"
+          >
+            网易云主页
+          </NeteaseWebLink>
+        </div>
+      ) : null}
       {metrics.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 border-b border-blue-100/70 pb-3 sm:grid-cols-4">
           {metrics}
@@ -232,9 +244,11 @@ function NeteaseOverviewWidgetV2({
             {weekly.availability === "available" ? (
               <div className="mt-2 space-y-1.5">
                 {weekly.topTracks.slice(0, listLimit).map((entry) => (
-                  <div
-                    className="flex items-center justify-between gap-2"
+                  <NeteaseWebLink
+                    className="flex items-center justify-between gap-2 rounded-lg px-1"
+                    href={entry.track.webUrl}
                     key={entry.track.providerTrackId}
+                    label={`在网易云打开歌曲 ${entry.track.name}`}
                   >
                     <span className="truncate text-[10px] font-semibold text-ink">
                       {entry.track.name}
@@ -242,7 +256,7 @@ function NeteaseOverviewWidgetV2({
                     <span className="shrink-0 text-[9px] font-bold text-[#ff3f5d]">
                       {entry.playCount} 次
                     </span>
-                  </div>
+                  </NeteaseWebLink>
                 ))}
                 {weekly.topTracks.length === 0 ? <EmptyLabel text="有效空数据集" /> : null}
               </div>
@@ -258,15 +272,17 @@ function NeteaseOverviewWidgetV2({
             {weekly.availability === "available" ? (
               <div className="mt-2 space-y-1.5">
                 {weekly.topArtists.slice(0, listLimit).map((artist) => (
-                  <div
-                    className="flex items-center justify-between gap-2"
+                  <NeteaseWebLink
+                    className="flex items-center justify-between gap-2 rounded-lg px-1"
+                    href={artist.webUrl}
                     key={artist.providerArtistId}
+                    label={`在网易云查看歌手 ${artist.name}`}
                   >
                     <span className="truncate text-[10px] font-semibold text-ink">
                       {artist.name}
                     </span>
                     <span className="text-[9px] text-ink-muted">{artist.rankedPlayCount}</span>
-                  </div>
+                  </NeteaseWebLink>
                 ))}
               </div>
             ) : (
@@ -306,12 +322,17 @@ function NeteaseOverviewWidgetV2({
             ) : recent.availability === "available" ? (
               <div className="mt-2 space-y-1.5">
                 {recent.items.slice(0, listLimit).map((item) => (
-                  <div className="min-w-0" key={`${item.track.providerTrackId}-${item.playedAt}`}>
+                  <NeteaseWebLink
+                    className="min-w-0 rounded-lg px-1"
+                    href={item.track.webUrl}
+                    key={`${item.track.providerTrackId}-${item.playedAt}`}
+                    label={`在网易云打开歌曲 ${item.track.name}`}
+                  >
                     <p className="truncate text-[10px] font-semibold text-ink">{item.track.name}</p>
                     <p className="text-[8px] text-ink-muted">
                       {item.playedAt.slice(5, 16).replace("T", " ")} UTC
                     </p>
-                  </div>
+                  </NeteaseWebLink>
                 ))}
               </div>
             ) : (
