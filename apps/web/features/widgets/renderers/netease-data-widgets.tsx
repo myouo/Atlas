@@ -12,7 +12,7 @@ import {
   Trophy,
   UserList
 } from "@phosphor-icons/react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
@@ -38,11 +38,70 @@ function Artwork({
   return (
     <span
       aria-label={label}
-      className={`${dimensions} block shrink-0 border border-white/90 bg-gradient-to-br from-rose-100 to-blue-100 bg-cover bg-center shadow-sm`}
+      className={`${dimensions} relative block shrink-0 overflow-hidden border border-white/90 bg-gradient-to-br from-rose-100 to-blue-100 shadow-sm`}
       role="img"
-      style={url ? { backgroundImage: `url(${JSON.stringify(url)})` } : undefined}
+    >
+      {url ? <LazyProviderImage url={url} /> : null}
+    </span>
+  );
+}
+
+function LazyProviderImage({ url }: { readonly url: string }) {
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [nearViewport, setNearViewport] = useState(false);
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image) return;
+    return observeProviderArtwork(image, () => setNearViewport(true));
+  }, []);
+  return (
+    // Provider artwork is already normalized. Native lazy loading avoids decoding off-screen cards.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt=""
+      className="h-full w-full object-cover"
+      decoding="async"
+      loading="lazy"
+      ref={imageRef}
+      referrerPolicy="no-referrer"
+      src={nearViewport ? url : undefined}
     />
   );
+}
+
+const providerArtworkCallbacks = new Map<Element, () => void>();
+let providerArtworkObserver: IntersectionObserver | null = null;
+
+function releaseProviderArtworkObserverWhenIdle() {
+  if (providerArtworkCallbacks.size > 0) return;
+  providerArtworkObserver?.disconnect();
+  providerArtworkObserver = null;
+}
+
+function observeProviderArtwork(element: Element, reveal: () => void) {
+  if (typeof IntersectionObserver === "undefined") {
+    reveal();
+    return undefined;
+  }
+  providerArtworkObserver ??= new IntersectionObserver(
+    (entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        providerArtworkCallbacks.get(entry.target)?.();
+        providerArtworkCallbacks.delete(entry.target);
+        observer.unobserve(entry.target);
+        releaseProviderArtworkObserverWhenIdle();
+      }
+    },
+    { rootMargin: "160px 0px" }
+  );
+  providerArtworkCallbacks.set(element, reveal);
+  providerArtworkObserver.observe(element);
+  return () => {
+    providerArtworkCallbacks.delete(element);
+    providerArtworkObserver?.unobserve(element);
+    releaseProviderArtworkObserverWhenIdle();
+  };
 }
 
 function Empty({ children }: { children: string }) {
@@ -157,6 +216,10 @@ export function NeteaseListeningWidget({
 }: Readonly<{ widget: WidgetOf<"music.netease.listening"> }>) {
   const data = widget.data;
   const trend = data.trend;
+  const trendMaximum =
+    trend.availability === "available"
+      ? Math.max(...trend.points.map((item) => item.minutes), 1)
+      : 1;
   const metrics = [
     data.totalListenCount.availability === "available"
       ? ["累计听歌", `${data.totalListenCount.value.toLocaleString("zh-CN")} 首`]
@@ -188,12 +251,11 @@ export function NeteaseListeningWidget({
           </p>
           <div className="flex h-[72px] items-end gap-1.5">
             {trend.points.map((point) => {
-              const max = Math.max(...trend.points.map((item) => item.minutes), 1);
               return (
                 <div className="flex min-w-0 flex-1 flex-col items-center gap-1" key={point.label}>
                   <span
                     className="w-full rounded-t-md bg-gradient-to-t from-rose-400 to-blue-400"
-                    style={{ height: `${Math.max(8, (point.minutes / max) * 54)}px` }}
+                    style={{ height: `${Math.max(8, (point.minutes / trendMaximum) * 54)}px` }}
                     title={`${point.label}: ${point.minutes} 分钟`}
                   />
                   <span className="max-w-full truncate text-[7px] text-ink-muted">
@@ -847,14 +909,14 @@ function ShowcaseArtwork({
       >
         {summary.imageUrls.slice(0, 3).map((url, index) => (
           <span
-            className={
-              size === "sm"
-                ? "h-8 w-8 rounded-lg border border-white bg-cover bg-center shadow-sm"
-                : "h-10 w-10 rounded-xl border border-white bg-cover bg-center shadow-sm"
-            }
+            className={`relative block shrink-0 overflow-hidden border border-white bg-gradient-to-br from-rose-100 to-blue-100 shadow-sm ${
+              size === "sm" ? "h-8 w-8 rounded-lg" : "h-10 w-10 rounded-xl"
+            }`}
             key={`${url}-${index}`}
-            style={{ backgroundImage: `url(${JSON.stringify(url)})`, zIndex: index }}
-          />
+            style={{ zIndex: index }}
+          >
+            <LazyProviderImage url={url} />
+          </span>
         ))}
       </span>
     );

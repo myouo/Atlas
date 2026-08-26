@@ -1,4 +1,3 @@
-import "@fontsource-variable/noto-sans-sc";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 

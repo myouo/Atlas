@@ -52,7 +52,7 @@ describe("NetEase semantic data widgets", () => {
 
   it("renders Provider-native profile showcase metadata", () => {
     const widget = showcaseWidget();
-    render(
+    const { container } = render(
       <NeteaseShowcaseWidget
         widget={{
           ...widget,
@@ -94,6 +94,7 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.getByText("累计 162 小时")).toBeInTheDocument();
     expect(screen.getByText("音乐浓度")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "听歌时长 的图片组合" })).toBeInTheDocument();
+    expect(container.querySelectorAll('img[loading="lazy"]').length).toBe(2);
     expect(screen.queryByRole("link", { name: "打开 听歌时长" })).not.toBeInTheDocument();
   });
 

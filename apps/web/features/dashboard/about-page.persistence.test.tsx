@@ -99,8 +99,7 @@ describe("API persistence failure UX", () => {
       </QueryClientProvider>
     );
 
-    await screen.findByRole("heading", { name: "About Me" });
-    expect(screen.getByTestId("dashboard-canvas")).toHaveAttribute("data-editable", "false");
+    expect(await screen.findByTestId("dashboard-canvas")).toHaveAttribute("data-editable", "false");
     expect(screen.queryByRole("navigation", { name: "About Me 页面操作" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "编辑视图" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "状态信息" })).not.toBeInTheDocument();
@@ -191,7 +190,7 @@ describe("API persistence failure UX", () => {
       </QueryClientProvider>
     );
 
-    await screen.findByRole("heading", { name: "About Me" });
+    await screen.findByTestId("dashboard-canvas");
     await userEvent.click(screen.getByRole("button", { name: "编辑视图" }));
     act(() => {
       const layout = useDashboardStore
@@ -301,7 +300,7 @@ describe("API persistence failure UX", () => {
       </QueryClientProvider>
     );
 
-    await screen.findByRole("heading", { name: "About Me" });
+    await screen.findByTestId("dashboard-canvas");
     await userEvent.click(screen.getByRole("button", { name: "编辑视图" }));
     act(() => {
       const layout = useDashboardStore
@@ -360,7 +359,7 @@ describe("API persistence failure UX", () => {
       </QueryClientProvider>
     );
 
-    await screen.findByRole("heading", { name: "About Me" });
+    await screen.findByTestId("dashboard-canvas");
     act(() => {
       const layout = useDashboardStore
         .getState()

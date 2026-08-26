@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { WidgetProjection } from "@nivalis/api-client";
@@ -6,6 +6,7 @@ import { type ReactElement, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createMockWidget, mockWidgets } from "../dashboard/mock-dashboard";
+import { dashboardSource } from "../../api/dashboard-source-factory";
 import { WidgetCard } from "./widget-card";
 import { WidgetRegistry, widgetRegistry } from "./widget-registry";
 
@@ -110,9 +111,12 @@ describe("WidgetRegistry", () => {
       2
     );
     const onDataConfigChange = vi.fn();
+    const catalogSpy = vi.spyOn(dashboardSource, "getNeteaseDataCatalog");
     renderWidget(<StatefulWidgetCard initial={showcase} onDataConfigChange={onDataConfigChange} />);
 
+    expect(catalogSpy).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /设置 网易云 · 音乐展柜/ }));
+    await waitFor(() => expect(catalogSpy).toHaveBeenCalledOnce());
     expect(screen.getByRole("button", { name: "跟随网易云主页" })).toHaveAttribute(
       "aria-pressed",
       "true"
@@ -123,6 +127,7 @@ describe("WidgetRegistry", () => {
       mode: "custom",
       selections: [{ resourceId: "total", source: "listening_duration" }]
     });
+    catalogSpy.mockRestore();
   });
 });
 

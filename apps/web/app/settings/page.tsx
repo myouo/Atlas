@@ -49,6 +49,7 @@ function SettingsContent() {
   const [credential, setCredential] = useState("");
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
   const [validationJob, setValidationJob] = useState<SyncJob | null>(null);
+  const savedTimer = useRef<number | null>(null);
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     queryFn: () => dashboardSource.getAuthSession(),
@@ -111,7 +112,10 @@ function SettingsContent() {
     const id = validationJob?.jobId;
     if (!id || ["completed", "failed"].includes(validationJob.status)) return;
     let cancelled = false;
+    let requestPending = false;
     const timer = window.setInterval(() => {
+      if (requestPending) return;
+      requestPending = true;
       void dashboardSource
         .getSyncJob(id)
         .then(async (job) => {
@@ -130,7 +134,10 @@ function SettingsContent() {
             await queryClient.invalidateQueries({ queryKey: ["provider-data", "netease"] });
           }
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          requestPending = false;
+        });
     }, 1_000);
     return () => {
       cancelled = true;
@@ -138,13 +145,24 @@ function SettingsContent() {
     };
   }, [queryClient, validationJob?.jobId, validationJob?.status]);
 
+  useEffect(
+    () => () => {
+      if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
+    },
+    []
+  );
+
   const save = () => {
     localStorage.setItem(
       "nivalis.appearance.phase1.v1",
       JSON.stringify({ accent, glass, rotation })
     );
     setSaved(true);
-    window.setTimeout(() => setSaved(false), 2_000);
+    if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
+    savedTimer.current = window.setTimeout(() => {
+      savedTimer.current = null;
+      setSaved(false);
+    }, 2_000);
   };
 
   return (

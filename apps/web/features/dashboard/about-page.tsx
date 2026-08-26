@@ -28,8 +28,12 @@ function DashboardLoading() {
   return (
     <main className="nivalis-page">
       <div className="nivalis-content">
-        <div className="glass-surface h-12 w-full animate-pulse rounded-2xl" />
-        <div className="mt-20 h-12 w-64 animate-pulse rounded-xl bg-white/50" />
+        <header className="mt-9 px-1 sm:px-2">
+          <h1 className="text-[34px] leading-none font-black tracking-[-0.04em] text-ink sm:text-[38px]">
+            About Me
+          </h1>
+          <div className="mt-3 h-4 w-64 animate-pulse rounded-full bg-white/50" />
+        </header>
         <div className="mt-8 h-[720px] animate-pulse rounded-[24px] bg-white/35" />
       </div>
     </main>

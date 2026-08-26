@@ -1,14 +1,16 @@
 import { PuzzlePiece } from "@phosphor-icons/react";
 import type { NeteaseDataCatalog, WidgetProjection } from "@nivalis/api-client";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { memo, useState } from "react";
 
 import { dashboardSource } from "../../api/dashboard-source-factory";
 import { ModuleShell } from "../../design-system/module-shell";
 import { WidgetDisplaySettingsDialog } from "./widget-display-settings-dialog";
 import type { WidgetDataResourceOption } from "./widget-display-settings-dialog";
 import { widgetRegistry } from "./widget-registry";
+import type { WidgetDataPreset } from "./widget-registry";
 import type { RuntimeWidgetProjection } from "./widget-types";
+import type { WidgetPresentationControl } from "./widget-presentation";
 
 interface WidgetCardProps {
   readonly editable: boolean;
@@ -18,7 +20,7 @@ interface WidgetCardProps {
   readonly widget: RuntimeWidgetProjection;
 }
 
-export function WidgetCard({
+function WidgetCardComponent({
   editable,
   onDataConfigChange,
   onPresentationConfigChange,
@@ -27,12 +29,6 @@ export function WidgetCard({
 }: WidgetCardProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const definition = widgetRegistry.resolve(widget.type, widget.schemaVersion);
-  const catalogQuery = useQuery({
-    enabled: Boolean(settingsOpen && definition?.resourcePicker),
-    queryFn: () => dashboardSource.getNeteaseDataCatalog(),
-    queryKey: ["provider-data", "netease", dashboardSource.kind],
-    retry: false
-  });
 
   if (!definition) {
     return (
@@ -73,25 +69,72 @@ export function WidgetCard({
       >
         <Renderer widget={widget as never} />
       </ModuleShell>
-      {configurable && "presentationConfig" in widget ? (
-        <WidgetDisplaySettingsDialog
+      {settingsOpen && configurable && "presentationConfig" in widget ? (
+        <WidgetSettingsDialog
           controls={controls}
           dataConfig={widget.dataConfig}
           dataPresets={dataPresets}
           name={definition.name}
           onDataConfigChange={(config) => onDataConfigChange?.(config)}
-          onChange={(config) => onPresentationConfigChange?.(config)}
-          onOpenChange={setSettingsOpen}
-          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onPresentationConfigChange={(config) => onPresentationConfigChange?.(config)}
           presentationConfig={widget.presentationConfig}
-          resourceMaxItems={definition.resourcePicker === "netease-showcase-gallery" ? 6 : 1}
-          resourceOptions={neteaseResourceOptions(catalogQuery.data)}
-          resourceSelectionMode={
-            definition.resourcePicker === "netease-showcase-gallery" ? "gallery" : "single"
-          }
+          {...(definition.resourcePicker ? { resourcePicker: definition.resourcePicker } : {})}
         />
       ) : null}
     </>
+  );
+}
+
+export const WidgetCard = memo(
+  WidgetCardComponent,
+  (previous, next) => previous.editable === next.editable && previous.widget === next.widget
+);
+
+function WidgetSettingsDialog({
+  controls,
+  dataConfig,
+  dataPresets,
+  name,
+  onClose,
+  onDataConfigChange,
+  onPresentationConfigChange,
+  presentationConfig,
+  resourcePicker
+}: {
+  readonly controls: readonly WidgetPresentationControl[];
+  readonly dataConfig: WidgetProjection["dataConfig"];
+  readonly dataPresets: readonly WidgetDataPreset[];
+  readonly name: string;
+  readonly onClose: () => void;
+  readonly onDataConfigChange?: (config: WidgetProjection["dataConfig"]) => void;
+  readonly onPresentationConfigChange?: (config: WidgetProjection["presentationConfig"]) => void;
+  readonly presentationConfig: WidgetProjection["presentationConfig"];
+  readonly resourcePicker?: "netease-showcase" | "netease-showcase-gallery";
+}) {
+  const catalogQuery = useQuery({
+    enabled: Boolean(resourcePicker),
+    queryFn: () => dashboardSource.getNeteaseDataCatalog(),
+    queryKey: ["provider-data", "netease", dashboardSource.kind],
+    retry: false
+  });
+  return (
+    <WidgetDisplaySettingsDialog
+      controls={controls}
+      dataConfig={dataConfig}
+      dataPresets={dataPresets}
+      name={name}
+      onDataConfigChange={(config) => onDataConfigChange?.(config)}
+      onChange={(config) => onPresentationConfigChange?.(config)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      open
+      presentationConfig={presentationConfig}
+      resourceMaxItems={resourcePicker === "netease-showcase-gallery" ? 6 : 1}
+      resourceOptions={neteaseResourceOptions(catalogQuery.data)}
+      resourceSelectionMode={resourcePicker === "netease-showcase-gallery" ? "gallery" : "single"}
+    />
   );
 }
 

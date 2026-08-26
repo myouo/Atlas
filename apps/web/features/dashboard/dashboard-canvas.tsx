@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { noCompactor, Responsive, useContainerWidth } from "react-grid-layout";
 import { getCompactor } from "react-grid-layout/core";
 import type { Layout, LayoutItem, ResponsiveLayouts } from "react-grid-layout";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { WidgetCard } from "../widgets/widget-card";
 import { widgetRegistry } from "../widgets/widget-registry";
@@ -52,7 +52,7 @@ function stripLayout(layout: Layout): DashboardLayoutItem[] {
 
 const overlapWhileEditing = getCompactor(null, true);
 
-export function DashboardCanvas({
+function DashboardCanvasComponent({
   editable,
   layout,
   onLayoutChange,
@@ -114,7 +114,7 @@ export function DashboardCanvas({
           onDragStop={commitLayout}
           onResizeStart={() => setInteracting(true)}
           onResizeStop={commitLayout}
-          resizeConfig={{ enabled: editable, handles: ["se"] }}
+          resizeConfig={{ enabled: editable, handles: editable ? ["se"] : [] }}
           rowHeight={35}
           width={width}
         >
@@ -141,3 +141,11 @@ export function DashboardCanvas({
     </div>
   );
 }
+
+export const DashboardCanvas = memo(
+  DashboardCanvasComponent,
+  (previous, next) =>
+    previous.editable === next.editable &&
+    previous.layout === next.layout &&
+    previous.widgets === next.widgets
+);
