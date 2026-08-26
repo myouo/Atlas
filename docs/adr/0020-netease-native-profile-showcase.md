@@ -1,6 +1,6 @@
 # ADR 0020: NetEase native personal-profile showcase
 
-- Status: Accepted
+- Status: Superseded by ADR 0021 for current music-card syncs
 - Date: 2026-08-25
 - Supersedes: ADR 0019 decision 3 and its temporary native-endpoint limitation
 

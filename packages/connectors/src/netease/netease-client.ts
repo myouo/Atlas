@@ -79,6 +79,22 @@ export class NeteaseClient {
     return this.getProfileHomePage(credential, userId);
   }
 
+  getProfileMusicCards(credential: string, userId: string | number) {
+    const numericUserId = Number(userId);
+    const ownerUserId = Number.isSafeInteger(numericUserId) ? numericUserId : userId;
+    return this.eapi(
+      "/api/user/page/window/get",
+      {
+        rnVersion: 1_786_085_676,
+        userId: String(ownerUserId)
+      },
+      credential,
+      "/api/user/page/window/get",
+      "android",
+      MOBILE_INTERFACE_ORIGIN
+    );
+  }
+
   getProfileHomeTabs(credential: string, userId: string | number) {
     const numericUserId = Number(userId);
     return this.eapi(

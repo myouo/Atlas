@@ -147,7 +147,7 @@ describe("NetEase Provider module", () => {
             { resourceId: "13001", source: "created_playlist" },
             { resourceId: "medal-1", source: "medal" },
             { resourceId: "total", source: "listening_duration" },
-            { resourceId: "native-card-song", source: "provider_music_card" },
+            { resourceId: "91002", source: "provider_music_card" },
             { resourceId: "20003", source: "weekly_track" }
           ]
         },
@@ -202,18 +202,18 @@ describe("NetEase Provider module", () => {
       items: [
         {
           card: {
-            creativeType: "LISTEN_RANK",
+            creativeType: "EXHIBITION_CARD",
             cardKind: "ranking",
             kind: "provider_music_card",
-            providerUiType: "nm.profilePage.commonColorCreative",
+            resourceType: "song_rank",
             title: "听歌排行"
           }
         },
-        { card: { cardKind: "unknown", creativeType: "TIME_MACHINE", title: "音乐时光机" } },
-        { card: { cardKind: "song", title: "Snow Light" } },
-        { card: { cardKind: "album", title: "雪境收藏" } },
-        { card: { cardKind: "playlist", title: "Snow Archive" } },
-        { card: { creativeType: "SHOWCASE_GALLERY_FIX", title: "最近循环最多" } }
+        { card: { cardKind: "song", title: "Window Song 1" } },
+        { card: { cardKind: "song", title: "Window Song 2" } },
+        { card: { cardKind: "song", title: "Window Song 3" } },
+        { card: { cardKind: "song", title: "Window Song 4" } },
+        { card: { cardKind: "song", title: "Window Song 5" } }
       ],
       maxItems: 6,
       mode: "provider"
@@ -246,26 +246,26 @@ describe("NetEase Provider module", () => {
       expect.arrayContaining([expect.objectContaining({ rank: 1 })])
     );
     expect(catalog.musicCards).toMatchObject({
-      items: expect.arrayContaining([
+      items: [
         expect.objectContaining({
-          cardKind: "favorite",
-          creativeType: "MY_FAVORITE",
-          providerPublic: false,
-          providerUiType: "nm.profilePage.commonColorCreative",
-          providerVisibility: "ONLY_MYSELF_SEE"
+          cardKind: "ranking",
+          creativeType: "EXHIBITION_CARD",
+          providerCardId: "91001",
+          resourceType: "song_rank"
         }),
         expect.objectContaining({
-          cardKind: "album",
-          providerUiType: "nm.profilePage.albumrack"
+          cardKind: "song",
+          providerCardId: "91002",
+          resourceId: "20001"
         }),
-        expect.objectContaining({
-          creativeType: "SHOWCASE_GALLERY_FIX",
-          providerCardId: "native-card-song"
-        })
-      ]),
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Object)
+      ],
       sourceAvailability: "available"
     });
-    expect((catalog.musicCards as JsonObject).items).toHaveLength(10);
+    expect((catalog.musicCards as JsonObject).items).toHaveLength(6);
     expect(JSON.stringify(catalog)).not.toMatch(/lastLoginIP|MUSIC_U|authorization/i);
   });
 
@@ -289,7 +289,9 @@ describe("NetEase Provider module", () => {
 
   it("keeps historical Raw Snapshot replay compatible before the showcase endpoint existed", async () => {
     const historical = snapshots(normalNeteaseFixture).filter(
-      (snapshot) => snapshot.sourceKind !== NETEASE_SOURCE.profileShowcase
+      (snapshot) =>
+        snapshot.sourceKind !== NETEASE_SOURCE.profileShowcase &&
+        snapshot.sourceKind !== NETEASE_SOURCE.profileMusicCards
     );
     const normalized = await new NeteaseNormalizer().normalize(historical);
     expect(normalized.payload).toMatchObject({
@@ -299,7 +301,9 @@ describe("NetEase Provider module", () => {
   });
 
   it("merges profile music cards across immutable Raw pages without losing Provider order", async () => {
-    const raw = snapshots(normalNeteaseFixture);
+    const raw = snapshots(normalNeteaseFixture).filter(
+      (snapshot) => snapshot.sourceKind !== NETEASE_SOURCE.profileMusicCards
+    );
     const profileIndex = raw.findIndex(
       (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.profileShowcase
     );
@@ -416,6 +420,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.userDetail,
       NETEASE_SOURCE.profileHome,
       NETEASE_SOURCE.profileShowcase,
+      NETEASE_SOURCE.profileMusicCards,
       NETEASE_SOURCE.userLevel,
       NETEASE_SOURCE.vipInfo,
       NETEASE_SOURCE.listenTotal,
@@ -430,7 +435,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.socialStatus
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
-    expect(requests).toHaveLength(16);
+    expect(requests).toHaveLength(17);
     for (const request of requests) {
       expect(request.method).toBe("POST");
       expect(["music.163.com", "interface.music.163.com", "interface3.music.163.com"]).toContain(
@@ -461,6 +466,16 @@ describe("NetEase Provider module", () => {
       userId: 10001
     });
     expect(profilePageRequest).not.toHaveProperty("cursor");
+
+    const musicCardsRequest = requests.find((request) =>
+      new URL(request.url).pathname.includes("user/page/window/get")
+    );
+    expect(musicCardsRequest).toBeDefined();
+    expect(new URL(musicCardsRequest!.url).hostname).toBe("interface3.music.163.com");
+    await expect(decodeEapiRequest(musicCardsRequest!)).resolves.toMatchObject({
+      rnVersion: 1_786_085_676,
+      userId: "10001"
+    });
 
     const profileHomeRequest = requests.find((request) =>
       new URL(request.url).pathname.includes("w/v1/user/detail")
@@ -746,6 +761,9 @@ function payloadForPath(pathname: string) {
   }
   if (pathname.includes("personal/home/page/user")) {
     return normalNeteaseFixture[NETEASE_SOURCE.profileShowcase];
+  }
+  if (pathname.includes("user/page/window/get")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.profileMusicCards];
   }
   if (pathname.includes("v1/user/detail")) {
     return normalNeteaseFixture[NETEASE_SOURCE.userDetail];

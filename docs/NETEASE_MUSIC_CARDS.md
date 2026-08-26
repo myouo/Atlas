@@ -1,18 +1,40 @@
 # 网易云音乐「音乐卡片」接口接入
 
-> 来源：`NeteaseCloudMusic_Music_official_9.5.70.260812161853_3264.apk`（v9.5.70）jadx 逆向。
-> 目标：为 `@nivalis/connectors` 的 `netease-provider` 补齐「我的音乐卡片」的全量获取与解析能力。
-> 已确认的调用链（原生）：`ProfileHomePageFragmentV3.loadInBackground()`
-> → `z92.f.h(userId, FOR_PROFILE)` → `z92.c.f(userId, 1)`
-> → `eapi/personal/home/page/user`，参数 `{ userId, newStyle }`。
+> 来源：网易云官方 Android APK v9.5.70，以及其官方 CDN 下发的
+> `rn-exhibition-page@index` Hermes bundle/source map。
+> 目标：读取用户真正配置的「音乐卡片」展柜，而不是从普通主页区块推测六张卡片。
+
+## 2026-08-26 边界修正
+
+官方可编排音乐卡片在代码中的业务名是 `exhibition`。权威读取链为：
+
+```text
+rn-exhibition-page@index
+  → services.getExhibitionListData(userId)
+  → POST /api/user/page/window/get
+```
+
+请求参数：
+
+```json
+{
+  "userId": "<provider-user-id>",
+  "rnVersion": 1786085676
+}
+```
+
+`rnVersion` 是官方 RN 源码固定的秒级能力版本；不得改成毫秒时间戳。
+
+`personal/home/page/user` 属于旧 Profile V3 普通主页 block read model。它仍可提供音乐品味、
+代表歌曲、专辑架、歌单等补充数据，但不是用户编排的音乐卡片顺序，不能将其前六项当作展柜。
 
 ---
 
 ## 0. 关键事实速览
 
-- 「音乐卡片」文案在 APK 内不存在，由服务端在 block 的 `uiElement.mainTitle.title` 下发；
-  原生对应的是**个人主页 V3（profile3）的 blocks 体系**。
-- 主页数据只有一个真实来源：**`/api/personal/home/page/user`**（eapi 加密）。
+- 官方展柜返回 `open`、`cardLimit` 和有序 `cardVOList`。
+- Atlas 真实账号验证得到 `cardLimit=6`，顺序为 `song_rank` 加五个 `song`，与官方客户端一致。
+- Profile V3 blocks 与 Exhibition Window 是两个独立来源；前者不得覆盖后者。
 - 原生请求参数（`z92.c.f`，已逐字节确认）：
 
   ```java
@@ -28,14 +50,34 @@
 
 ---
 
-## 1. 接口函数（追加进 `NeteaseClient`）
+## 1. 接口函数
+
+权威展柜读取：
+
+```ts
+async getProfileMusicCards(credential: string, userId: string | number) {
+  return this.eapi(
+    "/api/user/page/window/get",
+    {
+      rnVersion: 1_786_085_676,
+      userId: String(userId)
+    },
+    credential,
+    "/api/user/page/window/get",
+    "android",
+    MOBILE_INTERFACE_ORIGIN
+  );
+}
+```
+
+以下 Profile V3 接口保留为补充数据源，不承担展柜编排：
 
 追加到 `packages/connectors/src/netease/netease-client.ts` 的 `NeteaseClient` 类中
 （复用类内已有的 `eapi()` / `eapiResponse()` / `MOBILE_INTERFACE_ORIGIN` 等）。
 
 ```ts
 /**
- * 个人主页全量数据 —— 包含所有「音乐卡片」block。
+ * Profile V3 个人主页 block 数据，不代表官方 Exhibition Window 编排。
  * path: /api/personal/home/page/user → eapi/personal/home/page/user
  * 返回：{ code: 200, data: { blocks, cursor, hasMore, pageCodeContext }, xHeaderTraceId }
  *
@@ -83,7 +125,50 @@ async getProfileHomeTabs(credential: string, userId: string | number) {
 
 ---
 
-## 2. 响应数据形式（ProfileV3Entity）
+## 2. 响应数据形式
+
+官方 Exhibition Window：
+
+```jsonc
+{
+  "code": 200,
+  "data": {
+    "open": true,
+    "cardLimit": 6,
+    "cardVOList": [
+      {
+        "id": 123,
+        "resType": "song_rank",
+        "resId": "",
+        "name": "听歌排行",
+        "cover": "https://...",
+        "jumpUrl": "orpheus://listenrank/...",
+        "extra": {},
+        "canEdit": false
+      }
+    ]
+  }
+}
+```
+
+官方 RN allowlist 当前包括：
+
+```text
+playlist
+album
+song
+song_rank
+latest_heart_song
+latest_collect_playlist
+latest_create_playlist
+today_listen
+latest_medal
+collect_card
+eggyParty
+mineCraftPartner
+```
+
+下面的 `ProfileV3Entity` 结构仅用于普通主页补充数据与历史 Raw Replay：
 
 ```jsonc
 {
@@ -178,7 +263,7 @@ key `e82ckenh8dichen8`，message = `${path}-36cd479b6b5-${text}-36cd479b6b5-${md
 
 ---
 
-## 3. block 的 showType → 卡片实体（完整映射）
+## 3. Profile V3 block 的 showType → 实体（补充数据，不是展柜顺序）
 
 来自原生 `z92/f.java` 的 `k()` 分发（按 `blocksBean.showType`）：
 
@@ -271,19 +356,14 @@ voicelist_resource_type  voicelist_favor_resource_type  wishlist_resource_type
 
 ## 6. Atlas 接入实现
 
-`netease-normalizer.ts` 使用通用收集器遍历每个已验证页面的 `data.blocks`，把下列
-block 资源归一化为卡片：
-
-1. **多 block 收集**：
-   - `MUSIC_TASTE_WITH_MORE`（含 `nm.profilePage.myFavorite` / `listenRank` cube）
-   - `SONG_LIST`、`PERSONAL_ALBUM_RACK`、`PLAYLIST_LIST_WITH_MORE`
-   - `PERSONAL_SHOWCASE`（现有逻辑保留）
-2. **类型优先级**：按 `uiElement.type` 优先判定 `cardKind`（见 §5 表），并保留
-   `providerUiType`、block 来源及 Provider 可见性。
-3. **有界分页**：`data.hasMore === true` 时用该响应的完整 `data.cursor` 调
-   `getProfileHomePage`；每页成为独立 Raw Snapshot，重复 cursor 或超过页上限会让同步失败。
-4. **Catalog / Projection 分工**：Owner Catalog 保存全部规范化卡片；公开 Provider 模式过滤
-   `ONLY_MYSELF_SEE` / `FOLLOW_USER_SEE` 并最多展示 6 张。显式 custom 模式承担 Owner 主动披露。
+1. Connector 读取 `/api/user/page/window/get`，以 `netease.profile_music_cards` 保存经过
+   credential sanitization 的不可变 Raw Snapshot。
+2. Runtime schema 严格验证 `open/cardLimit/cardVOList`。字段漂移导致同步失败并保留 LKG，
+   不会把缺失字段伪造成空数据。
+3. Normalizer 按 `cardVOList` 原始顺序生成 `EXHIBITION_CARD`；`song_rank` 映射为 ranking，
+   `song` 映射为 song。未知 `resType` 保留为 unknown，不猜测语义。
+4. Provider 模式最多展示六张官方卡片。Profile V3 只作为旧 Raw Replay 的兼容 fallback；
+   新同步绝不再从多个主页 block 拼接“官方六卡”。
 
 ---
 

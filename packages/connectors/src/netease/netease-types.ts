@@ -10,6 +10,7 @@ export const NETEASE_SOURCE = {
   listenReportWeek: "netease.listen_report.week",
   medals: "netease.medals",
   profileHome: "netease.profile_home",
+  profileMusicCards: "netease.profile_music_cards",
   profileShowcase: "netease.profile_showcase",
   recentSongs: "netease.recent_songs",
   socialStatus: "netease.social_status",

@@ -116,6 +116,35 @@ export const NeteaseUserDetailResponseSchema = Type.Object(
 
 export const NeteaseProfileHomeResponseSchema = NeteaseUserDetailResponseSchema;
 
+export const NeteaseProfileMusicCardsResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        cardLimit: Type.Integer({ minimum: 0 }),
+        cardVOList: Type.Array(
+          Type.Object(
+            {
+              canEdit: Type.Boolean(),
+              cover: Type.String(),
+              extra: Type.Object({}, { additionalProperties: true }),
+              id: ProviderIdSchema,
+              jumpUrl: Type.String(),
+              name: Type.String(),
+              resId: Type.String(),
+              resType: Type.String({ minLength: 1 })
+            },
+            { additionalProperties: true }
+          )
+        ),
+        open: Type.Boolean()
+      },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
 export const NeteaseProfileShowcaseResponseSchema = Type.Object(
   {
     code: Type.Literal(200),

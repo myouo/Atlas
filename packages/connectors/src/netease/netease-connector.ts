@@ -33,6 +33,8 @@ export class NeteaseConnector implements ProviderConnector {
     const profileHome = await this.client.getProfileHome(credential, userId);
     snapshots.push(snapshot(NETEASE_SOURCE.profileHome, profileHome, this.now()));
     snapshots.push(...(await profileHomePageSnapshots(this.client, credential, userId, this.now)));
+    const profileMusicCards = await this.client.getProfileMusicCards(credential, userId);
+    snapshots.push(snapshot(NETEASE_SOURCE.profileMusicCards, profileMusicCards, this.now()));
     const level = await this.client.getUserLevel(credential);
     snapshots.push(snapshot(NETEASE_SOURCE.userLevel, level, this.now()));
     const vip = await this.client.getVipInfo(credential, userId);

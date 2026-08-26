@@ -31,6 +31,35 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       userId: 10001
     }
   },
+  [NETEASE_SOURCE.profileMusicCards]: {
+    code: 200,
+    data: {
+      cardLimit: 6,
+      cardVOList: [
+        {
+          canEdit: false,
+          cover: "https://p1.music.126.net/sanitized-fixture/ranking.jpg",
+          extra: {},
+          id: 91_001,
+          jumpUrl: "orpheus://listenrank/10001",
+          name: "听歌排行",
+          resId: "",
+          resType: "song_rank"
+        },
+        ...Array.from({ length: 5 }, (_, index) => ({
+          canEdit: true,
+          cover: `https://p1.music.126.net/sanitized-fixture/window-song-${index + 1}.jpg`,
+          extra: {},
+          id: 91_002 + index,
+          jumpUrl: `orpheus://song/${20_001 + index}`,
+          name: `Window Song ${index + 1}`,
+          resId: String(20_001 + index),
+          resType: "song"
+        }))
+      ],
+      open: true
+    }
+  },
   [NETEASE_SOURCE.profileShowcase]: {
     code: 200,
     data: {
@@ -423,6 +452,10 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
 
 export const emptyNeteaseFixture: SanitizedNeteaseFixture = {
   ...normalNeteaseFixture,
+  [NETEASE_SOURCE.profileMusicCards]: {
+    code: 200,
+    data: { cardLimit: 6, cardVOList: [], open: true }
+  },
   [NETEASE_SOURCE.profileShowcase]: {
     code: 200,
     data: {
@@ -480,6 +513,24 @@ export const schemaDriftFixture: SanitizedNeteaseFixture = {
 
 export const showcaseSchemaDriftFixture: SanitizedNeteaseFixture = {
   ...normalNeteaseFixture,
+  [NETEASE_SOURCE.profileMusicCards]: {
+    code: 200,
+    data: {
+      cardLimit: 6,
+      cardVOList: [
+        {
+          canEdit: true,
+          cover: "",
+          extra: {},
+          id: 91_999,
+          jumpUrl: "",
+          name: "Future Card",
+          resId: "future"
+        }
+      ],
+      open: true
+    }
+  },
   [NETEASE_SOURCE.profileShowcase]: {
     code: 200,
     data: {
@@ -572,6 +623,9 @@ export function createNeteaseHttpFixtureFetcher(
     }
     if (url.pathname.includes("personal/home/page/user")) {
       return Response.json(fixture[NETEASE_SOURCE.profileShowcase]);
+    }
+    if (url.pathname.includes("user/page/window/get")) {
+      return Response.json(fixture[NETEASE_SOURCE.profileMusicCards]);
     }
     if (url.pathname.includes("v1/user/detail")) {
       return Response.json(fixture[NETEASE_SOURCE.userDetail]);

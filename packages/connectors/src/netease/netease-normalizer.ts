@@ -18,6 +18,7 @@ import {
   NeteaseListenReportResponseSchema,
   NeteaseMedalsResponseSchema,
   NeteaseProfileHomeResponseSchema,
+  NeteaseProfileMusicCardsResponseSchema,
   NeteaseProfileShowcaseResponseSchema,
   NeteaseRecentSongsResponseSchema,
   NeteaseSocialStatusResponseSchema,
@@ -51,6 +52,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const listenTotalSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenTotal);
     const medalsSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.medals);
     const profileHomeSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.profileHome);
+    const profileMusicCardsSnapshot = snapshots.find(
+      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.profileMusicCards
+    );
     const profileShowcaseSnapshots = optionalMatchingSnapshots(
       snapshots,
       NETEASE_SOURCE.profileShowcase
@@ -77,6 +81,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const listenTotal = checked(NeteaseListenTotalResponseSchema, listenTotalSnapshot);
     const medals = checked(NeteaseMedalsResponseSchema, medalsSnapshot);
     checked(NeteaseProfileHomeResponseSchema, profileHomeSnapshot);
+    const profileMusicCards = profileMusicCardsSnapshot
+      ? checked(NeteaseProfileMusicCardsResponseSchema, profileMusicCardsSnapshot)
+      : null;
     const profileShowcasePages = profileShowcaseSnapshots.map((snapshot) =>
       checked(NeteaseProfileShowcaseResponseSchema, snapshot)
     );
@@ -109,8 +116,9 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const playlistTotal = firstPlaylistPage.data.count ?? null;
     const followerTotal = profile.followeds ?? followerPages[0]!.size ?? null;
     const followingTotal = profile.follows ?? null;
-    const musicCards =
-      profileShowcasePages.length > 0
+    const musicCards = profileMusicCards
+      ? normalizeExhibitionMusicCards(profileMusicCards)
+      : profileShowcasePages.length > 0
         ? normalizeProfileMusicCards(profileShowcasePages)
         : normalizeLegacyMusicCards(profileHomeSnapshot.payload);
     const payload: NeteaseNormalizedPayload = {
@@ -206,6 +214,57 @@ export class NeteaseNormalizer implements ProviderNormalizer {
       )
     };
   }
+}
+
+function normalizeExhibitionMusicCards(
+  payload: Static<typeof NeteaseProfileMusicCardsResponseSchema>
+): {
+  readonly available: boolean;
+  readonly items: readonly NeteaseNormalizedMusicCard[];
+} {
+  const items = payload.data.cardVOList.map((card) => {
+    const coverUrl = safeArtworkUrl(card.cover);
+    return {
+      badgeIconUrl: null,
+      badgeText: null,
+      cardKind: exhibitionCardKind(card.resType),
+      coverUrl,
+      creativeType: "EXHIBITION_CARD",
+      description: null,
+      imageUrls: coverUrl ? [coverUrl] : [],
+      jumpUrl: safeProviderTarget(card.jumpUrl),
+      providerCardId: String(card.id),
+      providerPublic: payload.data.open,
+      providerUiType: null,
+      providerVisibility: null,
+      resourceId: nonEmpty(card.resId),
+      resourceType: card.resType,
+      sourceBlockCode: "user.page.window",
+      sourceBlockType: "EXHIBITION",
+      textLines: [],
+      title: card.name
+    } satisfies NeteaseNormalizedMusicCard;
+  });
+  return {
+    available: payload.data.open,
+    items: uniqueBy(items, (card) => card.providerCardId)
+  };
+}
+
+function exhibitionCardKind(resType: string): NeteaseNormalizedMusicCard["cardKind"] {
+  if (resType === "song" || resType === "latest_heart_song") return "song";
+  if (
+    resType === "playlist" ||
+    resType === "latest_collect_playlist" ||
+    resType === "latest_create_playlist"
+  ) {
+    return "playlist";
+  }
+  if (resType === "album") return "album";
+  if (resType === "song_rank") return "ranking";
+  if (resType === "today_listen") return "duration";
+  if (resType === "latest_medal") return "medal";
+  return "unknown";
 }
 
 function normalizeRecord(item: {
