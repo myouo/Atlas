@@ -373,6 +373,9 @@ function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
     if (pathname.includes("personal/home/page/user")) {
       return Response.json(fixture[NETEASE_SOURCE.profileShowcase]);
     }
+    if (pathname.includes("user/page/window/get")) {
+      return Response.json(fixture[NETEASE_SOURCE.profileMusicCards]);
+    }
     if (pathname.includes("v1/user/detail")) {
       return Response.json(fixture[NETEASE_SOURCE.userDetail]);
     }
