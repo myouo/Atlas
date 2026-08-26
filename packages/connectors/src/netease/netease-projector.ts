@@ -257,6 +257,10 @@ function rankingRanges(value: unknown): readonly ("week" | "all_time")[] {
 function social(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
   const lists = publicFields(dataConfig, ["following", "followers"] as const, []);
   const limit = boundedInteger(dataConfig.publicLimit, 8, 0, 30);
+  const view =
+    dataConfig.view === "following" || dataConfig.view === "followers"
+      ? dataConfig.view
+      : "combined";
   return {
     followerCount: payload.account.followerCount,
     followers: lists.includes("followers")
@@ -266,9 +270,12 @@ function social(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Json
       ? people(payload.following.items.slice(0, limit), payload.following.complete)
       : { availability: "unavailable", reason: "not_public" },
     followingCount: payload.account.followingCount,
+    followingWebUrl: neteaseWebUrl("user/follows", payload.account.providerUserId),
+    followersWebUrl: neteaseWebUrl("user/fans", payload.account.providerUserId),
     provider: "netease",
     publicLists: lists,
     publicLimit: limit,
+    view,
     webUrl: neteaseWebUrl("user/home", payload.account.providerUserId)
   };
 }

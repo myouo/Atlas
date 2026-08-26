@@ -2008,13 +2008,25 @@ components:
           publicLimit,
           following,
           followers,
-          webUrl
+          webUrl,
+          view,
+          followingWebUrl,
+          followersWebUrl
         ]
       properties:
         provider:
           type: string
           const: netease
         webUrl:
+          type: [string, "null"]
+          format: uri
+        view:
+          type: string
+          enum: [following, followers, combined]
+        followingWebUrl:
+          type: [string, "null"]
+          format: uri
+        followersWebUrl:
           type: [string, "null"]
           format: uri
         followingCount:

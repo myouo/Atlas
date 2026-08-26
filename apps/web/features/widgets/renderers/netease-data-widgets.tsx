@@ -493,23 +493,49 @@ export function NeteaseSocialWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.social"> }>) {
   const data = widget.data;
-  const sections = [
-    ["关注", data.following, UserList],
-    ["粉丝", data.followers, Heart]
+  const following = [
+    "关注",
+    data.followingCount,
+    data.following,
+    data.followingWebUrl,
+    UserList
   ] as const;
+  const followers = [
+    "粉丝",
+    data.followerCount,
+    data.followers,
+    data.followersWebUrl,
+    Heart
+  ] as const;
+  const sections =
+    data.view === "following"
+      ? [following]
+      : data.view === "followers"
+        ? [followers]
+        : [following, followers];
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <NeteaseWebLink
-        className="grid grid-cols-2 gap-2 rounded-2xl"
-        href={data.webUrl}
-        indicator
-        label="在网易云查看用户主页"
+      <div className={sections.length === 1 ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
+        {sections.map(([label, count, , webUrl]) => (
+          <NeteaseWebLink
+            className="rounded-2xl"
+            href={webUrl}
+            indicator
+            key={label}
+            label={`在网易云查看${label}`}
+          >
+            <Stat label={label} value={count.toLocaleString("zh-CN")} />
+          </NeteaseWebLink>
+        ))}
+      </div>
+      <div
+        className={
+          sections.length === 1
+            ? "mt-3 grid min-h-0 flex-1 grid-cols-1 gap-3"
+            : "mt-3 grid min-h-0 flex-1 gap-3 sm:grid-cols-2"
+        }
       >
-        <Stat label="关注" value={data.followingCount.toLocaleString("zh-CN")} />
-        <Stat label="粉丝" value={data.followerCount.toLocaleString("zh-CN")} />
-      </NeteaseWebLink>
-      <div className="mt-3 grid min-h-0 flex-1 gap-3 sm:grid-cols-2">
-        {sections.map(([label, list, Icon]) =>
+        {sections.map(([label, , list, , Icon]) =>
           list.availability === "available" ? (
             <section className="min-h-0 overflow-y-auto" key={label}>
               <p className="mb-2 flex items-center gap-1 text-[9px] font-bold text-ink-muted">

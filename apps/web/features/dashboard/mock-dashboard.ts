@@ -402,12 +402,15 @@ export function createMockWidget(
     return {
       data: {
         followerCount: 128,
+        followersWebUrl: null,
         followers: hidden,
         following: hidden,
         followingCount: 36,
+        followingWebUrl: null,
         provider: "netease",
         publicLimit: 0,
         publicLists: [],
+        view: "combined",
         webUrl: null
       },
       dataConfig: { publicLimit: 0, publicLists: [] },

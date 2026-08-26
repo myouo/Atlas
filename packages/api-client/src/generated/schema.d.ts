@@ -977,6 +977,12 @@ export interface components {
             provider: "netease";
             /** Format: uri */
             webUrl: string | null;
+            /** @enum {string} */
+            view: "following" | "followers" | "combined";
+            /** Format: uri */
+            followingWebUrl: string | null;
+            /** Format: uri */
+            followersWebUrl: string | null;
             followingCount: number;
             followerCount: number;
             publicLists: ("following" | "followers")[];

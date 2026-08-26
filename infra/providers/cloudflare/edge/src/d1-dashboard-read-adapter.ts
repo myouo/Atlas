@@ -273,12 +273,16 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
     const hidden = { availability: "unavailable", reason: "not_public" };
     return {
       followerCount: 0,
+      followersWebUrl: null,
       followers: hidden,
       following: hidden,
       followingCount: 0,
+      followingWebUrl: null,
       provider: "netease",
       publicLimit: 0,
-      publicLists: []
+      publicLists: [],
+      view: "combined",
+      webUrl: null
     };
   }
   if (configuration.type === "music.netease.playlists") {

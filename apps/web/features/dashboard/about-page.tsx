@@ -1,6 +1,6 @@
 "use client";
 
-import type { WidgetType } from "@nivalis/api-client";
+import type { WidgetProjection, WidgetType } from "@nivalis/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -327,7 +327,11 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
     const definition = widgetRegistry.preferred(type);
     if (!definition) return;
     const id = crypto.randomUUID();
-    store.addWidget(createMockWidget(type, id, definition.schemaVersion), definition.sizes);
+    const widget = withInstanceDefaults(
+      createMockWidget(type, id, definition.schemaVersion),
+      snapshot.widgets
+    );
+    store.addWidget(widget, definition.sizes);
     showNotice(`${definition.name} 已加入本地草稿`);
   };
 
@@ -497,6 +501,33 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
       ) : null}
     </main>
   );
+}
+
+function withInstanceDefaults(
+  widget: WidgetProjection,
+  existing: readonly WidgetProjection[]
+): WidgetProjection {
+  if (widget.type !== "music.netease.social") return widget;
+  const existingViews = existing
+    .filter((candidate) => candidate.type === "music.netease.social")
+    .map((candidate) => candidate.dataConfig.view);
+  const view = !existingViews.includes("following")
+    ? "following"
+    : !existingViews.includes("followers")
+      ? "followers"
+      : "combined";
+  const publicLists = view === "combined" ? [] : [view];
+  return {
+    ...widget,
+    data: { ...widget.data, view },
+    dataConfig: { publicLimit: view === "combined" ? 0 : 8, publicLists, view },
+    title:
+      view === "following"
+        ? "网易云 · 关注"
+        : view === "followers"
+          ? "网易云 · 粉丝"
+          : "网易云 · 乐友关系"
+  } as WidgetProjection;
 }
 
 function toDraftUpdate(snapshot: LocalDashboardSnapshot): DashboardEditableDraft {

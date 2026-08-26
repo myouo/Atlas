@@ -413,8 +413,8 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.social",
     schemaVersion: 1,
-    name: "网易云 · 乐友关系",
-    description: "关注/粉丝计数，并可显式公开部分列表",
+    name: "网易云 · 关注 / 粉丝",
+    description: "以独立实例展示关注或粉丝，也兼容合并视图",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
@@ -429,22 +429,39 @@ export const widgetRegistry = new WidgetRegistry()
         id: "social-counts",
         label: "仅公开计数",
         description: "列表保持私有，只展示关注与粉丝数量",
-        dataConfig: { publicLimit: 0, publicLists: [] }
+        dataConfig: { publicLimit: 0, publicLists: [], view: "combined" }
       },
       {
         id: "social-following",
         label: "公开关注",
         description: "公开最多 8 个关注账号；粉丝列表保持私有",
-        dataConfig: { publicLimit: 8, publicLists: ["following"] }
+        dataConfig: { publicLimit: 8, publicLists: ["following"], view: "following" }
+      },
+      {
+        id: "social-followers",
+        label: "公开粉丝",
+        description: "公开最多 8 个粉丝账号；关注列表保持私有",
+        dataConfig: { publicLimit: 8, publicLists: ["followers"], view: "followers" }
       },
       {
         id: "social-both",
         label: "双向社交预览",
         description: "关注和粉丝各公开最多 8 个账号",
-        dataConfig: { publicLimit: 8, publicLists: ["following", "followers"] }
+        dataConfig: {
+          publicLimit: 8,
+          publicLists: ["following", "followers"],
+          view: "combined"
+        }
       }
     ],
-    subtitle: () => "列表默认私有",
+    subtitle: (widget) =>
+      widget.type === "music.netease.social"
+        ? widget.data.view === "following"
+          ? "关注列表"
+          : widget.data.view === "followers"
+            ? "粉丝列表"
+            : "关注 · 粉丝"
+        : undefined,
     Renderer: adaptRenderer(NeteaseSocialWidget)
   })
   .register({

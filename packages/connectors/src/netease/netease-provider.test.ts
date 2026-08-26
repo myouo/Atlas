@@ -342,6 +342,35 @@ describe("NetEase Provider module", () => {
     });
   });
 
+  it("projects following and followers as independent Widget instances", async () => {
+    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
+    const projections = await new NeteaseProjector().project(normalized, [
+      targetFor("music.netease.social", {
+        publicLimit: 8,
+        publicLists: ["following"],
+        view: "following"
+      }),
+      targetFor("music.netease.social", {
+        publicLimit: 8,
+        publicLists: ["followers"],
+        view: "followers"
+      })
+    ]);
+
+    expect(projections[0]?.data).toMatchObject({
+      followers: { availability: "unavailable", reason: "not_public" },
+      following: { availability: "available" },
+      followingWebUrl: "https://music.163.com/user/follows?id=10001",
+      view: "following"
+    });
+    expect(projections[1]?.data).toMatchObject({
+      followers: { availability: "available" },
+      followersWebUrl: "https://music.163.com/user/fans?id=10001",
+      following: { availability: "unavailable", reason: "not_public" },
+      view: "followers"
+    });
+  });
+
   it("keeps historical Raw Snapshot replay compatible before the showcase endpoint existed", async () => {
     const historical = snapshots(normalNeteaseFixture).filter(
       (snapshot) =>

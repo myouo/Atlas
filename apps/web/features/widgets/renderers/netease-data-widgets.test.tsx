@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { WidgetOf } from "../widget-types";
-import { NeteaseRankingWidget, NeteaseShowcaseWidget } from "./netease-data-widgets";
+import {
+  NeteaseRankingWidget,
+  NeteaseShowcaseWidget,
+  NeteaseSocialWidget
+} from "./netease-data-widgets";
 
 afterEach(cleanup);
 
@@ -155,7 +159,64 @@ describe("NetEase semantic data widgets", () => {
       "https://music.163.com/song?id=20001"
     );
   });
+
+  it("renders following and followers as separate views with separate entrances", () => {
+    const { rerender } = render(<NeteaseSocialWidget widget={socialWidget("following")} />);
+    expect(screen.getByText("关注")).toBeInTheDocument();
+    expect(screen.queryByText("粉丝")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "在网易云查看关注" })).toHaveAttribute(
+      "href",
+      "https://music.163.com/user/follows?id=10001"
+    );
+
+    rerender(<NeteaseSocialWidget widget={socialWidget("followers")} />);
+    expect(screen.getByText("粉丝")).toBeInTheDocument();
+    expect(screen.queryByText("关注")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "在网易云查看粉丝" })).toHaveAttribute(
+      "href",
+      "https://music.163.com/user/fans?id=10001"
+    );
+  });
 });
+
+function socialWidget(view: "following" | "followers"): WidgetOf<"music.netease.social"> {
+  const person = {
+    avatarDecorationUrl: null,
+    avatarUrl: null,
+    displayName: view === "following" ? "Following Fixture" : "Follower Fixture",
+    providerUserId: view === "following" ? "11001" : "12001",
+    signature: null,
+    vipType: null,
+    webUrl: `https://music.163.com/user/home?id=${view === "following" ? "11001" : "12001"}`
+  };
+  const hidden = { availability: "unavailable" as const, reason: "not_public" as const };
+  const available = { availability: "available" as const, complete: true, items: [person] };
+  return {
+    data: {
+      followerCount: 44,
+      followers: view === "followers" ? available : hidden,
+      followersWebUrl: "https://music.163.com/user/fans?id=10001",
+      following: view === "following" ? available : hidden,
+      followingCount: 174,
+      followingWebUrl: "https://music.163.com/user/follows?id=10001",
+      provider: "netease",
+      publicLimit: 8,
+      publicLists: [view],
+      view,
+      webUrl: "https://music.163.com/user/home?id=10001"
+    },
+    dataConfig: { publicLimit: 8, publicLists: [view], view },
+    enabled: true,
+    id: `00000000-0000-4000-8000-${view === "following" ? "000000009103" : "000000009104"}`,
+    presentationConfig: {},
+    provider: "netease",
+    schemaVersion: 1,
+    stale: false,
+    title: view === "following" ? "网易云 · 关注" : "网易云 · 粉丝",
+    type: "music.netease.social",
+    updatedAt: "2026-08-26T00:00:00.000Z"
+  };
+}
 
 function rankingWidget(): Extract<WidgetOf<"music.netease.ranking">, { schemaVersion: 2 }> {
   return {

@@ -345,9 +345,19 @@ const localNeteaseWidgets = [
     type: "music.netease.ranking"
   },
   {
+    dataConfig: { publicLimit: 8, publicLists: ["following"], view: "following" },
     id: "00000000-0000-4000-8000-000000009205",
     schemaVersion: 1,
     sizes: { lg: { h: 5, w: 4 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
+    title: "网易云 · 关注",
+    type: "music.netease.social"
+  },
+  {
+    dataConfig: { publicLimit: 8, publicLists: ["followers"], view: "followers" },
+    id: "00000000-0000-4000-8000-000000009208",
+    schemaVersion: 1,
+    sizes: { lg: { h: 5, w: 4 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
+    title: "网易云 · 粉丝",
     type: "music.netease.social"
   },
   {
@@ -379,7 +389,15 @@ function pureLocalDashboard(): DashboardReadModel {
     (widget) => !widget.type.startsWith("music.netease.")
   );
   for (const definition of localNeteaseWidgets) {
-    const widget = createMockWidget(definition.type, definition.id, definition.schemaVersion);
+    const baseWidget = createMockWidget(definition.type, definition.id, definition.schemaVersion);
+    const widget =
+      "dataConfig" in definition
+        ? {
+            ...baseWidget,
+            dataConfig: definition.dataConfig,
+            title: definition.title
+          }
+        : baseWidget;
     widgets.push(widget);
     layout = addWidgetToLayouts(layout, widget.id, definition.sizes);
   }
