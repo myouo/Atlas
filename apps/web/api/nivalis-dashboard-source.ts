@@ -133,7 +133,7 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
     },
     async load() {
       const [publishedResponse, sessionResponse] = await Promise.all([
-        client.GET("/v1/public/dashboards/about"),
+        client.GET("/v1/public/dashboards/about", { cache: "no-cache" }),
         client.GET("/v1/auth/session")
       ]);
       const published = requireData(
@@ -216,7 +216,7 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
     },
     async refreshProjections() {
       const [published, liveData, statuses] = await Promise.all([
-        client.GET("/v1/public/dashboards/about"),
+        client.GET("/v1/public/dashboards/about", { cache: "no-cache" }),
         client.GET("/v1/me/dashboards/about/data"),
         client.GET("/v1/me/providers/status")
       ]);

@@ -40,7 +40,10 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryFn: () => source.load(),
-    queryKey: ["dashboard", "about", source.kind]
+    queryKey: ["dashboard", "about", source.kind],
+    refetchInterval: source.kind === "api" ? 30_000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: source.kind === "api" ? "always" : false
   });
   const store = useDashboardStore();
   const initializeLocal = store.initializeLocal;
@@ -228,11 +231,16 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
     if (!query.data) return;
     if (source.kind === "api") {
       if (query.data.draft) {
-        replaceFromRemote(
-          query.data.published,
-          query.data.draft.dashboard,
-          query.data.draft.concurrencyToken
-        );
+        const current = useDashboardStore.getState();
+        if (current.dirty) {
+          current.acceptProjectionRefresh(query.data.published, query.data.draft.dashboard.widgets);
+        } else {
+          replaceFromRemote(
+            query.data.published,
+            query.data.draft.dashboard,
+            query.data.draft.concurrencyToken
+          );
+        }
       } else {
         replacePublic(query.data.published);
       }

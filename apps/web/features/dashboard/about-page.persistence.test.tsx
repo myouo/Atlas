@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockDashboard } from "./mock-dashboard";
 import { AboutPage } from "./about-page";
 import { useDashboardStore } from "./dashboard-store";
+import { mockDashboardSource } from "../../api/mock-dashboard-source";
 
 vi.mock("./dashboard-canvas", () => ({
   DashboardCanvas: ({ editable }: { readonly editable: boolean }) => (
@@ -327,5 +328,57 @@ describe("API persistence failure UX", () => {
     await waitFor(() => expect(useDashboardStore.getState().dirty).toBe(false));
     expect(useDashboardStore.getState().draft?.layout.lg[0]?.x).toBe(3);
     expect(useDashboardStore.getState().concurrencyToken).toBe('"rev:two"');
+  });
+
+  it("refreshes live Projection data without overwriting a dirty local Draft", async () => {
+    let refreshed = false;
+    const refreshedWidgets = mockDashboard.widgets.map((widget) =>
+      widget.type === "music.netease.overview"
+        ? { ...widget, data: { ...widget.data, plays: 999 } }
+        : widget
+    ) as typeof mockDashboard.widgets;
+    const source: DashboardDataSource = {
+      ...mockDashboardSource,
+      kind: "api",
+      async load() {
+        const widgets = refreshed ? refreshedWidgets : mockDashboard.widgets;
+        return {
+          draft: {
+            concurrencyToken: '"rev:one"',
+            dashboard: { ...draft, widgets }
+          },
+          providerStatuses: [],
+          published: { ...mockDashboard, widgets },
+          session: ownerSession
+        };
+      }
+    };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AboutPage source={source} />
+      </QueryClientProvider>
+    );
+
+    await screen.findByRole("heading", { name: "About Me" });
+    act(() => {
+      const layout = useDashboardStore
+        .getState()
+        .draft!.layout.lg.map((item, index) => (index === 0 ? { ...item, x: 2 } : item));
+      useDashboardStore.getState().updateBreakpointLayout("lg", layout);
+    });
+    refreshed = true;
+    await queryClient.refetchQueries({ queryKey: ["dashboard", "about", "api"] });
+
+    await waitFor(() => {
+      const netease = useDashboardStore
+        .getState()
+        .draft?.widgets.find((widget) => widget.type === "music.netease.overview");
+      expect(netease?.data).toMatchObject({ plays: 999 });
+    });
+    const state = useDashboardStore.getState();
+    expect(state.dirty).toBe(true);
+    expect(state.draft?.layout.lg[0]?.x).toBe(2);
+    expect(state.concurrencyToken).toBe('"rev:one"');
   });
 });

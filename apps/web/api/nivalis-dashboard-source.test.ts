@@ -284,6 +284,10 @@ describe("DashboardDataSource composition", () => {
     expect(savedBody.widgets[0]).not.toHaveProperty("data");
     expect(savedBody.widgets[0]).not.toHaveProperty("stale");
     expect(savedBody.widgets[0]).not.toHaveProperty("updatedAt");
+    const publicRequest = fetchMock.mock.calls
+      .map(([input, init]) => (input instanceof Request ? input : new Request(input, init)))
+      .find((request) => new URL(request.url).pathname === "/v1/public/dashboards/about");
+    expect(publicRequest?.cache).toBe("no-cache");
     const connectRequest = fetchMock.mock.calls
       .map(([input, init]) => (input instanceof Request ? input : new Request(input, init)))
       .find(

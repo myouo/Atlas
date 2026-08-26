@@ -11,9 +11,9 @@ if (!projectName) {
   process.exit(1);
 }
 
-if (dashboardSource !== "api" || !apiBaseUrl) {
+if (dashboardSource !== "api" || apiBaseUrl !== "/api") {
   console.error(
-    "Pages deployment requires NEXT_PUBLIC_DASHBOARD_SOURCE=api and NEXT_PUBLIC_API_BASE_URL. Use build:pages:mock only for an explicit local Mock artifact."
+    "Pages deployment requires NEXT_PUBLIC_DASHBOARD_SOURCE=api and NEXT_PUBLIC_API_BASE_URL=/api so OAuth sessions stay on the Pages origin. Use build:pages:mock only for an explicit local Mock artifact."
   );
   process.exit(1);
 }

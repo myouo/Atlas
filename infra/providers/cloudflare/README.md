@@ -100,10 +100,12 @@ Build Pages in API Mode by injecting the same-origin Pages Function gateway at b
 
 ```bash
 NEXT_PUBLIC_DASHBOARD_SOURCE=api \
-NEXT_PUBLIC_API_BASE_URL=<pages-origin>/api \
+NEXT_PUBLIC_API_BASE_URL=/api \
 CLOUDFLARE_PAGES_PROJECT=<project> \
 pnpm deploy:pages
 ```
+
+The deployed client revalidates Dashboard data every 30 seconds while visible and on window focus. An Owner's dirty local Draft is never replaced by this refresh; only live Projection fields and the Published read model are updated.
 
 ## Remaining adapter work
 

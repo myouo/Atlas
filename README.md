@@ -226,7 +226,7 @@ pnpm d1:migrate:remote
 pnpm d1:seed:remote
 
 NEXT_PUBLIC_DASHBOARD_SOURCE=api \
-NEXT_PUBLIC_API_BASE_URL=<pages-origin>/api \
+NEXT_PUBLIC_API_BASE_URL=/api \
 CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 ```
 
@@ -245,6 +245,8 @@ The public homepage intentionally has no administration chrome. Open `/settings`
 In Owner edit mode, every registered card uses the shared configuration surface. Presentation choices update only `presentationConfig`; NetEase semantic public policies update `dataConfig` and are enforced by the Projector before data reaches a public payload. Use **Save Draft**, sync data-affecting policy changes, then **Publish Layout**. Presentation choices do not change Projection Keys; public policy and selected resources do.
 
 Cloudflare Pages Functions proxies `/api/*` to the API Worker through a Service Binding. OAuth callback and Session cookies therefore stay on the Pages origin instead of relying on cross-site `pages.dev` → `workers.dev` cookies.
+
+The API-backed Dashboard revalidates on a 30-second foreground interval and whenever the browser window regains focus. Projection refreshes merge only live Provider data into a dirty local Draft; layout, Widget configuration, and the `rev:` concurrency token remain untouched.
 
 ## Security
 

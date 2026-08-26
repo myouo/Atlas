@@ -89,6 +89,9 @@ jobs:
         run: pnpm cf:typecheck && pnpm cf:typecheck:pages
 
       - name: Build Cloudflare Pages static preview
+        env:
+          NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_DASHBOARD_SOURCE: api
         run: pnpm build:pages
 
       - name: Dry-run Cloudflare Edge Worker bundle
