@@ -20,7 +20,8 @@ import {
   NeteaseNormalizer,
   NeteaseProjector
 } from "../packages/connectors/src/index";
-import { mockDashboard } from "../apps/web/features/dashboard/mock-dashboard";
+import { addWidgetToLayouts } from "../apps/web/features/dashboard/layout-engine";
+import { createMockWidget, mockDashboard } from "../apps/web/features/dashboard/mock-dashboard";
 
 const workspaceRoot = fileURLToPath(new URL("../", import.meta.url));
 const localEnvironment = `${workspaceRoot}.env.local`;
@@ -28,9 +29,7 @@ if (existsSync(localEnvironment)) process.loadEnvFile(localEnvironment);
 
 const host = "127.0.0.1";
 const port = integerEnvironment("NIVALIS_PREVIEW_API_PORT", 4174);
-const dashboardUrl = process.env.NIVALIS_PREVIEW_DASHBOARD_URL?.trim();
 const credential = process.env.NETEASE_INTEGRATION_MUSIC_U?.trim();
-if (!dashboardUrl) throw new Error("NIVALIS_PREVIEW_DASHBOARD_URL is required in .env.local.");
 if (!credential) throw new Error("NETEASE_INTEGRATION_MUSIC_U is required in .env.local.");
 
 const actorId = "00000000-0000-4000-8000-000000000001";
@@ -50,7 +49,7 @@ interface PreviewState {
   readonly widgets: readonly WidgetProjection[];
 }
 
-void refreshProviderData();
+queueMicrotask(() => void refreshProviderData());
 
 const server = createServer(async (request, response) => {
   const origin = request.headers.origin;
@@ -243,16 +242,7 @@ function refreshProviderData() {
 
 async function buildPreviewState(): Promise<PreviewState> {
   console.log("Refreshing real NetEase data in memory; no database will be used.");
-  const baseResponse = await fetch(dashboardUrl!, {
-    cache: "no-store",
-    headers: { "Cache-Control": "no-cache" }
-  });
-  if (!baseResponse.ok) throw new Error("Preview base Dashboard could not be loaded.");
-  const remoteBase = (await baseResponse.json()) as DashboardReadModel;
-  if (remoteBase.dashboardId !== "about" || !Array.isArray(remoteBase.widgets)) {
-    throw new Error("Preview base Dashboard is invalid.");
-  }
-  const base = withMissingPlatformFixtures(remoteBase);
+  const base = pureLocalDashboard();
 
   const now = new Date();
   const run = previewSyncRun(now);
@@ -317,42 +307,71 @@ async function buildPreviewState(): Promise<PreviewState> {
   };
 }
 
-const previewPlatformTypes = [
-  "github.profile",
-  "bilibili.profile",
-  "steam.profile",
-  "bangumi.collection"
+const localNeteaseWidgets = [
+  {
+    id: "00000000-0000-4000-8000-000000009201",
+    schemaVersion: 2,
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 12, w: 4 } },
+    type: "music.netease.overview"
+  },
+  {
+    id: "00000000-0000-4000-8000-000000009202",
+    schemaVersion: 1,
+    sizes: { lg: { h: 4, w: 4 }, md: { h: 4, w: 4 }, sm: { h: 6, w: 4 } },
+    type: "music.netease.identity"
+  },
+  {
+    id: "00000000-0000-4000-8000-000000009203",
+    schemaVersion: 1,
+    sizes: { lg: { h: 4, w: 4 }, md: { h: 4, w: 4 }, sm: { h: 6, w: 4 } },
+    type: "music.netease.listening"
+  },
+  {
+    id: "00000000-0000-4000-8000-000000009204",
+    schemaVersion: 2,
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 10, w: 4 } },
+    type: "music.netease.ranking"
+  },
+  {
+    id: "00000000-0000-4000-8000-000000009205",
+    schemaVersion: 1,
+    sizes: { lg: { h: 5, w: 4 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
+    type: "music.netease.social"
+  },
+  {
+    id: "00000000-0000-4000-8000-000000009206",
+    schemaVersion: 1,
+    sizes: { lg: { h: 6, w: 4 }, md: { h: 6, w: 4 }, sm: { h: 9, w: 4 } },
+    type: "music.netease.playlists"
+  },
+  {
+    id: "00000000-0000-4000-8000-000000009207",
+    schemaVersion: 2,
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 10, w: 4 } },
+    type: "music.netease.showcase"
+  }
 ] as const;
 
-function withMissingPlatformFixtures(base: DashboardReadModel): DashboardReadModel {
-  const missing = mockDashboard.widgets.filter(
-    (fixture) =>
-      previewPlatformTypes.includes(fixture.type as (typeof previewPlatformTypes)[number]) &&
-      !base.widgets.some((widget) => widget.type === fixture.type)
+function pureLocalDashboard(): DashboardReadModel {
+  const removedIds = new Set(
+    mockDashboard.widgets
+      .filter((widget) => widget.type.startsWith("music.netease."))
+      .map((widget) => widget.id)
   );
-  if (missing.length === 0) return base;
-  let layout = structuredClone(base.layout);
-  for (const fixture of missing) {
-    layout = {
-      lg: appendLayoutItem(layout.lg, fixture.id, mockDashboard.layout.lg, 12),
-      md: appendLayoutItem(layout.md, fixture.id, mockDashboard.layout.md, 8),
-      sm: appendLayoutItem(layout.sm, fixture.id, mockDashboard.layout.sm, 4)
-    };
+  let layout = {
+    lg: mockDashboard.layout.lg.filter((item) => !removedIds.has(item.i)),
+    md: mockDashboard.layout.md.filter((item) => !removedIds.has(item.i)),
+    sm: mockDashboard.layout.sm.filter((item) => !removedIds.has(item.i))
+  };
+  const widgets = mockDashboard.widgets.filter(
+    (widget) => !widget.type.startsWith("music.netease.")
+  );
+  for (const definition of localNeteaseWidgets) {
+    const widget = createMockWidget(definition.type, definition.id, definition.schemaVersion);
+    widgets.push(widget);
+    layout = addWidgetToLayouts(layout, widget.id, definition.sizes);
   }
-  return { ...base, layout, widgets: [...base.widgets, ...missing] };
-}
-
-function appendLayoutItem(
-  items: DashboardReadModel["layout"]["lg"],
-  widgetId: string,
-  fixtureItems: DashboardReadModel["layout"]["lg"],
-  columns: number
-) {
-  const template = fixtureItems.find((item) => item.i === widgetId);
-  const width = Math.min(columns, template?.w ?? columns);
-  const height = template?.h ?? 3;
-  const y = items.reduce((bottom, item) => Math.max(bottom, item.y + item.h), 0);
-  return [...items, { h: height, i: widgetId, w: width, x: 0, y }];
+  return { ...mockDashboard, layout, revision: 1, widgets };
 }
 
 function configurationState(state: PreviewState, mode: "draft" | "published"): DashboardState {

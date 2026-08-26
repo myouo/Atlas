@@ -55,17 +55,15 @@ pnpm preview:web
 
 Open `http://127.0.0.1:3000`. The launcher starts Next.js plus a loopback-only, in-memory Nivalis
 Preview API. The Preview API reads `NETEASE_INTEGRATION_MUSIC_U` only on the server, runs the real
-Connector → Normalizer → Projector pipeline, and combines those projections with the configured
-Published Dashboard. The browser never receives the Cookie. GitHub, Bilibili, Steam, and Bangumi
-remain explicitly marked Fixture data until their real Connectors exist. No database, D1, Queue,
-Owner API, or Worker write path is required; the configured public Dashboard endpoint supplies only
-the current layout/configuration baseline.
+Connector → Normalizer → Projector pipeline, and combines those projections with a repository-owned
+local Dashboard fixture/layout. The browser never receives the Cookie. GitHub, Bilibili, Steam, and
+Bangumi remain explicitly marked Fixture data until their real Connectors exist. It does not call any
+Nivalis deployment, Pages site, API Worker, D1, Queue, or database.
 
 Configure the ignored root `.env.local`:
 
 ```dotenv
 NETEASE_INTEGRATION_MUSIC_U=<MUSIC_U value only>
-NIVALIS_PREVIEW_DASHBOARD_URL=<public Nivalis Dashboard endpoint>
 ```
 
 The local API returns an Owner fixture session, so display/edit controls, drag, resize, add/remove,
