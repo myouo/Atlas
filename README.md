@@ -58,7 +58,8 @@ Preview API. The Preview API reads `NETEASE_INTEGRATION_MUSIC_U` only on the ser
 Connector → Normalizer → Projector pipeline, and combines those projections with the configured
 Published Dashboard. The browser never receives the Cookie. GitHub, Bilibili, Steam, and Bangumi
 remain explicitly marked Fixture data until their real Connectors exist. No database, D1, Queue,
-deployed API, or Worker is required.
+Owner API, or Worker write path is required; the configured public Dashboard endpoint supplies only
+the current layout/configuration baseline.
 
 Configure the ignored root `.env.local`:
 
