@@ -227,6 +227,7 @@ describe("NetEase Provider module", () => {
             cardKind: "ranking",
             kind: "provider_music_card",
             resourceType: "song_rank",
+            jumpUrl: "https://music.163.com/user/songs/rank?id=10001",
             title: "听歌排行"
           }
         },
@@ -234,6 +235,7 @@ describe("NetEase Provider module", () => {
           card: {
             artists: [{ name: "Aimer", providerArtistId: "30001" }],
             cardKind: "song",
+            jumpUrl: "https://music.163.com/song?id=20001",
             title: "Window Song 1"
           }
         },

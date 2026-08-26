@@ -58,6 +58,7 @@ describe("NetEase semantic data widgets", () => {
                     "https://p1.music.126.net/fixture/one.jpg",
                     "https://p1.music.126.net/fixture/two.jpg"
                   ],
+                  jumpUrl: "javascript:alert(1)",
                   kind: "provider_music_card",
                   providerCardId: "native-duration",
                   resourceId: "listen-duration",
@@ -81,6 +82,7 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.getByText("累计 162 小时")).toBeInTheDocument();
     expect(screen.getByText("音乐浓度")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "听歌时长 的图片组合" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "打开 听歌时长" })).not.toBeInTheDocument();
   });
 
   it("hides Provider resource codes and uses real artists as song subtitles", () => {
@@ -98,6 +100,7 @@ describe("NetEase semantic data widgets", () => {
                   cardKind: "ranking",
                   coverUrl: null,
                   imageUrls: [],
+                  jumpUrl: "https://music.163.com/user/songs/rank?id=10001",
                   kind: "provider_music_card",
                   providerCardId: "ranking",
                   resourceType: "song_rank",
@@ -112,6 +115,7 @@ describe("NetEase semantic data widgets", () => {
                   cardKind: "song",
                   coverUrl: null,
                   imageUrls: [],
+                  jumpUrl: "https://music.163.com/song?id=20001",
                   kind: "provider_music_card",
                   providerCardId: "song-one",
                   resourceType: "song",
@@ -134,6 +138,14 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.getByText("酔シグレ / Lucia")).toBeInTheDocument();
     expect(screen.queryByText("song_rank")).not.toBeInTheDocument();
     expect(screen.queryByText("song")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开 听歌排行" })).toHaveAttribute(
+      "href",
+      "https://music.163.com/user/songs/rank?id=10001"
+    );
+    expect(screen.getByRole("link", { name: "打开 ロスト・シルフィード" })).toHaveAttribute(
+      "href",
+      "https://music.163.com/song?id=20001"
+    );
   });
 });
 

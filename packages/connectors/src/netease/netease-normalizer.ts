@@ -124,7 +124,11 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const followerTotal = profile.followeds ?? followerPages[0]!.size ?? null;
     const followingTotal = profile.follows ?? null;
     const musicCards = profileMusicCards
-      ? normalizeExhibitionMusicCards(profileMusicCards, musicCardTracks?.songs ?? [])
+      ? normalizeExhibitionMusicCards(
+          profileMusicCards,
+          musicCardTracks?.songs ?? [],
+          providerUserId
+        )
       : profileShowcasePages.length > 0
         ? normalizeProfileMusicCards(profileShowcasePages)
         : normalizeLegacyMusicCards(profileHomeSnapshot.payload);
@@ -225,7 +229,8 @@ export class NeteaseNormalizer implements ProviderNormalizer {
 
 function normalizeExhibitionMusicCards(
   payload: Static<typeof NeteaseProfileMusicCardsResponseSchema>,
-  tracks: Static<typeof NeteaseSongDetailResponseSchema>["songs"]
+  tracks: Static<typeof NeteaseSongDetailResponseSchema>["songs"],
+  providerUserId: string
 ): {
   readonly available: boolean;
   readonly items: readonly NeteaseNormalizedMusicCard[];
@@ -243,7 +248,7 @@ function normalizeExhibitionMusicCards(
       creativeType: "EXHIBITION_CARD",
       description: null,
       imageUrls: coverUrl ? [coverUrl] : [],
-      jumpUrl: safeProviderTarget(card.jumpUrl),
+      jumpUrl: exhibitionWebUrl(card.resType, card.resId, providerUserId),
       providerCardId: String(card.id),
       providerPublic: payload.data.open,
       providerUiType: null,
@@ -260,6 +265,27 @@ function normalizeExhibitionMusicCards(
     available: payload.data.open,
     items: uniqueBy(items, (card) => card.providerCardId)
   };
+}
+
+function exhibitionWebUrl(resourceType: string, resourceId: string, providerUserId: string) {
+  const resourceRoutes: Readonly<Record<string, string>> = {
+    album: "album",
+    latest_collect_playlist: "playlist",
+    latest_create_playlist: "playlist",
+    latest_heart_song: "song",
+    playlist: "playlist",
+    song: "song"
+  };
+  const route = resourceRoutes[resourceType];
+  const id = resourceType === "song_rank" ? providerUserId : resourceId;
+  if (!/^\d+$/.test(id)) return null;
+  const url = new URL(
+    resourceType === "song_rank" ? "/user/songs/rank" : `/${route ?? ""}`,
+    "https://music.163.com"
+  );
+  if (resourceType !== "song_rank" && !route) return null;
+  url.searchParams.set("id", id);
+  return url.toString();
 }
 
 function exhibitionCardKind(resType: string): NeteaseNormalizedMusicCard["cardKind"] {

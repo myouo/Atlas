@@ -47,7 +47,7 @@ export function ModuleShell({
     <section
       aria-label={title}
       className={clsx(
-        "glass-surface group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[16px]",
+        "module-shell glass-surface group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[16px] select-none",
         "transition-[box-shadow,border-color,transform] duration-200",
         editable && "border-dashed !border-blue-400/80 shadow-[0_13px_40px_rgba(45,94,205,0.18)]"
       )}
@@ -95,7 +95,7 @@ export function ModuleShell({
           {icon ? (
             <span
               className={clsx(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm",
+                "module-shell-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm",
                 styles.icon
               )}
             >
@@ -126,7 +126,11 @@ export function ModuleShell({
         </header>
       ) : null}
 
-      <div className={clsx("min-h-0 flex-1", showHeader ? "px-5 pb-5" : "h-full")}>{children}</div>
+      <div
+        className={clsx("module-shell-content min-h-0 flex-1", showHeader ? "px-5 pb-5" : "h-full")}
+      >
+        {children}
+      </div>
     </section>
   );
 }

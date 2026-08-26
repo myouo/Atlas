@@ -102,6 +102,124 @@ select:focus-visible {
   -webkit-backdrop-filter: blur(20px) saturate(122%);
 }
 
+.module-shell {
+  isolation: isolate;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  animation: module-shell-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    box-shadow 260ms ease,
+    background-color 220ms ease;
+}
+
+.module-shell::after {
+  position: absolute;
+  inset: -35% auto -35% -42%;
+  z-index: 30;
+  width: 34%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 8%,
+    rgba(255, 255, 255, 0.06) 34%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.08) 66%,
+    transparent 92%
+  );
+  opacity: 0;
+  transform: translateX(0) rotate(8deg);
+  transition:
+    transform 720ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+.module-shell:hover {
+  border-color: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 18px 48px rgba(37, 78, 142, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  transform: translate3d(0, -2px, 0);
+}
+
+.module-shell:hover::after {
+  opacity: 0.72;
+  transform: translateX(430%) rotate(8deg);
+}
+
+.module-shell-icon {
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.module-shell:hover .module-shell-icon {
+  transform: translate3d(0, -1px, 0) rotate(-2deg) scale(1.045);
+}
+
+.module-shell button,
+.module-shell a {
+  transition:
+    transform 160ms ease,
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 180ms ease;
+}
+
+.module-shell button:active,
+.module-shell a:active {
+  transform: scale(0.97);
+}
+
+.dashboard-grid .react-grid-item:nth-child(3n + 2) .module-shell {
+  animation-delay: 35ms;
+}
+
+.dashboard-grid .react-grid-item:nth-child(3n) .module-shell {
+  animation-delay: 70ms;
+}
+
+.dashboard-grid.is-interacting .module-shell,
+.react-grid-item.react-draggable-dragging .module-shell,
+.react-grid-item.resizing .module-shell {
+  animation: none;
+}
+
+.dashboard-grid.is-interacting .module-shell:hover {
+  transform: none;
+}
+
+.showcase-tile-link {
+  cursor: pointer;
+  text-decoration: none;
+  transform: translateZ(0);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 220ms ease;
+}
+
+.showcase-tile-link:hover {
+  filter: saturate(1.06);
+  transform: translate3d(0, -1px, 0);
+}
+
+.showcase-tile-link:active {
+  transform: scale(0.985);
+}
+
+@keyframes module-shell-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.992);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 .glass-surface *,
 .glass-surface-strong * {
   scrollbar-width: thin;

@@ -33,6 +33,11 @@ Connector 因此把最多六个歌曲 `resId` 批量交给只读 `/api/v3/song/d
 `netease.music_card_tracks` Raw Snapshot。Normalizer 只使用歌曲详情中经过 Schema 验证的
 `ar[]` 作为歌手来源；若详情缺失，前端保持副标题为空，不从标题或历史记录猜测。
 
+官方响应里的 `jumpUrl` 是 `orpheus:` 客户端深链，只作为 Raw 证据保存，不直接交给 Web
+Frontend。Normalizer 使用已验证的资源类型与数字 ID 生成 `https://music.163.com` 页面：
+`song`、`playlist`、`album` 分别映射到同名页面，`song_rank` 映射到
+`/user/songs/rank?id=<provider-user-id>`。没有明确网页语义的类型不生成链接。
+
 ---
 
 ## 0. 关键事实速览

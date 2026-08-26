@@ -1,4 +1,5 @@
 import {
+  ArrowUpRight,
   CaretLeft,
   CaretRight,
   ClockCounterClockwise,
@@ -11,7 +12,7 @@ import {
   Trophy,
   UserList
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
@@ -660,17 +661,27 @@ function ShowcaseTile({
 }) {
   const summary = showcaseSummary(card, source);
   if (dense) {
-    return (
+    const tile = (
       <article
         className={
           editorial
-            ? "group relative flex min-h-0 items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/85 bg-gradient-to-br from-white/80 via-white/58 to-rose-50/75 p-2.5 pr-9 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
-            : "group relative flex min-h-0 items-center gap-2.5 overflow-hidden rounded-2xl border border-white/75 bg-white/48 p-2.5 pr-9 transition duration-300 hover:bg-white/68"
+            ? "group relative flex h-full min-h-0 items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/85 bg-gradient-to-br from-white/80 via-white/58 to-rose-50/75 p-2.5 pr-9 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
+            : "group relative flex h-full min-h-0 items-center gap-2.5 overflow-hidden rounded-2xl border border-white/75 bg-white/48 p-2.5 pr-9 transition duration-300 hover:bg-white/68"
         }
       >
         <ShowcaseArtwork summary={summary} size="sm" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-black text-ink">{summary.title}</p>
+          <p className="flex items-center gap-1 truncate text-[10px] font-black text-ink">
+            <span className="truncate">{summary.title}</span>
+            {summary.jumpUrl ? (
+              <ArrowUpRight
+                aria-hidden
+                className="shrink-0 text-[#e83d5b]/65 transition group-hover:text-[#e83d5b]"
+                size={10}
+                weight="bold"
+              />
+            ) : null}
+          </p>
           {summary.subtitle ? (
             <p className="mt-0.5 truncate text-[8px] font-medium text-ink-muted">
               {summary.subtitle}
@@ -685,13 +696,14 @@ function ShowcaseTile({
         </span>
       </article>
     );
+    return <ShowcaseTileLink summary={summary}>{tile}</ShowcaseTileLink>;
   }
-  return (
+  const tile = (
     <article
       className={
         editorial
-          ? "group relative flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-white/85 bg-gradient-to-br from-white/80 via-white/58 to-rose-50/75 p-3 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
-          : "group relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/48 p-2.5 transition duration-300 hover:bg-white/68"
+          ? "group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[20px] border border-white/85 bg-gradient-to-br from-white/80 via-white/58 to-rose-50/75 p-3 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
+          : "group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/48 p-2.5 transition duration-300 hover:bg-white/68"
       }
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
@@ -701,7 +713,17 @@ function ShowcaseTile({
         </span>
       </div>
       <div className="mt-auto min-w-0 pt-3">
-        <p className="line-clamp-2 text-[11px] leading-snug font-black text-ink">{summary.title}</p>
+        <p className="flex items-start gap-1 text-[11px] leading-snug font-black text-ink">
+          <span className="line-clamp-2">{summary.title}</span>
+          {summary.jumpUrl ? (
+            <ArrowUpRight
+              aria-hidden
+              className="mt-0.5 shrink-0 text-[#e83d5b]/65 transition group-hover:text-[#e83d5b]"
+              size={11}
+              weight="bold"
+            />
+          ) : null}
+        </p>
         {summary.subtitle ? (
           <p className="mt-1 truncate text-[8px] font-medium text-ink-muted">{summary.subtitle}</p>
         ) : null}
@@ -710,6 +732,28 @@ function ShowcaseTile({
         ) : null}
       </div>
     </article>
+  );
+  return <ShowcaseTileLink summary={summary}>{tile}</ShowcaseTileLink>;
+}
+
+function ShowcaseTileLink({
+  children,
+  summary
+}: {
+  readonly children: ReactNode;
+  readonly summary: ReturnType<typeof showcaseSummary>;
+}) {
+  if (!summary.jumpUrl) return children;
+  const external = summary.jumpUrl.startsWith("https:");
+  return (
+    <a
+      aria-label={`打开 ${summary.title}`}
+      className="showcase-tile-link block h-full min-h-0 rounded-[20px] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-400/45"
+      href={summary.jumpUrl}
+      {...(external ? { rel: "noreferrer", target: "_blank" } : {})}
+    >
+      {children}
+    </a>
   );
 }
 
@@ -763,6 +807,7 @@ function ShowcaseArtwork({
 }
 
 function showcaseSummary(card: Record<string, unknown>, source: string) {
+  const jumpUrl = safeNeteaseJumpUrl(card.jumpUrl);
   const track = objectValue(card.track);
   if (track) {
     const artists = Array.isArray(track.artists)
@@ -771,6 +816,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
     return {
       coverUrl: stringValue(track.coverUrl),
       imageUrls: stringValue(track.coverUrl) ? [stringValue(track.coverUrl)!] : [],
+      jumpUrl,
       kind: "track",
       meta: typeof card.playCount === "number" ? `${card.playCount} 次播放` : null,
       subtitle: artists.join(" / "),
@@ -781,6 +827,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
     return {
       coverUrl: stringValue(card.coverUrl),
       imageUrls: stringValue(card.coverUrl) ? [stringValue(card.coverUrl)!] : [],
+      jumpUrl,
       kind: "playlist",
       meta: typeof card.trackCount === "number" ? `${card.trackCount} 首歌曲` : null,
       subtitle: Array.isArray(card.tags)
@@ -793,6 +840,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
     return {
       coverUrl: stringValue(card.iconUrl),
       imageUrls: stringValue(card.iconUrl) ? [stringValue(card.iconUrl)!] : [],
+      jumpUrl,
       kind: "medal",
       meta: card.worn === true ? "佩戴中" : "已获得",
       subtitle: stringValue(card.description),
@@ -803,6 +851,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
     return {
       coverUrl: null,
       imageUrls: [],
+      jumpUrl,
       kind: "duration",
       meta:
         typeof card.value === "number"
@@ -824,6 +873,7 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
     imageUrls: Array.isArray(card.imageUrls)
       ? card.imageUrls.filter((url): url is string => typeof url === "string").slice(0, 3)
       : [],
+    jumpUrl,
     meta:
       stringValue(card.badgeText) ??
       (resourceType === "song" || resourceType === "song_rank" ? null : resourceType),
@@ -840,6 +890,23 @@ function showcaseSummary(card: Record<string, unknown>, source: string) {
               : null)),
     title: stringValue(card.title) || "网易云音乐卡片"
   };
+}
+
+function safeNeteaseJumpUrl(value: unknown) {
+  const target = stringValue(value);
+  if (!target) return null;
+  try {
+    const url = new URL(target);
+    if (
+      url.protocol === "https:" &&
+      (url.hostname === "music.163.com" || url.hostname.endsWith(".music.163.com"))
+    ) {
+      return url.toString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function formatDuration(value: number, unit: "plays" | "seconds" | "minutes") {

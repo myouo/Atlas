@@ -35,6 +35,9 @@ from generic Profile V3 blocks.
    The Connector batches their `resId` values through the read-only `/api/v3/song/detail` capability,
    stores the response as separate Raw evidence, and the Normalizer derives artist subtitles only from
    the validated `ar[]` field.
+8. Provider `orpheus:` deep links remain Raw evidence. Web Projections expose only verified official
+   `https://music.163.com` routes derived from validated resource types and numeric IDs; unsupported
+   card types remain non-clickable.
 
 ## Consequences
 

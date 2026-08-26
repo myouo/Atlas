@@ -13,6 +13,7 @@ describe("ModuleShell", () => {
     );
     expect(screen.queryByRole("button", { name: "拖动 GitHub" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "移除 GitHub" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("module-shell")).toHaveClass("module-shell", "select-none");
   });
 
   it("exposes unified drag and remove controls in edit mode", async () => {
