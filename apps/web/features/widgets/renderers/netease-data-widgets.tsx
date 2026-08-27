@@ -315,7 +315,7 @@ export function NeteaseListeningCalendarWidget({
       {range === "month" ? (
         <MonthlyListeningCalendar points={selected.points} />
       ) : (
-        <WeeklyListeningBars points={selected.points} />
+        <WeeklyListeningRhythm points={selected.points} />
       )}
     </div>
   );
@@ -382,7 +382,7 @@ function MonthlyListeningCalendar({
   );
 }
 
-function WeeklyListeningBars({
+function WeeklyListeningRhythm({
   points
 }: {
   readonly points: readonly { readonly date: string; readonly minutes: number }[];
@@ -397,42 +397,56 @@ function WeeklyListeningBars({
         </p>
         <span className="text-[8px] font-bold text-ink-muted">{points.length} 个每日记录</span>
       </div>
-      <div className="flex min-h-0 flex-1 items-stretch justify-center gap-2">
-        {points.map((point) => (
-          <div
-            aria-label={`${point.date}，${point.minutes} 分钟`}
-            className="flex min-w-0 max-w-24 flex-1 flex-col rounded-xl border border-white/70 bg-white/38 px-2 pt-2 pb-1.5"
-            key={point.date}
-            role="img"
-          >
-            <span className="hidden truncate text-center text-[8px] font-black text-[#e83d5b] sm:block">
-              {formatMinutes(point.minutes)}
-            </span>
-            <span className="truncate text-center text-[8px] font-black text-[#e83d5b] sm:hidden">
-              {compactMinutes(point.minutes)}
-            </span>
-            <span className="my-1 flex min-h-0 flex-1 items-end justify-center">
-              <span
-                className={
-                  point.minutes === 0
-                    ? "block h-1 w-full max-w-10 rounded-full bg-slate-200"
-                    : "block w-full max-w-10 rounded-t-lg bg-gradient-to-t from-[#ff4668] to-[#ff9bad] shadow-[0_5px_12px_rgba(255,70,104,0.18)]"
-                }
-                style={
-                  point.minutes === 0
-                    ? undefined
-                    : { height: `${Math.max(8, (point.minutes / maximum) * 100)}%` }
-                }
-              />
-            </span>
-            <span className="truncate text-center text-[7px] font-bold text-ink-muted">
-              {formatWeekDate(point.date)}
-            </span>
-          </div>
-        ))}
+      <div
+        className="weekly-rhythm-chart relative grid min-h-0 flex-1 gap-1 px-1"
+        data-weekly-rhythm
+        style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
+      >
+        {points.map((point) => {
+          const intensity = point.minutes / maximum;
+          const state = rhythmState(point.minutes, intensity);
+          const heightPercent = point.minutes === 0 ? 0 : Math.max(8, intensity * 100);
+          return (
+            <div
+              aria-label={`${point.date}，${point.minutes} 分钟`}
+              className="weekly-rhythm-day relative z-10 grid min-w-0 grid-rows-[auto_minmax(0,1fr)_auto]"
+              data-rhythm-state={state}
+              key={point.date}
+              role="img"
+            >
+              <span className="hidden truncate text-center text-[8px] font-black text-[#e83d5b] sm:block">
+                {formatMinutes(point.minutes)}
+              </span>
+              <span className="truncate text-center text-[8px] font-black text-[#e83d5b] sm:hidden">
+                {compactMinutes(point.minutes)}
+              </span>
+              <span className="my-1 flex min-h-0 items-end justify-center">
+                <span aria-hidden className="weekly-rhythm-track">
+                  {point.minutes > 0 ? (
+                    <span
+                      className="weekly-rhythm-fill"
+                      data-rhythm-level={state}
+                      style={{ height: `${heightPercent}%` }}
+                    />
+                  ) : null}
+                </span>
+              </span>
+              <span className="truncate text-center text-[7px] font-bold text-ink-muted">
+                {formatWeekDate(point.date)}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
+}
+
+function rhythmState(minutes: number, intensity: number): "dormant" | "quiet" | "warm" | "peak" {
+  if (minutes === 0) return "dormant";
+  if (intensity === 1) return "peak";
+  if (intensity >= 0.35) return "warm";
+  return "quiet";
 }
 
 function calendarCells(

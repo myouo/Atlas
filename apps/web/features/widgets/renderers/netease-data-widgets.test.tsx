@@ -23,8 +23,15 @@ describe("NetEase semantic data widgets", () => {
     expect(container.querySelectorAll('[role="img"][aria-label*="分钟"]').length).toBe(27);
 
     await userEvent.click(screen.getByRole("button", { name: "本周" }));
-    expect(screen.getByRole("img", { name: "2026-08-25，0 分钟" })).toBeInTheDocument();
-    expect(screen.getByText("最近一周")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "2026-08-25，0 分钟" })).toHaveAttribute(
+      "data-rhythm-state",
+      "dormant"
+    );
+    expect(screen.getByRole("img", { name: "2026-08-24，283 分钟" })).toHaveAttribute(
+      "data-rhythm-state",
+      "peak"
+    );
+    expect(container.querySelector("[data-weekly-rhythm]")).toBeInTheDocument();
   });
 
   it("allocates six adaptive calendar rows for a long month without fixed-height cells", () => {
