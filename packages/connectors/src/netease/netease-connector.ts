@@ -56,6 +56,28 @@ export class NeteaseConnector implements ProviderConnector {
     snapshots.push(snapshot(NETEASE_SOURCE.listenReportWeek, report, this.now()));
     const monthlyReport = await this.client.getMonthlyListenReport(credential);
     snapshots.push(snapshot(NETEASE_SOURCE.listenReportMonth, monthlyReport, this.now()));
+    const weeklyRank = await this.client.getListenPlayRank(credential, "week");
+    snapshots.push(snapshot(NETEASE_SOURCE.listenRankWeek, weeklyRank, this.now()));
+    const monthlyRank = await this.client.getListenPlayRank(credential, "month");
+    snapshots.push(snapshot(NETEASE_SOURCE.listenRankMonth, monthlyRank, this.now()));
+    const previousWeekEndTime = previousPeriodEndTime(report);
+    if (previousWeekEndTime !== null) {
+      const previousWeek = await this.client.getHistoricalListenReport(
+        credential,
+        "week",
+        previousWeekEndTime
+      );
+      snapshots.push(snapshot(NETEASE_SOURCE.listenReportPreviousWeek, previousWeek, this.now()));
+    }
+    const previousMonthEndTime = previousPeriodEndTime(monthlyReport);
+    if (previousMonthEndTime !== null) {
+      const previousMonth = await this.client.getHistoricalListenReport(
+        credential,
+        "month",
+        previousMonthEndTime
+      );
+      snapshots.push(snapshot(NETEASE_SOURCE.listenReportPreviousMonth, previousMonth, this.now()));
+    }
     snapshots.push(
       ...(await paginatedSnapshots(
         NETEASE_SOURCE.following,
@@ -175,7 +197,6 @@ function canonicalCursor(cursor: NeteaseProfileCursor) {
     Object.fromEntries(Object.entries(cursor).sort(([a], [b]) => a.localeCompare(b)))
   );
 }
-
 async function paginatedSnapshots(
   baseSourceKind: string,
   load: (offset: number) => Promise<JsonValue>,
@@ -288,6 +309,14 @@ function extractUserId(payload: ProviderFetchResult["payload"]): string | null {
   const account = isObject(payload.account) ? payload.account : null;
   const value = profile?.userId ?? account?.id;
   return typeof value === "string" || typeof value === "number" ? String(value) : null;
+}
+
+function previousPeriodEndTime(payload: ProviderFetchResult["payload"]): number | null {
+  if (!isObject(payload) || !isObject(payload.data)) return null;
+  const startTime = payload.data.startTime;
+  return typeof startTime === "number" && Number.isSafeInteger(startTime) && startTime > 1
+    ? startTime - 1
+    : null;
 }
 
 function isObject(value: unknown): value is JsonObject {

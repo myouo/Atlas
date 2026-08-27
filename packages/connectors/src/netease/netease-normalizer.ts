@@ -14,6 +14,7 @@ import {
   NeteaseCreatedPlaylistsResponseSchema,
   NeteaseFollowersResponseSchema,
   NeteaseFollowingResponseSchema,
+  NeteaseListenPlayRankResponseSchema,
   NeteaseListenTotalResponseSchema,
   NeteaseListenReportResponseSchema,
   NeteaseMedalsResponseSchema,
@@ -36,7 +37,8 @@ import {
   type NeteaseNormalizedMusicCard,
   type NeteaseNormalizedPayload,
   type NeteaseNormalizedPlaylist,
-  type NeteaseReportPoint,
+  type NeteaseNormalizedRecordWall,
+  type NeteaseNormalizedReport,
   type NeteaseNormalizedTrack
 } from "./netease-types";
 
@@ -69,6 +71,18 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const reportSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenReportWeek);
     const monthlyReportSnapshot = snapshots.find(
       (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenReportMonth
+    );
+    const weeklyRankSnapshot = snapshots.find(
+      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenRankWeek
+    );
+    const monthlyRankSnapshot = snapshots.find(
+      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenRankMonth
+    );
+    const previousWeekSnapshot = snapshots.find(
+      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenReportPreviousWeek
+    );
+    const previousMonthSnapshot = snapshots.find(
+      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenReportPreviousMonth
     );
     const socialStatusSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.socialStatus);
     const levelSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.userLevel);
@@ -104,6 +118,18 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const monthlyReport = monthlyReportSnapshot
       ? checked(NeteaseListenReportResponseSchema, monthlyReportSnapshot)
       : null;
+    const weeklyRank = weeklyRankSnapshot
+      ? checked(NeteaseListenPlayRankResponseSchema, weeklyRankSnapshot)
+      : null;
+    const monthlyRank = monthlyRankSnapshot
+      ? checked(NeteaseListenPlayRankResponseSchema, monthlyRankSnapshot)
+      : null;
+    const previousWeek = previousWeekSnapshot
+      ? checked(NeteaseListenReportResponseSchema, previousWeekSnapshot)
+      : null;
+    const previousMonth = previousMonthSnapshot
+      ? checked(NeteaseListenReportResponseSchema, previousMonthSnapshot)
+      : null;
     const socialStatus = checked(NeteaseSocialStatusResponseSchema, socialStatusSnapshot);
     const level = checked(NeteaseUserLevelResponseSchema, levelSnapshot);
     const vip = checked(NeteaseVipInfoResponseSchema, vipSnapshot);
@@ -111,6 +137,18 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const weeklyReport = normalizedReport(report, "week", NETEASE_SOURCE.listenReportWeek);
     const normalizedMonthlyReport = monthlyReport
       ? normalizedReport(monthlyReport, "month", NETEASE_SOURCE.listenReportMonth)
+      : null;
+    const previousWeeklyReport = previousWeek
+      ? normalizedReport(previousWeek, "week", NETEASE_SOURCE.listenReportPreviousWeek)
+      : null;
+    const previousMonthlyReport = previousMonth
+      ? normalizedReport(previousMonth, "month", NETEASE_SOURCE.listenReportPreviousMonth)
+      : null;
+    const weeklyRecordWall = weeklyRank
+      ? normalizedRecordWall(weeklyRank, "week", NETEASE_SOURCE.listenRankWeek)
+      : null;
+    const monthlyRecordWall = monthlyRank
+      ? normalizedRecordWall(monthlyRank, "month", NETEASE_SOURCE.listenRankMonth)
       : null;
     const providerUserId = String(account.profile?.userId ?? account.account.id);
     const profile = detail.profile;
@@ -197,6 +235,7 @@ export class NeteaseNormalizer implements ProviderNormalizer {
       listeningDurationTotalSeconds: listenTotal.data.totalDuration,
       monthlyListenDays: normalizedMonthlyReport?.listenDays ?? null,
       monthlyListeningDurationMinutes: normalizedMonthlyReport?.totalMinutes ?? null,
+      monthlyRecordWall,
       monthlyReportPoints: normalizedMonthlyReport?.points ?? [],
       medals: {
         items: (medals.data.obtainMedals ?? []).map(normalizeMedal),
@@ -215,9 +254,12 @@ export class NeteaseNormalizer implements ProviderNormalizer {
           : vip.data.redVipAnnualCount,
       redVipLevel: vip.data.redVipLevel ?? null,
       reportPoints: weeklyReport.points,
+      previousMonthlyReport,
+      previousWeeklyReport,
       socialStatus: normalizeSocialStatus(socialStatus.data as JsonObject),
       totalListenCount: detail.listenSongs,
       weeklyListenDays: weeklyReport.listenDays,
+      weeklyRecordWall,
       weeklyRecords: weekly.weekData.map(normalizeRecord)
     };
 
@@ -236,11 +278,7 @@ function normalizedReport(
   report: Static<typeof NeteaseListenReportResponseSchema>,
   expectedPeriod: "week" | "month",
   sourceKind: string
-): {
-  readonly listenDays: number | null;
-  readonly points: readonly NeteaseReportPoint[];
-  readonly totalMinutes: number | null;
-} {
+): NeteaseNormalizedReport {
   const declaredPeriod = report.data.type ?? report.data.period;
   if (declaredPeriod !== undefined && declaredPeriod !== expectedPeriod) {
     throw new ProviderSchemaMismatchError(sourceKind);
@@ -264,6 +302,48 @@ function normalizedReport(
     totalMinutes:
       distribution?.playDuration ??
       (report.data.duration === undefined ? null : report.data.duration / 60)
+  };
+}
+
+function normalizedRecordWall(
+  rank: Static<typeof NeteaseListenPlayRankResponseSchema>,
+  expectedPeriod: "week" | "month",
+  sourceKind: string
+): NeteaseNormalizedRecordWall {
+  if (rank.data.type !== expectedPeriod) throw new ProviderSchemaMismatchError(sourceKind);
+  const songsByCover = new Map<
+    string,
+    Static<typeof NeteaseListenPlayRankResponseSchema>["data"]["songItems"]
+  >();
+  for (const song of rank.data.songItems) {
+    const coverUrl = safeArtworkUrl(song.picUrl);
+    if (!coverUrl) continue;
+    const matches = songsByCover.get(coverUrl) ?? [];
+    songsByCover.set(coverUrl, [...matches, song]);
+  }
+  return {
+    items: rank.data.picUrls.flatMap((rawCoverUrl) => {
+      const coverUrl = safeArtworkUrl(rawCoverUrl);
+      if (!coverUrl) return [];
+      const matches = songsByCover.get(coverUrl) ?? [];
+      const song = matches[0] ?? null;
+      if (song) songsByCover.set(coverUrl, matches.slice(1));
+      return [
+        {
+          albumName: song?.albumName ?? null,
+          artists:
+            song?.artists.map((artist) => ({
+              name: artist.artistName,
+              providerArtistId: String(artist.artistId)
+            })) ?? [],
+          coverUrl,
+          name: song?.songName ?? null,
+          playCount: song?.playCount ?? null,
+          providerTrackId: song ? String(song.songId) : null
+        }
+      ];
+    }),
+    songCount: rank.data.songCount
   };
 }
 
@@ -852,9 +932,13 @@ export function isNeteaseNormalizedPayload(value: JsonObject): value is NeteaseN
     Array.isArray(value.recentListens) &&
     Array.isArray(value.reportPoints) &&
     Array.isArray(value.monthlyReportPoints) &&
+    (value.monthlyRecordWall === null || isObject(value.monthlyRecordWall)) &&
     Array.isArray(value.memberships) &&
     Array.isArray(value.musicCards) &&
     typeof value.musicCardsAvailable === "boolean" &&
+    (value.previousMonthlyReport === null || isObject(value.previousMonthlyReport)) &&
+    (value.previousWeeklyReport === null || isObject(value.previousWeeklyReport)) &&
+    (value.weeklyRecordWall === null || isObject(value.weeklyRecordWall)) &&
     value.account !== null &&
     typeof value.account === "object"
   );

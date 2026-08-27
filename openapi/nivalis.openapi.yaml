@@ -1894,6 +1894,55 @@ components:
         minutes:
           type: number
           minimum: 0
+    NeteaseListeningRecordWallItemV1:
+      type: object
+      additionalProperties: false
+      required: [coverUrl, providerTrackId, name, albumName, artists, playCount, webUrl]
+      properties:
+        coverUrl:
+          type: string
+          format: uri
+        providerTrackId:
+          type: [string, "null"]
+        name:
+          type: [string, "null"]
+        albumName:
+          type: [string, "null"]
+        artists:
+          type: array
+          items:
+            type: string
+        playCount:
+          type: [integer, "null"]
+          minimum: 0
+        webUrl:
+          type: [string, "null"]
+          format: uri
+    NeteaseListeningRecordWallV1:
+      type: object
+      additionalProperties: false
+      required: [availability, coverage, provenance, ordering, songCount, items]
+      properties:
+        availability:
+          type: string
+          const: available
+        coverage:
+          type: string
+          enum: [provider_week_rank, provider_month_rank]
+        provenance:
+          type: string
+          const: provider_reported
+        ordering:
+          type: string
+          const: provider
+        songCount:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/NeteaseListeningRecordWallItemV1"
     NeteaseListeningCalendarRangeV1:
       type: object
       additionalProperties: false
@@ -1922,6 +1971,10 @@ components:
           maxItems: 31
           items:
             $ref: "#/components/schemas/NeteaseListeningCalendarPointV1"
+        recordWall:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseListeningRecordWallV1"
+            - $ref: "#/components/schemas/DataUnavailable"
     NeteaseListeningCalendarDataV1:
       type: object
       additionalProperties: false
@@ -1942,6 +1995,14 @@ components:
             - $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
             - $ref: "#/components/schemas/DataUnavailable"
         month:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
+            - $ref: "#/components/schemas/DataUnavailable"
+        previousWeek:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
+            - $ref: "#/components/schemas/DataUnavailable"
+        previousMonth:
           oneOf:
             - $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
             - $ref: "#/components/schemas/DataUnavailable"

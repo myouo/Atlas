@@ -103,7 +103,7 @@ describe("NetEase encrypted Provider runtime", () => {
     expect(JSON.stringify(raw.map((snapshot) => snapshot.payload))).not.toMatch(
       /authorization|cookie|music_u|csrf|access.?token|secret|password/i
     );
-    expect(await nativeCounts()).toEqual({ artists: 2, recent: 2, tracks: 3 });
+    expect(await nativeCounts()).toEqual({ artists: 5, recent: 2, tracks: 23 });
     expect(await projectedTotal()).toBe(6_421);
     const catalog = await database
       .selectFrom("provider_data_catalogs")
@@ -118,7 +118,7 @@ describe("NetEase encrypted Provider runtime", () => {
 
     const second = await createRun();
     await worker(runtime).process(second.id);
-    expect(await nativeCounts()).toEqual({ artists: 2, recent: 2, tracks: 3 });
+    expect(await nativeCounts()).toEqual({ artists: 5, recent: 2, tracks: 23 });
     expect(await projectedTotal()).toBe(6_421);
 
     const replay = replayService(runtime);
@@ -364,6 +364,8 @@ class NativeRegistry implements ProviderNativeStoreRegistry {
 
 function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
   let listenReportRequests = 0;
+  let listenRankRequests = 0;
+  let historicalReportRequests = 0;
   let playRecordRequests = 0;
   return async (input) => {
     const pathname = new URL(input instanceof Request ? input.url : input.toString()).pathname;
@@ -405,6 +407,22 @@ function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
         listenReportRequests % 2 === 0
           ? fixture[NETEASE_SOURCE.listenReportMonth]
           : fixture[NETEASE_SOURCE.listenReportWeek]
+      );
+    }
+    if (pathname.includes("song/play/rank")) {
+      listenRankRequests += 1;
+      return Response.json(
+        listenRankRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.listenRankMonth]
+          : fixture[NETEASE_SOURCE.listenRankWeek]
+      );
+    }
+    if (pathname.endsWith("listen/data/report")) {
+      historicalReportRequests += 1;
+      return Response.json(
+        historicalReportRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.listenReportPreviousMonth]
+          : fixture[NETEASE_SOURCE.listenReportPreviousWeek]
       );
     }
     if (pathname.includes("user/getfollows/")) {

@@ -311,6 +311,7 @@ export const widgetRegistry = new WidgetRegistry()
     accent: "coral",
     kind: "standard",
     allowMultiple: false,
+    expandable: true,
     sizes: {
       lg: { w: 6, h: 6, minW: 5, minH: 6 },
       md: { w: 4, h: 6, minW: 4, minH: 6 },

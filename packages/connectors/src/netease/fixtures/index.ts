@@ -10,6 +10,53 @@ const monthlyDurationDetails = Array.from({ length: 30 }, (_, index) => ({
   period: `2026-04-${String(index + 1).padStart(2, "0")}`
 }));
 
+const previousWeekDurationDetails = Array.from({ length: 7 }, (_, index) => ({
+  duration: index % 3 === 0 ? 0 : 35 + index * 12,
+  period: `2026-04-${String(index + 13).padStart(2, "0")}`
+}));
+
+const previousMonthDurationDetails = Array.from({ length: 31 }, (_, index) => ({
+  duration: index % 5 === 0 ? 0 : 18 + ((index * 13) % 150),
+  period: `2026-03-${String(index + 1).padStart(2, "0")}`
+}));
+
+function listenRankFixture(type: "week" | "month") {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    albumName: `Fixture Album ${index + 1}`,
+    artists: [{ artistId: 30_001 + (index % 5), artistName: `Artist ${index % 5}` }],
+    picId: 40_001 + index,
+    picUrl: `http://p1.music.126.net/sanitized-fixture/${type}-wall-${index + 1}.jpg`,
+    playCount: 20 - index,
+    songId: 22_001 + index,
+    songName: `Fixture ${type} song ${index + 1}`
+  }));
+  return {
+    code: 200,
+    data: {
+      endTime: type === "week" ? 1_777_172_800_000 : 1_777_248_000_000,
+      picUrls: items.map((item) => item.picUrl),
+      songCount: 48,
+      songItems: items,
+      startTime: type === "week" ? 1_776_568_000_000 : 1_774_915_200_000,
+      type
+    }
+  };
+}
+
+function emptyListenRankFixture(type: "week" | "month") {
+  return {
+    code: 200,
+    data: {
+      endTime: type === "week" ? 1_777_172_800_000 : 1_777_248_000_000,
+      picUrls: [],
+      songCount: 0,
+      songItems: [],
+      startTime: type === "week" ? 1_776_568_000_000 : 1_774_915_200_000,
+      type
+    }
+  };
+}
+
 export const normalNeteaseFixture: SanitizedNeteaseFixture = {
   [NETEASE_SOURCE.account]: {
     account: { id: 10001 },
@@ -407,6 +454,40 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       type: "month"
     }
   },
+  [NETEASE_SOURCE.listenRankWeek]: listenRankFixture("week"),
+  [NETEASE_SOURCE.listenRankMonth]: listenRankFixture("month"),
+  [NETEASE_SOURCE.listenReportPreviousWeek]: {
+    code: 200,
+    data: {
+      endTime: 1_776_567_999_999,
+      listenTimeDistributionBlock: {
+        durationDetails: previousWeekDurationDetails,
+        listenDays: previousWeekDurationDetails.filter((point) => point.duration > 0).length,
+        playDuration: previousWeekDurationDetails.reduce(
+          (total, point) => total + point.duration,
+          0
+        )
+      },
+      startTime: 1_775_963_200_000,
+      type: "week"
+    }
+  },
+  [NETEASE_SOURCE.listenReportPreviousMonth]: {
+    code: 200,
+    data: {
+      endTime: 1_774_915_199_999,
+      listenTimeDistributionBlock: {
+        durationDetails: previousMonthDurationDetails,
+        listenDays: previousMonthDurationDetails.filter((point) => point.duration > 0).length,
+        playDuration: previousMonthDurationDetails.reduce(
+          (total, point) => total + point.duration,
+          0
+        )
+      },
+      startTime: 1_772_236_800_000,
+      type: "month"
+    }
+  },
   [NETEASE_SOURCE.following]: {
     code: 200,
     follow: [
@@ -532,7 +613,35 @@ export const emptyNeteaseFixture: SanitizedNeteaseFixture = {
   [NETEASE_SOURCE.weeklyRecord]: { code: 200, weekData: [] },
   [NETEASE_SOURCE.recentSongs]: { code: 200, data: { list: [], total: 0 } },
   [NETEASE_SOURCE.listenReportWeek]: { code: 200, data: {} },
-  [NETEASE_SOURCE.listenReportMonth]: { code: 200, data: { type: "month" } }
+  [NETEASE_SOURCE.listenReportMonth]: { code: 200, data: { type: "month" } },
+  [NETEASE_SOURCE.listenRankWeek]: emptyListenRankFixture("week"),
+  [NETEASE_SOURCE.listenRankMonth]: emptyListenRankFixture("month"),
+  [NETEASE_SOURCE.listenReportPreviousWeek]: {
+    code: 200,
+    data: {
+      endTime: 1_776_567_999_999,
+      listenTimeDistributionBlock: {
+        durationDetails: [],
+        listenDays: 0,
+        playDuration: 0
+      },
+      startTime: 1_775_963_200_000,
+      type: "week"
+    }
+  },
+  [NETEASE_SOURCE.listenReportPreviousMonth]: {
+    code: 200,
+    data: {
+      endTime: 1_774_915_199_999,
+      listenTimeDistributionBlock: {
+        durationDetails: [],
+        listenDays: 0,
+        playDuration: 0
+      },
+      startTime: 1_772_236_800_000,
+      type: "month"
+    }
+  }
 };
 
 export const partialNeteaseFixture: SanitizedNeteaseFixture = {
@@ -630,6 +739,8 @@ export function createNeteaseHttpFixtureFetcher(
   let qrChecks = 0;
   let qrGeneration = 0;
   let listenReportRequests = 0;
+  let listenRankRequests = 0;
+  let historicalReportRequests = 0;
   let playRecordRequests = 0;
   return async (input) => {
     const url = new URL(input instanceof Request ? input.url : input.toString());
@@ -702,6 +813,22 @@ export function createNeteaseHttpFixtureFetcher(
         listenReportRequests % 2 === 0
           ? fixture[NETEASE_SOURCE.listenReportMonth]
           : fixture[NETEASE_SOURCE.listenReportWeek]
+      );
+    }
+    if (url.pathname.includes("song/play/rank")) {
+      listenRankRequests += 1;
+      return Response.json(
+        listenRankRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.listenRankMonth]
+          : fixture[NETEASE_SOURCE.listenRankWeek]
+      );
+    }
+    if (url.pathname.endsWith("listen/data/report")) {
+      historicalReportRequests += 1;
+      return Response.json(
+        historicalReportRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.listenReportPreviousMonth]
+          : fixture[NETEASE_SOURCE.listenReportPreviousWeek]
       );
     }
     if (url.pathname.includes("user/getfollows/")) {

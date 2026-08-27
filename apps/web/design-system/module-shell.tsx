@@ -85,7 +85,7 @@ function ExpandableModuleShell(props: ModuleShellProps) {
       <Dialog.Portal>
         <Dialog.Overlay className="module-expand-overlay fixed inset-0 z-[90] bg-[#071a3d]/38 backdrop-blur-sm" />
         <Dialog.Content className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6">
-          <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-xl font-black tracking-[-0.025em] text-ink">
+          <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-lg font-black tracking-[-0.025em] text-ink">
             {props.icon ? (
               <span
                 className={clsx(
@@ -209,7 +209,7 @@ function ModuleShellFrame({
           ) : null}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h2 className="module-shell-title truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
+              <h2 className="module-shell-title truncate text-[14px] font-bold tracking-[-0.01em] text-ink">
                 {title}
               </h2>
               {stale ? (

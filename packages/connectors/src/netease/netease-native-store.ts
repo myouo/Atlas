@@ -67,7 +67,7 @@ export interface NeteaseNativeDatabase {
   netease_track_play_snapshots: {
     id: string;
     observed_at: Timestamp;
-    period: "week" | "all_time";
+    period: "week" | "month" | "all_time";
     play_count: number;
     provider_connection_id: string;
     score: number | string | null;
@@ -208,6 +208,35 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
           conflict.columns(["source_snapshot_id", "track_id", "period"]).doNothing()
         )
         .execute();
+    }
+
+    for (const [period, wall, sourceKind] of [
+      ["week", payload.weeklyRecordWall, NETEASE_SOURCE.listenRankWeek],
+      ["month", payload.monthlyRecordWall, NETEASE_SOURCE.listenRankMonth]
+    ] as const) {
+      const source = input.normalized.sourceSnapshotIds[sourceKind];
+      if (!wall || !source) continue;
+      for (const item of wall.items) {
+        if (!item.providerTrackId || item.playCount === null) continue;
+        const trackId = trackIds.get(item.providerTrackId);
+        if (!trackId) continue;
+        await this.database
+          .insertInto("netease_track_play_snapshots")
+          .values({
+            id: randomUUID(),
+            observed_at: now,
+            period,
+            play_count: item.playCount,
+            provider_connection_id: input.providerConnectionId,
+            score: null,
+            source_snapshot_id: source,
+            track_id: trackId
+          })
+          .onConflict((conflict) =>
+            conflict.columns(["source_snapshot_id", "track_id", "period"]).doNothing()
+          )
+          .execute();
+      }
     }
 
     const recentSource = requiredSource(
@@ -376,6 +405,20 @@ function uniqueTracks(payload: NeteaseNormalizedPayload) {
   }
   for (const listen of payload.recentListens) {
     tracks.set(listen.track.providerTrackId, listen.track);
+  }
+  for (const wall of [payload.weeklyRecordWall, payload.monthlyRecordWall]) {
+    for (const item of wall?.items ?? []) {
+      if (!item.providerTrackId || !item.name) continue;
+      tracks.set(item.providerTrackId, {
+        albumName: item.albumName,
+        albumProviderId: null,
+        artists: item.artists,
+        coverUrl: item.coverUrl,
+        durationMs: null,
+        name: item.name,
+        providerTrackId: item.providerTrackId
+      });
+    }
   }
   return [...tracks.values()];
 }

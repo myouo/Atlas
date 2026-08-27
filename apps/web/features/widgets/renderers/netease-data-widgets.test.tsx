@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -19,7 +19,7 @@ describe("NetEase semantic data widgets", () => {
     const { container } = render(<NeteaseListeningCalendarWidget widget={calendarWidget()} />);
     expect(screen.getByRole("button", { name: "本月" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("img", { name: "2026-08-01，61 分钟" })).toBeInTheDocument();
-    expect(screen.getAllByText("2026年8月")).toHaveLength(2);
+    expect(screen.getAllByText("2026年8月")).toHaveLength(1);
     expect(container.querySelectorAll('[role="img"][aria-label*="分钟"]').length).toBe(27);
 
     await userEvent.click(screen.getByRole("button", { name: "本周" }));
@@ -32,6 +32,54 @@ describe("NetEase semantic data widgets", () => {
       "peak"
     );
     expect(container.querySelector("[data-weekly-rhythm]")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /在网易云打开歌曲 Week wall/ })).toHaveLength(12);
+  });
+
+  it("expands both calendars newest-first and exposes the complete Provider record walls", async () => {
+    render(
+      <ModuleShell accent="coral" editable={false} expandable title="网易云 · 收听日历">
+        <NeteaseListeningCalendarWidget widget={calendarWidget()} />
+      </ModuleShell>
+    );
+    await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 收听日历" }));
+    const dialog = await screen.findByRole("dialog", { name: "网易云 · 收听日历" });
+    expect(within(dialog).getByText("周播放日历")).toBeVisible();
+    expect(within(dialog).getByText("月播放日历")).toBeVisible();
+    expect(within(dialog).getByText("8/16 – 8/22")).toBeVisible();
+    expect(within(dialog).getByText("2026年7月")).toBeVisible();
+    expect(within(dialog).getAllByText("历史")).toHaveLength(2);
+    const dailyRows = [...dialog.querySelectorAll('[role="img"][aria-label$="分钟"]')];
+    expect(dailyRows[0]).toHaveAttribute("aria-label", "2026-08-27，103 分钟");
+    expect(dailyRows[1]).toHaveAttribute("aria-label", "2026-08-26，276 分钟");
+    expect(within(dialog).getAllByRole("link", { name: /在网易云打开歌曲/ })).toHaveLength(40);
+  });
+
+  it("falls back to previous-week left and current-week right when the weekly wall is absent", () => {
+    const widget = calendarWidget();
+    if (widget.data.week.availability !== "available") {
+      throw new Error("Calendar fixture week must be available.");
+    }
+    const { container } = render(
+      <NeteaseListeningCalendarWidget
+        widget={{
+          ...widget,
+          data: {
+            ...widget.data,
+            month: { availability: "unavailable", reason: "not_public" },
+            publicRanges: ["week"],
+            week: {
+              ...widget.data.week,
+              recordWall: { availability: "unavailable", reason: "provider_omitted" }
+            }
+          }
+        }}
+      />
+    );
+    expect(
+      [...container.querySelectorAll("[data-weekly-label]")].map((node) =>
+        node.getAttribute("data-weekly-label")
+      )
+    ).toEqual(["上周", "本周"]);
   });
 
   it("allocates six adaptive calendar rows for a long month without fixed-height cells", () => {
@@ -269,7 +317,34 @@ function calendarWidget(): WidgetOf<"music.netease.calendar"> {
         period: "month",
         points: monthPoints,
         provenance: "provider_reported",
+        recordWall: calendarRecordWall("month"),
         totalMinutes: 3_240
+      },
+      previousWeek: {
+        availability: "available",
+        coverage: "provider_week",
+        listenDays: 6,
+        period: "week",
+        points: Array.from({ length: 7 }, (_, index) => ({
+          date: `2026-08-${String(index + 16).padStart(2, "0")}`,
+          minutes: index === 2 ? 0 : 40 + index * 11
+        })),
+        provenance: "provider_reported",
+        recordWall: { availability: "unavailable", reason: "provider_omitted" },
+        totalMinutes: 426
+      },
+      previousMonth: {
+        availability: "available",
+        coverage: "provider_month",
+        listenDays: 25,
+        period: "month",
+        points: Array.from({ length: 31 }, (_, index) => ({
+          date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+          minutes: index % 6 === 0 ? 0 : 30 + index * 7
+        })),
+        provenance: "provider_reported",
+        recordWall: { availability: "unavailable", reason: "provider_omitted" },
+        totalMinutes: 3_875
       },
       provider: "netease",
       publicRanges: ["week", "month"],
@@ -286,6 +361,7 @@ function calendarWidget(): WidgetOf<"music.netease.calendar"> {
           { date: "2026-08-27", minutes: 103 }
         ],
         provenance: "provider_reported",
+        recordWall: calendarRecordWall("week"),
         totalMinutes: 689
       }
     },
@@ -299,6 +375,27 @@ function calendarWidget(): WidgetOf<"music.netease.calendar"> {
     title: "网易云 · 收听日历",
     type: "music.netease.calendar",
     updatedAt: "2026-08-27T00:00:00.000Z"
+  };
+}
+
+function calendarRecordWall(period: "month" | "week") {
+  const label = period === "week" ? "Week" : "Month";
+  return {
+    availability: "available" as const,
+    coverage:
+      period === "week" ? ("provider_week_rank" as const) : ("provider_month_rank" as const),
+    items: Array.from({ length: 20 }, (_, index) => ({
+      albumName: `${label} album ${index + 1}`,
+      artists: [`${label} artist`],
+      coverUrl: `https://p1.music.126.net/sanitized-fixture/${period}-${index + 1}.jpg`,
+      name: `${label} wall song ${index + 1}`,
+      playCount: 20 - index,
+      providerTrackId: String(30_000 + index),
+      webUrl: `https://music.163.com/song?id=${30_000 + index}`
+    })),
+    ordering: "provider" as const,
+    provenance: "provider_reported" as const,
+    songCount: 64
   };
 }
 

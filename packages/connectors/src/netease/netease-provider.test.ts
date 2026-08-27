@@ -555,6 +555,78 @@ describe("NetEase Provider module", () => {
     });
   });
 
+  it("projects Provider-ordered weekly and monthly record walls with previous-week fallback data", async () => {
+    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
+    const payload = normalized.payload as NeteaseNormalizedPayload;
+    expect(payload.weeklyRecordWall?.items).toHaveLength(20);
+    expect(payload.monthlyRecordWall?.items).toHaveLength(20);
+    expect(payload.weeklyRecordWall?.items[0]).toMatchObject({
+      name: "Fixture week song 1",
+      providerTrackId: "22001"
+    });
+    expect(payload.previousWeeklyReport?.points).toHaveLength(7);
+    expect(payload.previousMonthlyReport?.points).toHaveLength(31);
+
+    const [projection] = await new NeteaseProjector().project(normalized, [
+      targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
+    ]);
+    expect(projection!.data).toMatchObject({
+      month: {
+        recordWall: {
+          availability: "available",
+          coverage: "provider_month_rank",
+          ordering: "provider",
+          songCount: 48
+        }
+      },
+      previousWeek: {
+        availability: "available",
+        points: expect.arrayContaining([{ date: "2026-04-13", minutes: 0 }])
+      },
+      previousMonth: {
+        availability: "available",
+        points: expect.arrayContaining([{ date: "2026-03-01", minutes: 0 }])
+      },
+      week: {
+        recordWall: {
+          availability: "available",
+          coverage: "provider_week_rank",
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              name: "Fixture week song 1",
+              webUrl: "https://music.163.com/song?id=22001"
+            })
+          ])
+        }
+      }
+    });
+  });
+
+  it("replays pre-record-wall Raw snapshots without inventing covers or previous-week data", async () => {
+    const legacy = snapshots(normalNeteaseFixture).filter(
+      (snapshot) =>
+        snapshot.sourceKind !== NETEASE_SOURCE.listenRankWeek &&
+        snapshot.sourceKind !== NETEASE_SOURCE.listenRankMonth &&
+        snapshot.sourceKind !== NETEASE_SOURCE.listenReportPreviousWeek &&
+        snapshot.sourceKind !== NETEASE_SOURCE.listenReportPreviousMonth
+    );
+    const normalized = await new NeteaseNormalizer().normalize(legacy);
+    const payload = normalized.payload as NeteaseNormalizedPayload;
+    expect(payload.weeklyRecordWall).toBeNull();
+    expect(payload.monthlyRecordWall).toBeNull();
+    expect(payload.previousWeeklyReport).toBeNull();
+    expect(payload.previousMonthlyReport).toBeNull();
+    const [projection] = await new NeteaseProjector().project(normalized, [
+      targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
+    ]);
+    expect(projection!.data).toMatchObject({
+      month: { recordWall: { availability: "unavailable", reason: "provider_omitted" } },
+      previousWeek: { availability: "unavailable", reason: "provider_omitted" },
+      previousMonth: { availability: "unavailable", reason: "provider_omitted" },
+      week: { recordWall: { availability: "unavailable", reason: "provider_omitted" } }
+    });
+  });
+
   it("keeps the credential in the transport boundary and emits sanitized Provider payloads", async () => {
     const requests: Request[] = [];
     const fetcher = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
@@ -584,6 +656,10 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.recentSongs,
       NETEASE_SOURCE.listenReportWeek,
       NETEASE_SOURCE.listenReportMonth,
+      NETEASE_SOURCE.listenRankWeek,
+      NETEASE_SOURCE.listenRankMonth,
+      NETEASE_SOURCE.listenReportPreviousWeek,
+      NETEASE_SOURCE.listenReportPreviousMonth,
       NETEASE_SOURCE.following,
       NETEASE_SOURCE.followers,
       NETEASE_SOURCE.createdPlaylists,
@@ -591,7 +667,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.socialStatus
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
-    expect(requests).toHaveLength(19);
+    expect(requests).toHaveLength(23);
     for (const request of requests) {
       expect(request.method).toBe("POST");
       expect(["music.163.com", "interface.music.163.com", "interface3.music.163.com"]).toContain(
@@ -943,6 +1019,12 @@ function payloadForPath(pathname: string) {
   if (pathname.includes("song/list")) return normalNeteaseFixture[NETEASE_SOURCE.recentSongs];
   if (pathname.includes("realtime/report")) {
     return normalNeteaseFixture[NETEASE_SOURCE.listenReportWeek];
+  }
+  if (pathname.includes("song/play/rank")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.listenRankWeek];
+  }
+  if (pathname.endsWith("listen/data/report")) {
+    return normalNeteaseFixture[NETEASE_SOURCE.listenReportPreviousWeek];
   }
   if (pathname.includes("user/getfollows/")) {
     return normalNeteaseFixture[NETEASE_SOURCE.following];

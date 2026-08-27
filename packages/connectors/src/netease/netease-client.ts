@@ -205,6 +205,14 @@ export class NeteaseClient {
     );
   }
 
+  getListenPlayRank(credential: string, type: "week" | "month") {
+    return this.eapi("/api/content/activity/listen/data/song/play/rank", { type }, credential);
+  }
+
+  getHistoricalListenReport(credential: string, type: "week" | "month", endTime: number) {
+    return this.eapi("/api/content/activity/listen/data/report", { endTime, type }, credential);
+  }
+
   protected async weapiResponse(
     path: string,
     data: JsonObject,

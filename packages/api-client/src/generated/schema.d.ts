@@ -927,6 +927,29 @@ export interface components {
             date: string;
             minutes: number;
         };
+        NeteaseListeningRecordWallItemV1: {
+            /** Format: uri */
+            coverUrl: string;
+            providerTrackId: string | null;
+            name: string | null;
+            albumName: string | null;
+            artists: string[];
+            playCount: number | null;
+            /** Format: uri */
+            webUrl: string | null;
+        };
+        NeteaseListeningRecordWallV1: {
+            /** @constant */
+            availability: "available";
+            /** @enum {string} */
+            coverage: "provider_week_rank" | "provider_month_rank";
+            /** @constant */
+            provenance: "provider_reported";
+            /** @constant */
+            ordering: "provider";
+            songCount: number;
+            items: components["schemas"]["NeteaseListeningRecordWallItemV1"][];
+        };
         NeteaseListeningCalendarRangeV1: {
             /** @constant */
             availability: "available";
@@ -939,6 +962,7 @@ export interface components {
             totalMinutes: number;
             listenDays: number | null;
             points: components["schemas"]["NeteaseListeningCalendarPointV1"][];
+            recordWall?: components["schemas"]["NeteaseListeningRecordWallV1"] | components["schemas"]["DataUnavailable"];
         };
         NeteaseListeningCalendarDataV1: {
             /** @constant */
@@ -946,6 +970,8 @@ export interface components {
             publicRanges: ("week" | "month")[];
             week: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
             month: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
+            previousWeek?: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
+            previousMonth?: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
         };
         NeteaseMetricAvailableV3: {
             /** @constant */

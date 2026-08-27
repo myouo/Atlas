@@ -7,7 +7,11 @@ export const NETEASE_SOURCE = {
   followers: "netease.followers",
   following: "netease.following",
   listenTotal: "netease.listen_total",
+  listenRankMonth: "netease.listen_rank.month",
+  listenRankWeek: "netease.listen_rank.week",
   listenReportMonth: "netease.listen_report.month",
+  listenReportPreviousMonth: "netease.listen_report.month.previous",
+  listenReportPreviousWeek: "netease.listen_report.week.previous",
   listenReportWeek: "netease.listen_report.week",
   medals: "netease.medals",
   musicCardTracks: "netease.music_card_tracks",
@@ -118,6 +122,26 @@ export interface NeteaseReportPoint extends JsonObject {
   readonly minutes: number;
 }
 
+export interface NeteaseNormalizedRecordWallItem extends JsonObject {
+  readonly albumName: string | null;
+  readonly artists: readonly NeteaseNormalizedArtist[];
+  readonly coverUrl: string;
+  readonly name: string | null;
+  readonly playCount: number | null;
+  readonly providerTrackId: string | null;
+}
+
+export interface NeteaseNormalizedRecordWall extends JsonObject {
+  readonly items: readonly NeteaseNormalizedRecordWallItem[];
+  readonly songCount: number;
+}
+
+export interface NeteaseNormalizedReport extends JsonObject {
+  readonly listenDays: number | null;
+  readonly points: readonly NeteaseReportPoint[];
+  readonly totalMinutes: number | null;
+}
+
 export interface NeteaseNormalizedPayload extends JsonObject {
   readonly account: {
     readonly avatarFrameUrl: string | null;
@@ -160,6 +184,7 @@ export interface NeteaseNormalizedPayload extends JsonObject {
   readonly listeningDurationTotalSeconds: number | null;
   readonly monthlyListenDays: number | null;
   readonly monthlyListeningDurationMinutes: number | null;
+  readonly monthlyRecordWall: NeteaseNormalizedRecordWall | null;
   readonly monthlyReportPoints: readonly NeteaseReportPoint[];
   readonly medals: {
     readonly obtainedCount: number;
@@ -172,6 +197,8 @@ export interface NeteaseNormalizedPayload extends JsonObject {
   readonly redVipAnnualCount: number | null;
   readonly redVipLevel: number | null;
   readonly reportPoints: readonly NeteaseReportPoint[];
+  readonly previousMonthlyReport: NeteaseNormalizedReport | null;
+  readonly previousWeeklyReport: NeteaseNormalizedReport | null;
   readonly socialStatus: {
     readonly iconUrl: string | null;
     readonly name: string;
@@ -179,5 +206,6 @@ export interface NeteaseNormalizedPayload extends JsonObject {
   } | null;
   readonly totalListenCount: number;
   readonly weeklyListenDays: number | null;
+  readonly weeklyRecordWall: NeteaseNormalizedRecordWall | null;
   readonly weeklyRecords: readonly NeteaseWeeklyRecord[];
 }

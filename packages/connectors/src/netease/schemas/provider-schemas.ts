@@ -465,6 +465,45 @@ export const NeteaseListenReportResponseSchema = Type.Object(
   { additionalProperties: true }
 );
 
+const NeteaseListenRankArtistSchema = Type.Object(
+  {
+    artistId: ProviderIdSchema,
+    artistName: Type.String({ minLength: 1 })
+  },
+  { additionalProperties: true }
+);
+
+const NeteaseListenRankSongSchema = Type.Object(
+  {
+    albumName: Type.Optional(NullableStringSchema),
+    artists: Type.Array(NeteaseListenRankArtistSchema),
+    picId: Type.Optional(ProviderIdSchema),
+    picUrl: Type.String({ minLength: 1 }),
+    playCount: Type.Integer({ minimum: 0 }),
+    songId: ProviderIdSchema,
+    songName: Type.String({ minLength: 1 })
+  },
+  { additionalProperties: true }
+);
+
+export const NeteaseListenPlayRankResponseSchema = Type.Object(
+  {
+    code: Type.Literal(200),
+    data: Type.Object(
+      {
+        endTime: Type.Integer({ minimum: 0 }),
+        picUrls: Type.Array(Type.String({ minLength: 1 }), { maxItems: 100 }),
+        songCount: Type.Integer({ minimum: 0 }),
+        songItems: Type.Array(NeteaseListenRankSongSchema, { maxItems: 100 }),
+        startTime: Type.Integer({ minimum: 0 }),
+        type: Type.Union([Type.Literal("week"), Type.Literal("month")])
+      },
+      { additionalProperties: true }
+    )
+  },
+  { additionalProperties: true }
+);
+
 export const NeteaseQrKeyResponseSchema = Type.Object(
   {
     code: Type.Literal(200),

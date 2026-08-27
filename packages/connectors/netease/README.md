@@ -2,7 +2,7 @@
 
 Status: Phase 5 implemented under `packages/connectors/src/netease/`.
 
-The module is intentionally read-only and capability-bounded. It covers account/profile data, VIP/level state, total listening duration, weekly and all-time ranks, recent songs, weekly/monthly listening reports, social lists, created playlists, medals/status, and the official Exhibition Window from `user/page/window/get`. Current music-card normalization validates and preserves the ordered `cardVOList`; generic Profile V3 blocks remain supplemental data and historical-replay fallback only. The module owns NetEase hosts, `weapi`/`eapi`, MUSIC_U transport use, timeout/error mapping, payload sanitization, runtime schemas, normalization, native persistence, Widget projection, and sanitized fixtures.
+The module is intentionally read-only and capability-bounded. It covers account/profile data, VIP/level state, total listening duration, weekly and all-time ranks, recent songs, weekly/monthly listening reports, official week/month play-rank record walls, social lists, created playlists, medals/status, and the official Exhibition Window from `user/page/window/get`. Current music-card normalization validates and preserves the ordered `cardVOList`; generic Profile V3 blocks remain supplemental data and historical-replay fallback only. The module owns NetEase hosts, `weapi`/`eapi`, MUSIC_U transport use, timeout/error mapping, payload sanitization, runtime schemas, normalization, native persistence, Widget projection, and sanitized fixtures.
 
 Public projections attach official `https://music.163.com` Web URLs only when a stable public
 Provider ID and an exact route exist: user profiles, listening ranks, tracks, artists, playlists,
@@ -38,3 +38,10 @@ Listening reports use the same read-only realtime-report route with explicit `ty
 `type: month` requests. A real sanitized probe confirmed the monthly response exposes Provider
 dates and minute-valued `listenTimeDistributionBlock.durationDetails`; the independent
 `music.netease.calendar@1` Projection preserves those daily values for the week/month heatmap.
+
+The calendar also consumes the official read-only
+`content/activity/listen/data/song/play/rank` endpoint for current week/month record walls. Its
+`picUrls` order is preserved exactly; song metadata and Web links are attached only after matching a
+sanitized artwork URL to `songItems`. The immediately previous completed week and month are fetched
+through the historical report endpoint. They power the bounded expanded history; the previous week
+also acts as a semantic fallback when a current weekly wall is unavailable. See ADR 0022.

@@ -47,7 +47,9 @@ export class NeteaseProjector implements ProviderProjector {
             target,
             listeningCalendar(payload, target.dataConfig),
             1,
-            normalized.sourceSnapshotIds[NETEASE_SOURCE.listenReportMonth] ??
+            normalized.sourceSnapshotIds[NETEASE_SOURCE.listenRankMonth] ??
+              normalized.sourceSnapshotIds[NETEASE_SOURCE.listenRankWeek] ??
+              normalized.sourceSnapshotIds[NETEASE_SOURCE.listenReportMonth] ??
               normalized.sourceSnapshotIds[NETEASE_SOURCE.listenReportWeek] ??
               sourceSnapshotId
           );
@@ -209,9 +211,30 @@ function listeningCalendar(payload: NeteaseNormalizedPayload, dataConfig: JsonOb
           "month",
           payload.monthlyListeningDurationMinutes,
           payload.monthlyListenDays,
-          payload.monthlyReportPoints
+          payload.monthlyReportPoints,
+          payload.monthlyRecordWall
         )
       : { availability: "unavailable", reason: "not_public" },
+    previousWeek:
+      ranges.includes("week") && payload.previousWeeklyReport
+        ? calendarRange(
+            "week",
+            payload.previousWeeklyReport.totalMinutes,
+            payload.previousWeeklyReport.listenDays,
+            payload.previousWeeklyReport.points,
+            null
+          )
+        : { availability: "unavailable", reason: "provider_omitted" },
+    previousMonth:
+      ranges.includes("month") && payload.previousMonthlyReport
+        ? calendarRange(
+            "month",
+            payload.previousMonthlyReport.totalMinutes,
+            payload.previousMonthlyReport.listenDays,
+            payload.previousMonthlyReport.points,
+            null
+          )
+        : { availability: "unavailable", reason: "provider_omitted" },
     provider: "netease",
     publicRanges: ranges,
     week: ranges.includes("week")
@@ -219,7 +242,8 @@ function listeningCalendar(payload: NeteaseNormalizedPayload, dataConfig: JsonOb
           "week",
           payload.listeningDurationMinutes,
           payload.weeklyListenDays,
-          payload.reportPoints
+          payload.reportPoints,
+          payload.weeklyRecordWall
         )
       : { availability: "unavailable", reason: "not_public" }
   };
@@ -229,7 +253,8 @@ function calendarRange(
   period: "week" | "month",
   totalMinutes: number | null,
   listenDays: number | null,
-  points: readonly { readonly label: string; readonly minutes: number }[]
+  points: readonly { readonly label: string; readonly minutes: number }[],
+  recordWall: NeteaseNormalizedPayload["weeklyRecordWall"]
 ) {
   if (totalMinutes === null) return { availability: "unavailable", reason: "provider_omitted" };
   return {
@@ -239,7 +264,33 @@ function calendarRange(
     period,
     points: points.map((point) => ({ date: point.label, minutes: point.minutes })),
     provenance: "provider_reported",
+    recordWall: projectedRecordWall(period, recordWall),
     totalMinutes
+  };
+}
+
+function projectedRecordWall(
+  period: "week" | "month",
+  wall: NeteaseNormalizedPayload["weeklyRecordWall"]
+) {
+  if (!wall || wall.items.length === 0) {
+    return { availability: "unavailable", reason: "provider_omitted" };
+  }
+  return {
+    availability: "available",
+    coverage: period === "week" ? "provider_week_rank" : "provider_month_rank",
+    items: wall.items.slice(0, 20).map((item) => ({
+      albumName: item.albumName,
+      artists: item.artists.map((artist) => artist.name),
+      coverUrl: item.coverUrl,
+      name: item.name,
+      playCount: item.playCount,
+      providerTrackId: item.providerTrackId,
+      webUrl: item.providerTrackId ? neteaseWebUrl("song", item.providerTrackId) : null
+    })),
+    ordering: "provider",
+    provenance: "provider_reported",
+    songCount: wall.songCount
   };
 }
 
@@ -572,10 +623,14 @@ export function buildNeteaseOwnerDataCatalog(payload: NeteaseNormalizedPayload):
       monthlyDurationMinutes: payload.monthlyListeningDurationMinutes,
       monthlyListenDays: payload.monthlyListenDays,
       monthlyTrend: payload.monthlyReportPoints,
+      monthlyRecordWall: payload.monthlyRecordWall,
+      previousWeeklyReport: payload.previousWeeklyReport,
+      previousMonthlyReport: payload.previousMonthlyReport,
       totalDurationSeconds: payload.listeningDurationTotalSeconds,
       totalListenCount: payload.totalListenCount,
       weeklyDurationMinutes: payload.listeningDurationMinutes,
       weeklyListenDays: payload.weeklyListenDays,
+      weeklyRecordWall: payload.weeklyRecordWall,
       weeklyTrend: payload.reportPoints
     },
     medals: payload.medals,

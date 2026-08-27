@@ -243,6 +243,7 @@ export function NeteaseListeningWidget({
 export function NeteaseListeningCalendarWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.calendar"> }>) {
+  const expanded = useModuleShellExpansion();
   const { data } = widget;
   const availableRanges = [
     data.month.availability === "available" ? "month" : null,
@@ -256,6 +257,8 @@ export function NeteaseListeningCalendarWidget({
     : (availableRanges[0] ?? "month");
   const selected = range === "month" ? data.month : data.week;
 
+  if (expanded) return <ExpandedListeningCalendars data={data} />;
+
   if (selected.availability !== "available") {
     return <Empty>当前公开范围没有可用的收听日历</Empty>;
   }
@@ -267,14 +270,14 @@ export function NeteaseListeningCalendarWidget({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex items-center gap-2">
-        <div className="inline-flex rounded-xl border border-white/90 bg-white/55 p-1 shadow-sm">
+        <div className="inline-flex gap-1 p-0.5">
           {availableRanges.map((candidate) => (
             <button
               aria-pressed={range === candidate}
               className={
                 range === candidate
-                  ? "rounded-lg bg-[#ff4668] px-3 py-1 text-[9px] font-extrabold text-white shadow-sm"
-                  : "rounded-lg px-3 py-1 text-[9px] font-bold text-ink-muted hover:bg-white/75"
+                  ? "rounded-lg bg-[#ff4668] px-3 py-1 text-[9px] font-extrabold text-white shadow-sm transition-all duration-200"
+                  : "rounded-lg px-3 py-1 text-[9px] font-bold text-ink-muted transition-all duration-200 hover:bg-white/45"
               }
               key={candidate}
               onClick={() => setRequestedRange(candidate)}
@@ -312,18 +315,312 @@ export function NeteaseListeningCalendarWidget({
         </div>
       </div>
 
-      {range === "month" ? (
-        <MonthlyListeningCalendar points={selected.points} />
-      ) : (
-        <WeeklyListeningRhythm points={selected.points} />
-      )}
+      <div className="netease-range-panel flex min-h-0 flex-1" key={range}>
+        <CompactListeningCalendar data={data} range={range} selected={selected} />
+      </div>
+    </div>
+  );
+}
+
+type NeteaseCalendarData = WidgetOf<"music.netease.calendar">["data"];
+type NeteaseCalendarRange = Extract<
+  NeteaseCalendarData["week"],
+  { readonly availability: "available" }
+>;
+type NeteaseRecordWall = Extract<
+  NonNullable<NeteaseCalendarRange["recordWall"]>,
+  { readonly availability: "available" }
+>;
+
+const COMPACT_RECORD_WALL_LIMIT = 12;
+const EXPANDED_RECORD_WALL_LIMIT = 20;
+
+function CompactListeningCalendar({
+  data,
+  range,
+  selected
+}: {
+  readonly data: NeteaseCalendarData;
+  readonly range: "month" | "week";
+  readonly selected: NeteaseCalendarRange;
+}) {
+  const wall =
+    selected.recordWall?.availability === "available" && selected.recordWall.items.length > 0
+      ? selected.recordWall
+      : null;
+  const previousWeek = data.previousWeek?.availability === "available" ? data.previousWeek : null;
+
+  if (range === "week" && !wall && previousWeek) {
+    return (
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+        <WeeklyListeningRhythm compactDates label="上周" points={previousWeek.points} />
+        <WeeklyListeningRhythm compactDates label="本周" points={selected.points} />
+      </div>
+    );
+  }
+
+  const calendar =
+    range === "month" ? (
+      <MonthlyListeningCalendar compact={Boolean(wall)} points={selected.points} />
+    ) : (
+      <WeeklyListeningRhythm
+        compactDates={Boolean(wall)}
+        compactHeader={Boolean(wall)}
+        points={selected.points}
+      />
+    );
+  if (!wall) return calendar;
+
+  return (
+    <div className="netease-calendar-composite grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(116px,0.62fr)] gap-2">
+      <ListeningRecordWall compact period={range} wall={wall} />
+      {calendar}
+    </div>
+  );
+}
+
+function ExpandedListeningCalendars({ data }: { readonly data: NeteaseCalendarData }) {
+  const weekRanges = calendarHistoryEntries("week", data.week, data.previousWeek);
+  const monthRanges = calendarHistoryEntries("month", data.month, data.previousMonth);
+  return (
+    <div className="min-h-full space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rose-100/70 pb-3">
+        <p className="text-xs font-extrabold text-ink">收听日历明细</p>
+        <span className="text-[9px] font-bold text-ink-muted">周期与日期均由新到旧</span>
+      </div>
+      <ExpandedCalendarHistoryGroup entries={weekRanges} label="周播放日历" period="week" />
+      <ExpandedCalendarHistoryGroup entries={monthRanges} label="月播放日历" period="month" />
+      <ExpandedRecordWalls data={data} />
+    </div>
+  );
+}
+
+function ExpandedRecordWalls({ data }: { readonly data: NeteaseCalendarData }) {
+  const walls = [
+    data.week.availability === "available" && data.week.recordWall?.availability === "available"
+      ? (["week", data.week.recordWall] as const)
+      : null,
+    data.month.availability === "available" && data.month.recordWall?.availability === "available"
+      ? (["month", data.month.recordWall] as const)
+      : null
+  ].filter((entry): entry is readonly ["month" | "week", NeteaseRecordWall] => entry !== null);
+  if (walls.length === 0) return null;
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <h3 className="text-[13px] font-black text-ink">完整唱片墙</h3>
+        <span className="text-[8px] font-bold text-ink-muted">Provider 顺序</span>
+      </div>
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        {walls.map(([period, wall]) => (
+          <ListeningRecordWall key={period} period={period} wall={wall} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function calendarHistoryEntries(
+  period: "month" | "week",
+  current: NeteaseCalendarData["month"] | NeteaseCalendarData["week"],
+  previous: NeteaseCalendarData["previousMonth"] | NeteaseCalendarData["previousWeek"]
+) {
+  const entries: {
+    readonly historical: boolean;
+    readonly label: string;
+    readonly value: NeteaseCalendarRange;
+  }[] = [];
+  if (current.availability === "available") {
+    entries.push({
+      historical: false,
+      label:
+        period === "week"
+          ? "本周"
+          : current.points[0]
+            ? formatCalendarMonth(current.points[0].date)
+            : "本月",
+      value: current
+    });
+  }
+  if (previous?.availability === "available") {
+    entries.push({
+      historical: true,
+      label: formatCalendarPeriod(previous.points, period),
+      value: previous
+    });
+  }
+  return entries;
+}
+
+function ExpandedCalendarHistoryGroup({
+  entries,
+  label,
+  period
+}: {
+  readonly entries: readonly {
+    readonly historical: boolean;
+    readonly label: string;
+    readonly value: NeteaseCalendarRange;
+  }[];
+  readonly label: string;
+  readonly period: "month" | "week";
+}) {
+  if (entries.length === 0) return null;
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <h3 className="text-[13px] font-black text-ink">{label}</h3>
+        <span className="text-[8px] font-bold text-ink-muted">{entries.length} 个周期</span>
+      </div>
+      {entries.map((entry) => (
+        <ExpandedCalendarRange
+          historical={entry.historical}
+          key={`${period}:${entry.label}`}
+          label={entry.label}
+          period={period}
+          value={entry.value}
+        />
+      ))}
+    </section>
+  );
+}
+
+function ExpandedCalendarRange({
+  historical,
+  label,
+  period,
+  value
+}: {
+  readonly historical: boolean;
+  readonly label: string;
+  readonly period: "month" | "week";
+  readonly value: NeteaseCalendarRange;
+}) {
+  const ordered = [...value.points].sort((left, right) => right.date.localeCompare(left.date));
+  const maximum = Math.max(...ordered.map((point) => point.minutes), 1);
+  return (
+    <section className="rounded-[20px] border border-white/75 bg-white/34 p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h4 className="flex items-center gap-2 text-[13px] font-black text-ink">
+            {label}
+            {historical ? (
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[8px] font-bold text-blue-600">
+                历史
+              </span>
+            ) : null}
+          </h4>
+          <p className="mt-1 text-[9px] font-bold text-ink-muted">
+            {formatMinutes(value.totalMinutes)} · {value.listenDays ?? 0} 个收听日
+          </p>
+        </div>
+        <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[9px] font-extrabold text-[#e83d5b]">
+          {ordered.length} 条每日记录
+        </span>
+      </div>
+      <div>
+        <div
+          className={
+            period === "week"
+              ? "grid grid-cols-1 gap-2"
+              : "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+          }
+        >
+          {ordered.map((point) => (
+            <div
+              aria-label={`${point.date}，${point.minutes} 分钟`}
+              className="rounded-xl border border-white/75 bg-white/46 p-2.5"
+              key={point.date}
+              role="img"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-extrabold text-ink">
+                  {formatExpandedDate(point.date)}
+                </span>
+                <span className="text-[9px] font-black text-[#e83d5b]">
+                  {formatMinutes(point.minutes)}
+                </span>
+              </div>
+              <span
+                aria-hidden
+                className="mt-2 block h-1 overflow-hidden rounded-full bg-slate-200/65"
+              >
+                <span
+                  className="block h-full rounded-full bg-[#ff5272]/82"
+                  style={{
+                    width: `${point.minutes === 0 ? 0 : Math.max(4, (point.minutes / maximum) * 100)}%`
+                  }}
+                />
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ListeningRecordWall({
+  compact = false,
+  period,
+  wall
+}: {
+  readonly compact?: boolean;
+  readonly period: "month" | "week";
+  readonly wall: NeteaseRecordWall;
+}) {
+  const items = wall.items.slice(
+    0,
+    compact ? COMPACT_RECORD_WALL_LIMIT : EXPANDED_RECORD_WALL_LIMIT
+  );
+  return (
+    <div className="flex min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 p-2">
+      <div className="mb-1.5 flex items-center justify-between gap-1">
+        <p className="flex min-w-0 items-center gap-1 text-[8px] font-extrabold text-ink-muted">
+          <MusicNotes aria-hidden size={11} />
+          <span className="truncate">
+            {compact ? "唱片墙" : period === "week" ? "本周唱片墙" : "本月唱片墙"}
+          </span>
+        </p>
+        <span className="shrink-0 text-[7px] font-bold text-ink-muted">
+          {wall.songCount}
+          {compact ? "" : " 首"}
+        </span>
+      </div>
+      <div
+        className={
+          compact
+            ? "netease-calendar-wall-grid grid min-h-0 flex-1 gap-1.5 overflow-hidden"
+            : "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5"
+        }
+      >
+        {items.map((item, index) => (
+          <NeteaseWebLink
+            className={compact ? "netease-calendar-wall-item group min-w-0" : "group min-w-0"}
+            href={item.webUrl}
+            key={`${item.coverUrl}:${index}`}
+            label={item.name ? `在网易云打开歌曲 ${item.name}` : "网易云唱片墙封面"}
+          >
+            <span className="relative block aspect-square overflow-hidden rounded-[10px] border border-white/80 bg-rose-50/55 shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md">
+              <LazyProviderImage url={item.coverUrl} />
+            </span>
+            {!compact ? (
+              <span className="mt-1 block truncate text-[8px] font-bold text-ink">
+                {item.name ?? item.albumName ?? "网易云唱片"}
+              </span>
+            ) : null}
+          </NeteaseWebLink>
+        ))}
+      </div>
     </div>
   );
 }
 
 function MonthlyListeningCalendar({
+  compact = false,
   points
 }: {
+  readonly compact?: boolean;
   readonly points: readonly { readonly date: string; readonly minutes: number }[];
 }) {
   if (points.length === 0) return <Empty>这是一个有效空日历</Empty>;
@@ -335,13 +632,15 @@ function MonthlyListeningCalendar({
       <div className="mb-1 flex items-center justify-between gap-2 sm:hidden">
         <p className="flex items-center gap-1.5 text-[8px] font-extrabold text-ink-muted">
           <CalendarDots aria-hidden size={12} />
-          {monthLabel}
+          {compact ? `${Number(points[0]!.date.slice(5, 7))}月` : monthLabel}
         </p>
-        <span aria-label="听歌时长图例" className="flex items-center gap-1">
-          {[0, 30, 90, 180, 300].map((minutes) => (
-            <span className={`h-2.5 w-2.5 rounded-[3px] ${heatColor(minutes)}`} key={minutes} />
-          ))}
-        </span>
+        {!compact ? (
+          <span aria-label="听歌时长图例" className="flex items-center gap-1">
+            {[0, 30, 90, 180, 300].map((minutes) => (
+              <span className={`h-2.5 w-2.5 rounded-[3px] ${heatColor(minutes)}`} key={minutes} />
+            ))}
+          </span>
+        ) : null}
       </div>
       <div className="mx-auto flex min-h-0 w-full max-w-[520px] flex-1 flex-col">
         <div className="grid grid-cols-7 gap-1 text-center text-[7px] font-bold text-ink-muted/75">
@@ -383,19 +682,30 @@ function MonthlyListeningCalendar({
 }
 
 function WeeklyListeningRhythm({
+  compactDates = false,
+  compactHeader = false,
+  label = "最近一周",
   points
 }: {
+  readonly compactDates?: boolean;
+  readonly compactHeader?: boolean;
+  readonly label?: string;
   readonly points: readonly { readonly date: string; readonly minutes: number }[];
 }) {
   if (points.length === 0) return <Empty>这是一个有效空周报</Empty>;
   const maximum = Math.max(...points.map((point) => point.minutes), 1);
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5">
+    <div
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5"
+      data-weekly-label={label}
+    >
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="flex items-center gap-1.5 text-[9px] font-extrabold text-ink-muted">
-          <CalendarDots aria-hidden size={13} /> 最近一周
+          <CalendarDots aria-hidden size={13} /> {compactHeader ? "周节奏" : label}
         </p>
-        <span className="text-[8px] font-bold text-ink-muted">{points.length} 个每日记录</span>
+        <span className="text-[8px] font-bold text-ink-muted">
+          {compactHeader ? `${points.length} 日` : `${points.length} 个每日记录`}
+        </span>
       </div>
       <div
         className="weekly-rhythm-chart relative grid min-h-0 flex-1 gap-1 px-1"
@@ -414,12 +724,20 @@ function WeeklyListeningRhythm({
               key={point.date}
               role="img"
             >
-              <span className="hidden truncate text-center text-[8px] font-black text-[#e83d5b] sm:block">
-                {formatMinutes(point.minutes)}
-              </span>
-              <span className="truncate text-center text-[8px] font-black text-[#e83d5b] sm:hidden">
-                {compactMinutes(point.minutes)}
-              </span>
+              {compactHeader ? (
+                <span className="whitespace-nowrap text-center text-[6px] font-black tracking-[-0.03em] text-[#e83d5b]">
+                  {compactMinutes(point.minutes)}
+                </span>
+              ) : (
+                <>
+                  <span className="hidden truncate text-center text-[8px] font-black text-[#e83d5b] sm:block">
+                    {formatMinutes(point.minutes)}
+                  </span>
+                  <span className="truncate text-center text-[8px] font-black text-[#e83d5b] sm:hidden">
+                    {compactMinutes(point.minutes)}
+                  </span>
+                </>
+              )}
               <span className="my-1 flex min-h-0 items-end justify-center">
                 <span aria-hidden className="weekly-rhythm-track">
                   {point.minutes > 0 ? (
@@ -432,7 +750,7 @@ function WeeklyListeningRhythm({
                 </span>
               </span>
               <span className="truncate text-center text-[7px] font-bold text-ink-muted">
-                {formatWeekDate(point.date)}
+                {compactDates ? formatWeekday(point.date) : formatWeekDate(point.date)}
               </span>
             </div>
           );
@@ -447,6 +765,13 @@ function rhythmState(minutes: number, intensity: number): "dormant" | "quiet" | 
   if (intensity === 1) return "peak";
   if (intensity >= 0.35) return "warm";
   return "quiet";
+}
+
+function formatWeekday(date: string) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "UTC",
+    weekday: "short"
+  }).format(new Date(`${date}T00:00:00.000Z`));
 }
 
 function calendarCells(
@@ -491,6 +816,17 @@ function formatCalendarMonth(date: string) {
   }).format(parsed);
 }
 
+function formatCalendarPeriod(
+  points: readonly { readonly date: string }[],
+  period: "month" | "week"
+) {
+  if (points.length === 0) return period === "week" ? "历史周" : "历史月";
+  const ordered = [...points].sort((left, right) => left.date.localeCompare(right.date));
+  if (period === "month") return formatCalendarMonth(ordered[0]!.date);
+  const short = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(-2))}`;
+  return `${short(ordered[0]!.date)} – ${short(ordered.at(-1)!.date)}`;
+}
+
 function formatWeekDate(date: string) {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   const weekday = new Intl.DateTimeFormat("zh-CN", {
@@ -498,6 +834,15 @@ function formatWeekDate(date: string) {
     weekday: "short"
   }).format(parsed);
   return `${weekday} ${Number(date.slice(5, 7))}/${Number(date.slice(-2))}`;
+}
+
+function formatExpandedDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  const weekday = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "UTC",
+    weekday: "short"
+  }).format(parsed);
+  return `${Number(date.slice(5, 7))}月${Number(date.slice(-2))}日 · ${weekday}`;
 }
 
 function formatMinutes(minutes: number) {
@@ -591,14 +936,14 @@ function NeteaseRankingWidgetV2({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="netease-ranking-toolbar mb-2 flex items-center gap-1.5">
-        <div className="netease-ranking-tabs inline-flex shrink-0 rounded-xl border border-white/90 bg-white/55 p-1 shadow-sm">
+        <div className="netease-ranking-tabs inline-flex shrink-0 gap-1 p-0.5">
           {availableRanges.map((candidate) => (
             <button
               aria-pressed={range === candidate}
               className={
                 range === candidate
-                  ? "rounded-lg bg-[#ff4668] px-3 py-1.5 text-[10px] font-extrabold whitespace-nowrap text-white shadow-sm transition"
-                  : "rounded-lg px-3 py-1.5 text-[10px] font-bold whitespace-nowrap text-ink-muted transition hover:bg-white/75"
+                  ? "rounded-lg bg-[#ff4668] px-3 py-1.5 text-[10px] font-extrabold whitespace-nowrap text-white shadow-sm transition-all duration-200"
+                  : "rounded-lg px-3 py-1.5 text-[10px] font-bold whitespace-nowrap text-ink-muted transition-all duration-200 hover:bg-white/45"
               }
               key={candidate}
               onClick={() => setRequestedRange(candidate)}
@@ -622,17 +967,18 @@ function NeteaseRankingWidgetV2({
         </NeteaseWebLink>
       </div>
 
-      {selected.availability === "available" ? (
-        <RankingBoard
-          expanded={false}
-          key={range}
-          items={selected.items}
-          showPlayCount={presentationToggle(widget.presentationConfig, "showPlayCount")}
-          style={style}
-        />
-      ) : (
-        <Empty>当前榜单未加入公开范围</Empty>
-      )}
+      <div className="netease-range-panel min-h-0 flex-1" key={range}>
+        {selected.availability === "available" ? (
+          <RankingBoard
+            expanded={false}
+            items={selected.items}
+            showPlayCount={presentationToggle(widget.presentationConfig, "showPlayCount")}
+            style={style}
+          />
+        ) : (
+          <Empty>当前榜单未加入公开范围</Empty>
+        )}
+      </div>
     </div>
   );
 }
