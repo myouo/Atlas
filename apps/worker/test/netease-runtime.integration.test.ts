@@ -363,6 +363,7 @@ class NativeRegistry implements ProviderNativeStoreRegistry {
 }
 
 function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
+  let listenReportRequests = 0;
   let playRecordRequests = 0;
   return async (input) => {
     const pathname = new URL(input instanceof Request ? input.url : input.toString()).pathname;
@@ -399,7 +400,12 @@ function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
     }
     if (pathname.includes("song/list")) return Response.json(fixture[NETEASE_SOURCE.recentSongs]);
     if (pathname.includes("realtime/report")) {
-      return Response.json(fixture[NETEASE_SOURCE.listenReportWeek]);
+      listenReportRequests += 1;
+      return Response.json(
+        listenReportRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.listenReportMonth]
+          : fixture[NETEASE_SOURCE.listenReportWeek]
+      );
     }
     if (pathname.includes("user/getfollows/")) {
       return Response.json(fixture[NETEASE_SOURCE.following]);

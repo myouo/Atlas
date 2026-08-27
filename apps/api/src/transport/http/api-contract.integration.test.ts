@@ -221,9 +221,13 @@ describe("Fastify immutable revision and OpenAPI contract", () => {
             progress: null
           },
           listening: {
+            monthlyDurationMinutes: 0,
+            monthlyListenDays: 0,
+            monthlyTrend: [],
             totalDurationSeconds: 0,
             totalListenCount: 0,
             weeklyDurationMinutes: 0,
+            weeklyListenDays: 0,
             weeklyTrend: []
           },
           medals: { items: [], obtainedCount: 0 },

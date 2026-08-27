@@ -248,6 +248,15 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
       weeklyListeningDuration: unavailable
     };
   }
+  if (configuration.type === "music.netease.calendar") {
+    const unavailable = { availability: "unavailable", reason: "not_synced" };
+    return {
+      month: unavailable,
+      provider: "netease",
+      publicRanges: ["week", "month"],
+      week: unavailable
+    };
+  }
   if (configuration.type === "music.netease.ranking") {
     if (configuration.schemaVersion === 2) {
       const unavailable = { availability: "unavailable", reason: "not_synced" };

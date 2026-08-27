@@ -165,6 +165,7 @@ const WidgetTypeSchema = Type.Union([
   Type.Literal("music.netease.overview"),
   Type.Literal("music.netease.identity"),
   Type.Literal("music.netease.listening"),
+  Type.Literal("music.netease.calendar"),
   Type.Literal("music.netease.ranking"),
   Type.Literal("music.netease.social"),
   Type.Literal("music.netease.playlists"),
@@ -465,6 +466,7 @@ const neteaseWidget = (type: string, schemaVersion: 1 | 2 = 1) =>
 
 export const NeteaseIdentityWidgetV1Schema = neteaseWidget("music.netease.identity");
 export const NeteaseListeningWidgetV1Schema = neteaseWidget("music.netease.listening");
+export const NeteaseListeningCalendarWidgetV1Schema = neteaseWidget("music.netease.calendar");
 export const NeteaseRankingWidgetV1Schema = neteaseWidget("music.netease.ranking");
 export const NeteaseRankingWidgetV2Schema = neteaseWidget("music.netease.ranking", 2);
 export const NeteaseSocialWidgetV1Schema = neteaseWidget("music.netease.social");
@@ -530,6 +532,7 @@ export const WidgetProjectionSchema = Type.Union([
   NeteaseOverviewWidgetV2Schema,
   NeteaseIdentityWidgetV1Schema,
   NeteaseListeningWidgetV1Schema,
+  NeteaseListeningCalendarWidgetV1Schema,
   NeteaseRankingWidgetV1Schema,
   NeteaseRankingWidgetV2Schema,
   NeteaseSocialWidgetV1Schema,

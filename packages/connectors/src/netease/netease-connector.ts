@@ -54,6 +54,8 @@ export class NeteaseConnector implements ProviderConnector {
     snapshots.push(snapshot(NETEASE_SOURCE.recentSongs, recent, this.now()));
     const report = await this.client.getWeeklyListenReport(credential);
     snapshots.push(snapshot(NETEASE_SOURCE.listenReportWeek, report, this.now()));
+    const monthlyReport = await this.client.getMonthlyListenReport(credential);
+    snapshots.push(snapshot(NETEASE_SOURCE.listenReportMonth, monthlyReport, this.now()));
     snapshots.push(
       ...(await paginatedSnapshots(
         NETEASE_SOURCE.following,

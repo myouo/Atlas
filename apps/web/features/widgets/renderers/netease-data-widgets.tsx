@@ -1,6 +1,6 @@
 import {
   ArrowUpRight,
-  ClockCounterClockwise,
+  CalendarDots,
   Crown,
   Headphones,
   Heart,
@@ -214,11 +214,6 @@ export function NeteaseListeningWidget({
   widget
 }: Readonly<{ widget: WidgetOf<"music.netease.listening"> }>) {
   const data = widget.data;
-  const trend = data.trend;
-  const trendMaximum =
-    trend.availability === "available"
-      ? Math.max(...trend.points.map((item) => item.minutes), 1)
-      : 1;
   const metrics = [
     data.totalListenCount.availability === "available"
       ? ["累计听歌", `${data.totalListenCount.value.toLocaleString("zh-CN")} 首`]
@@ -228,48 +223,214 @@ export function NeteaseListeningWidget({
           "累计时长",
           formatDuration(data.totalListeningDuration.value, data.totalListeningDuration.unit)
         ]
-      : null,
-    data.weeklyListeningDuration.availability === "available"
-      ? [
-          "本周时长",
-          formatDuration(data.weeklyListeningDuration.value, data.weeklyListeningDuration.unit)
-        ]
       : null
   ].filter((item): item is [string, string] => item !== null);
+  if (metrics.length === 0) return <Empty>当前公开范围没有收听指标</Empty>;
   return (
-    <div className="netease-listening flex h-full min-h-0 flex-col">
-      <div className="netease-listening-metrics grid grid-cols-2 gap-2">
+    <div className="netease-listening flex h-full min-h-0 items-center">
+      <div className="netease-listening-metrics grid w-full grid-cols-2 gap-2">
         {metrics.map(([label, value]) => (
           <Stat key={label} label={label} value={value} />
         ))}
       </div>
-      {trend.availability === "available" && trend.points.length > 0 ? (
-        <div className="netease-listening-trend mt-4 min-h-0 flex-1">
-          <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold text-ink-muted">
-            <ClockCounterClockwise aria-hidden size={14} /> 周期收听分布
-          </p>
-          <div className="flex h-[72px] items-end gap-1.5">
-            {trend.points.map((point) => {
-              return (
-                <div className="flex min-w-0 flex-1 flex-col items-center gap-1" key={point.label}>
-                  <span
-                    className="w-full rounded-t-md bg-gradient-to-t from-rose-400 to-blue-400"
-                    style={{ height: `${Math.max(8, (point.minutes / trendMaximum) * 54)}px` }}
-                    title={`${point.label}: ${point.minutes} 分钟`}
-                  />
-                  <span className="max-w-full truncate text-[7px] text-ink-muted">
-                    {point.label.slice(-5)}
+    </div>
+  );
+}
+
+export function NeteaseListeningCalendarWidget({
+  widget
+}: Readonly<{ widget: WidgetOf<"music.netease.calendar"> }>) {
+  const { data } = widget;
+  const availableRanges = [
+    data.month.availability === "available" ? "month" : null,
+    data.week.availability === "available" ? "week" : null
+  ].filter((range): range is "month" | "week" => range !== null);
+  const [requestedRange, setRequestedRange] = useState<"month" | "week">(
+    availableRanges[0] ?? "month"
+  );
+  const range = availableRanges.includes(requestedRange)
+    ? requestedRange
+    : (availableRanges[0] ?? "month");
+  const selected = range === "month" ? data.month : data.week;
+
+  if (selected.availability !== "available") {
+    return <Empty>当前公开范围没有可用的收听日历</Empty>;
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="inline-flex rounded-xl border border-white/90 bg-white/55 p-1 shadow-sm">
+          {availableRanges.map((candidate) => (
+            <button
+              aria-pressed={range === candidate}
+              className={
+                range === candidate
+                  ? "rounded-lg bg-[#ff4668] px-3 py-1 text-[9px] font-extrabold text-white shadow-sm"
+                  : "rounded-lg px-3 py-1 text-[9px] font-bold text-ink-muted hover:bg-white/75"
+              }
+              key={candidate}
+              onClick={() => setRequestedRange(candidate)}
+              type="button"
+            >
+              {candidate === "month" ? "本月" : "本周"}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2 text-right">
+          <span className="text-[9px] font-bold text-ink-muted">
+            {formatMinutes(selected.totalMinutes)}
+          </span>
+          {selected.listenDays !== null ? (
+            <span className="rounded-full bg-rose-50 px-2 py-1 text-[8px] font-bold text-[#e83d5b]">
+              {selected.listenDays} 天
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <ListeningHeatmap period={range} points={selected.points} />
+    </div>
+  );
+}
+
+function ListeningHeatmap({
+  period,
+  points
+}: {
+  readonly period: "month" | "week";
+  readonly points: readonly { readonly date: string; readonly minutes: number }[];
+}) {
+  if (points.length === 0) return <Empty>这是一个有效空日历</Empty>;
+  const cells = calendarCells(points);
+  const monthLabel = formatCalendarMonth(points[0]!.date);
+  const maxPoint = points.reduce((current, point) =>
+    point.minutes > current.minutes ? point : current
+  );
+  const averageMinutes = points.reduce((total, point) => total + point.minutes, 0) / points.length;
+  const silentDays = points.filter((point) => point.minutes === 0).length;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/70 bg-white/30 p-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-[9px] font-extrabold text-ink-muted">
+          <CalendarDots aria-hidden size={13} />
+          {period === "month" ? monthLabel : "最近一周"}
+        </p>
+        <div aria-label="听歌时长图例" className="flex items-center gap-1">
+          {[0, 30, 90, 180, 300].map((minutes) => (
+            <span className={`h-2.5 w-2.5 rounded-[3px] ${heatColor(minutes)}`} key={minutes} />
+          ))}
+        </div>
+      </div>
+      <div className="mt-1 grid min-h-0 flex-1 items-center gap-4 sm:grid-cols-[minmax(180px,0.75fr)_minmax(260px,1.25fr)]">
+        <div className="flex items-center justify-center gap-2">
+          <div className="grid grid-rows-7 gap-1 text-center text-[7px] leading-5 font-bold text-ink-muted/75">
+            {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
+              <span className="h-5" key={day}>
+                {day}
+              </span>
+            ))}
+          </div>
+          <div className="grid grid-flow-col grid-rows-7 auto-cols-[20px] gap-1">
+            {cells.map((cell, index) =>
+              cell ? (
+                <div
+                  aria-label={`${cell.date}，${cell.minutes} 分钟`}
+                  className={`group relative h-5 w-5 rounded-[5px] ${heatColor(cell.minutes)} transition hover:-translate-y-0.5 hover:ring-2 hover:ring-white/80`}
+                  key={cell.date}
+                  role="img"
+                  title={`${cell.date} · ${cell.minutes} 分钟`}
+                >
+                  <span className="absolute inset-0 flex items-center justify-center text-[6px] font-black text-white/90 drop-shadow-sm">
+                    {Number(cell.date.slice(-2))}
                   </span>
                 </div>
-              );
-            })}
+              ) : (
+                <span aria-hidden className="h-5 w-5" key={`empty-${index}`} />
+              )
+            )}
           </div>
         </div>
-      ) : metrics.length === 0 ? (
-        <Empty>当前公开范围没有收听指标</Empty>
+        <div className="hidden grid-cols-3 gap-2 sm:grid">
+          <CalendarInsight label="日均" value={`${Math.round(averageMinutes)} 分`} />
+          <CalendarInsight
+            label="最长一天"
+            value={formatCalendarDay(maxPoint.date)}
+            detail={formatMinutes(maxPoint.minutes)}
+          />
+          <CalendarInsight label="零记录" value={`${silentDays} 天`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarInsight({
+  detail,
+  label,
+  value
+}: {
+  readonly detail?: string;
+  readonly label: string;
+  readonly value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/75 bg-white/42 px-3 py-3">
+      <p className="text-[8px] font-bold text-ink-muted">{label}</p>
+      <p className="mt-1 truncate text-[11px] font-black text-ink">{value}</p>
+      {detail ? (
+        <p className="mt-0.5 truncate text-[8px] font-semibold text-[#e83d5b]">{detail}</p>
       ) : null}
     </div>
   );
+}
+
+function calendarCells(
+  points: readonly { readonly date: string; readonly minutes: number }[]
+): readonly ({ readonly date: string; readonly minutes: number } | null)[] {
+  const ordered = [...points].sort((left, right) => left.date.localeCompare(right.date));
+  const first = new Date(`${ordered[0]!.date}T00:00:00.000Z`);
+  const last = new Date(`${ordered.at(-1)!.date}T00:00:00.000Z`);
+  const byDate = new Map(ordered.map((point) => [point.date, point]));
+  const days: ({ readonly date: string; readonly minutes: number } | null)[] = [];
+  for (let cursor = first.getTime(); cursor <= last.getTime(); cursor += 86_400_000) {
+    const date = new Date(cursor).toISOString().slice(0, 10);
+    days.push(byDate.get(date) ?? null);
+  }
+  const leading = (first.getUTCDay() + 6) % 7;
+  return [...Array<null>(leading).fill(null), ...days];
+}
+
+function heatColor(minutes: number) {
+  if (minutes <= 0) return "bg-slate-200/75";
+  if (minutes <= 30) return "bg-rose-200";
+  if (minutes <= 90) return "bg-rose-300";
+  if (minutes <= 180) return "bg-[#ff7990]";
+  return "bg-[#ef3f60]";
+}
+
+function formatCalendarMonth(date: string) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric"
+  }).format(parsed);
+}
+
+function formatCalendarDay(date: string) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  return new Intl.DateTimeFormat("zh-CN", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC"
+  }).format(parsed);
+}
+
+function formatMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = Math.round(minutes % 60);
+  return hours > 0 ? `${hours} 小时 ${remainder} 分` : `${remainder} 分钟`;
 }
 
 export function NeteaseRankingWidget({

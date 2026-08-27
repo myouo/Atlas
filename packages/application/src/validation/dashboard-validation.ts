@@ -12,6 +12,7 @@ const supportedSchemaVersions: Record<WidgetType, readonly number[]> = {
   "music.netease.overview": [1, 2],
   "music.netease.identity": [1],
   "music.netease.listening": [1],
+  "music.netease.calendar": [1],
   "music.netease.ranking": [1, 2],
   "music.netease.social": [1],
   "music.netease.playlists": [1],

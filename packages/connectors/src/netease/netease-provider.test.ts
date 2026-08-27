@@ -198,7 +198,8 @@ describe("NetEase Provider module", () => {
           ]
         },
         2
-      )
+      ),
+      targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
     ];
     const projections = await new NeteaseProjector().project(normalized, targets);
     const identity = projections[0]!.data as JsonObject;
@@ -286,8 +287,32 @@ describe("NetEase Provider module", () => {
     expect((projections[10]!.data as JsonObject).items).toMatchObject([
       { resourceId: "20001", source: "weekly_track" }
     ]);
+    expect(projections[11]!.data).toMatchObject({
+      month: {
+        availability: "available",
+        coverage: "provider_month",
+        points: expect.arrayContaining([
+          expect.objectContaining({ date: "2026-04-01", minutes: 0 })
+        ])
+      },
+      publicRanges: ["week", "month"],
+      week: {
+        availability: "available",
+        coverage: "provider_week",
+        points: expect.arrayContaining([
+          expect.objectContaining({ date: "2026-04-20", minutes: 10 })
+        ])
+      }
+    });
 
     const catalog = buildNeteaseOwnerDataCatalog(normalized.payload as NeteaseNormalizedPayload);
+    expect(catalog.listening).toMatchObject({
+      monthlyListenDays: 25,
+      monthlyTrend: expect.arrayContaining([
+        expect.objectContaining({ label: "2026-04-01", minutes: 0 })
+      ]),
+      weeklyListenDays: 3
+    });
     expect(catalog.listening).toMatchObject({ totalDurationSeconds: 582420 });
     expect(catalog.allTimeRanking).toEqual(
       expect.arrayContaining([expect.objectContaining({ rank: 1 })])
@@ -478,6 +503,24 @@ describe("NetEase Provider module", () => {
     );
   });
 
+  it("rejects a monthly report mislabeled as a weekly period", async () => {
+    const monthly = normalNeteaseFixture[NETEASE_SOURCE.listenReportMonth];
+    await expect(
+      new NeteaseNormalizer().normalize(
+        snapshots({
+          ...normalNeteaseFixture,
+          [NETEASE_SOURCE.listenReportMonth]: {
+            ...monthly,
+            data: {
+              ...((monthly.data as JsonObject) ?? {}),
+              type: "week"
+            }
+          }
+        })
+      )
+    ).rejects.toMatchObject({ sourceKind: NETEASE_SOURCE.listenReportMonth });
+  });
+
   it("handles the sanitized large fixture without changing its bounded projection", async () => {
     const normalized = await new NeteaseNormalizer().normalize(snapshots(largeNeteaseFixture));
     const [projection] = await new NeteaseProjector().project(normalized, [target("7d")]);
@@ -498,6 +541,18 @@ describe("NetEase Provider module", () => {
     const ranking = projection!.data as JsonObject;
     expect(ranking.publicLimit).toBe(100);
     expect((ranking.week as JsonObject).items).toHaveLength(100);
+  });
+
+  it("keeps weekly and monthly calendar visibility behind explicit publicRanges", async () => {
+    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
+    const [projection] = await new NeteaseProjector().project(normalized, [
+      targetFor("music.netease.calendar", { publicRanges: ["month"] })
+    ]);
+    expect(projection!.data).toMatchObject({
+      month: { availability: "available", coverage: "provider_month" },
+      publicRanges: ["month"],
+      week: { availability: "unavailable", reason: "not_public" }
+    });
   });
 
   it("keeps the credential in the transport boundary and emits sanitized Provider payloads", async () => {
@@ -528,6 +583,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.allTimeRecord,
       NETEASE_SOURCE.recentSongs,
       NETEASE_SOURCE.listenReportWeek,
+      NETEASE_SOURCE.listenReportMonth,
       NETEASE_SOURCE.following,
       NETEASE_SOURCE.followers,
       NETEASE_SOURCE.createdPlaylists,
@@ -535,7 +591,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.socialStatus
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
-    expect(requests).toHaveLength(18);
+    expect(requests).toHaveLength(19);
     for (const request of requests) {
       expect(request.method).toBe("POST");
       expect(["music.163.com", "interface.music.163.com", "interface3.music.163.com"]).toContain(

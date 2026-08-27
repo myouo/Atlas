@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ModuleShell } from "../../../design-system/module-shell";
 import type { WidgetOf } from "../widget-types";
 import {
+  NeteaseListeningCalendarWidget,
   NeteaseRankingWidget,
   NeteaseShowcaseWidget,
   NeteaseSocialWidget
@@ -13,6 +14,18 @@ import {
 afterEach(cleanup);
 
 describe("NetEase semantic data widgets", () => {
+  it("renders Provider-reported monthly daily minutes as a switchable heatmap", async () => {
+    const { container } = render(<NeteaseListeningCalendarWidget widget={calendarWidget()} />);
+    expect(screen.getByRole("button", { name: "本月" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("img", { name: "2026-08-01，61 分钟" })).toBeInTheDocument();
+    expect(screen.getByText("2026年8月")).toBeInTheDocument();
+    expect(container.querySelectorAll('[role="img"][aria-label*="分钟"]').length).toBe(27);
+
+    await userEvent.click(screen.getByRole("button", { name: "本周" }));
+    expect(screen.getByRole("img", { name: "2026-08-25，0 分钟" })).toBeInTheDocument();
+    expect(screen.getByText("最近一周")).toBeInTheDocument();
+  });
+
   it("switches between weekly and all-time rankings inside one card", async () => {
     render(<NeteaseRankingWidget widget={rankingWidget()} />);
     expect(screen.getByText("Weekly One")).toBeInTheDocument();
@@ -190,6 +203,53 @@ describe("NetEase semantic data widgets", () => {
     );
   });
 });
+
+function calendarWidget(): WidgetOf<"music.netease.calendar"> {
+  const monthPoints = Array.from({ length: 27 }, (_, index) => ({
+    date: `2026-08-${String(index + 1).padStart(2, "0")}`,
+    minutes: index === 0 ? 61 : (index * 23) % 260
+  }));
+  return {
+    data: {
+      month: {
+        availability: "available",
+        coverage: "provider_month",
+        listenDays: 24,
+        period: "month",
+        points: monthPoints,
+        provenance: "provider_reported",
+        totalMinutes: 3_240
+      },
+      provider: "netease",
+      publicRanges: ["week", "month"],
+      week: {
+        availability: "available",
+        coverage: "provider_week",
+        listenDays: 5,
+        period: "week",
+        points: [
+          { date: "2026-08-23", minutes: 27 },
+          { date: "2026-08-24", minutes: 283 },
+          { date: "2026-08-25", minutes: 0 },
+          { date: "2026-08-26", minutes: 276 },
+          { date: "2026-08-27", minutes: 103 }
+        ],
+        provenance: "provider_reported",
+        totalMinutes: 689
+      }
+    },
+    dataConfig: { publicRanges: ["week", "month"] },
+    enabled: true,
+    id: "00000000-0000-4000-8000-000000009209",
+    presentationConfig: {},
+    provider: "netease",
+    schemaVersion: 1,
+    stale: false,
+    title: "网易云 · 收听日历",
+    type: "music.netease.calendar",
+    updatedAt: "2026-08-27T00:00:00.000Z"
+  };
+}
 
 function socialWidget(view: "following" | "followers"): WidgetOf<"music.netease.social"> {
   const person = {

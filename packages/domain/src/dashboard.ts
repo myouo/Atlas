@@ -24,6 +24,7 @@ export type WidgetType =
   | "music.netease.overview"
   | "music.netease.identity"
   | "music.netease.listening"
+  | "music.netease.calendar"
   | "music.netease.ranking"
   | "music.netease.social"
   | "music.netease.playlists"

@@ -666,7 +666,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            type: "profile.hero" | "system.stats" | "music.netease.overview" | "music.netease.identity" | "music.netease.listening" | "music.netease.ranking" | "music.netease.social" | "music.netease.playlists" | "music.netease.showcase" | "github.profile" | "bilibili.profile" | "steam.profile" | "bangumi.collection";
+            type: "profile.hero" | "system.stats" | "music.netease.overview" | "music.netease.identity" | "music.netease.listening" | "music.netease.calendar" | "music.netease.ranking" | "music.netease.social" | "music.netease.playlists" | "music.netease.showcase" | "github.profile" | "bilibili.profile" | "steam.profile" | "bangumi.collection";
             provider: components["schemas"]["Provider"];
             schemaVersion: number;
             title: string;
@@ -922,6 +922,31 @@ export interface components {
             weeklyListeningDuration: components["schemas"]["NeteaseMetricAvailableV3"] | components["schemas"]["DataUnavailable"];
             trend: components["schemas"]["NeteaseTrendAvailableV2"] | components["schemas"]["DataUnavailable"];
         };
+        NeteaseListeningCalendarPointV1: {
+            /** Format: date */
+            date: string;
+            minutes: number;
+        };
+        NeteaseListeningCalendarRangeV1: {
+            /** @constant */
+            availability: "available";
+            /** @enum {string} */
+            period: "week" | "month";
+            /** @enum {string} */
+            coverage: "provider_week" | "provider_month";
+            /** @constant */
+            provenance: "provider_reported";
+            totalMinutes: number;
+            listenDays: number | null;
+            points: components["schemas"]["NeteaseListeningCalendarPointV1"][];
+        };
+        NeteaseListeningCalendarDataV1: {
+            /** @constant */
+            provider: "netease";
+            publicRanges: ("week" | "month")[];
+            week: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
+            month: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
+        };
         NeteaseMetricAvailableV3: {
             /** @constant */
             availability: "available";
@@ -1151,7 +1176,15 @@ export interface components {
                     totalDurationSeconds: number | null;
                     totalListenCount: number;
                     weeklyDurationMinutes: number | null;
+                    weeklyListenDays: number | null;
                     weeklyTrend: {
+                        label: string;
+                        minutes: number;
+                    }[];
+                    monthlyDurationMinutes: number | null;
+                    monthlyListenDays: number | null;
+                    monthlyTrend: {
+                        /** Format: date */
                         label: string;
                         minutes: number;
                     }[];
@@ -1266,6 +1299,15 @@ export interface components {
             provider?: "netease";
             data: components["schemas"]["NeteaseListeningDataV1"];
         };
+        NeteaseListeningCalendarWidgetV1: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "music.netease.calendar";
+            /** @constant */
+            schemaVersion: 1;
+            /** @constant */
+            provider?: "netease";
+            data: components["schemas"]["NeteaseListeningCalendarDataV1"];
+        };
         NeteaseRankingWidgetV1: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
             type: "music.netease.ranking";
@@ -1348,7 +1390,7 @@ export interface components {
             schemaVersion: 1;
             data: components["schemas"]["BangumiCollectionData"];
         };
-        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["NeteaseIdentityWidgetV1"] | components["schemas"]["NeteaseListeningWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV2"] | components["schemas"]["NeteaseSocialWidgetV1"] | components["schemas"]["NeteasePlaylistsWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV2"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
+        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["NeteaseIdentityWidgetV1"] | components["schemas"]["NeteaseListeningWidgetV1"] | components["schemas"]["NeteaseListeningCalendarWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV2"] | components["schemas"]["NeteaseSocialWidgetV1"] | components["schemas"]["NeteasePlaylistsWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV2"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
         CreateWidgetInput: {
             widget: components["schemas"]["WidgetConfiguration"];
             placement: components["schemas"]["WidgetPlacement"];

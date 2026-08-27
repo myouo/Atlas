@@ -515,6 +515,15 @@ function NeteaseDataExplorer({
           label="累计播放时间"
           value={durationLabel(listening?.totalDurationSeconds)}
         />
+        <CatalogMetric
+          label="本周听歌时长"
+          value={minuteDurationLabel(listening?.weeklyDurationMinutes)}
+        />
+        <CatalogMetric
+          label="本月听歌时长"
+          value={minuteDurationLabel(listening?.monthlyDurationMinutes)}
+        />
+        <CatalogMetric label="本月听歌天数" value={numberLabel(listening?.monthlyListenDays)} />
         <CatalogMetric label="关注" value={numberLabel(account?.followingCount)} />
         <CatalogMetric label="粉丝" value={numberLabel(account?.followerCount)} />
         <CatalogMetric label="创建歌单" value={String(playlistItems.length)} />
@@ -701,6 +710,14 @@ function durationLabel(value: unknown) {
   return seconds === null
     ? "暂不可用"
     : `${Math.round(seconds / 3600).toLocaleString("zh-CN")} 小时`;
+}
+
+function minuteDurationLabel(value: unknown) {
+  const minutes = numberValue(value);
+  if (minutes === null) return "暂不可用";
+  const hours = Math.floor(minutes / 60);
+  const remainder = Math.round(minutes % 60);
+  return hours > 0 ? `${hours} 小时 ${remainder} 分` : `${remainder} 分钟`;
 }
 
 function coverageLabel(value: Record<string, unknown> | null, shown: number) {

@@ -18,7 +18,8 @@ describe("WidgetRegistry", () => {
     expect(widgetRegistry.preferred("music.netease.overview")?.schemaVersion).toBe(2);
     expect(widgetRegistry.preferred("music.netease.ranking")?.schemaVersion).toBe(2);
     expect(widgetRegistry.preferred("music.netease.showcase")?.schemaVersion).toBe(2);
-    expect(widgetRegistry.list()).toHaveLength(12);
+    expect(widgetRegistry.list()).toHaveLength(13);
+    expect(widgetRegistry.preferred("music.netease.calendar")?.schemaVersion).toBe(1);
     expect(widgetRegistry.list().some((item) => item.type === "music.netease.social")).toBe(false);
   });
 

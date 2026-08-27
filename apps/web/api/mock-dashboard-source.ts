@@ -166,9 +166,13 @@ export const mockDashboardSource: DashboardDataSource = {
           progress: 71
         },
         listening: {
+          monthlyDurationMinutes: 420,
+          monthlyListenDays: 6,
+          monthlyTrend: [],
           totalDurationSeconds: 582420,
           totalListenCount: 6421,
           weeklyDurationMinutes: 91,
+          weeklyListenDays: 3,
           weeklyTrend: []
         },
         medals: { items: [], obtainedCount: 0 },

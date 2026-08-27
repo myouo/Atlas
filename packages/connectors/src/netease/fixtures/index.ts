@@ -5,6 +5,11 @@ import { NETEASE_SOURCE, type NeteaseSourceKind } from "../netease-types";
 export type SanitizedNeteaseFixture = Readonly<Record<NeteaseSourceKind, JsonObject>>;
 export type NeteaseHttpFixtureScenario = "normal" | "credential_expired" | "schema_drift";
 
+const monthlyDurationDetails = Array.from({ length: 30 }, (_, index) => ({
+  duration: index % 6 === 0 ? 0 : 24 + ((index * 17) % 180),
+  period: `2026-04-${String(index + 1).padStart(2, "0")}`
+}));
+
 export const normalNeteaseFixture: SanitizedNeteaseFixture = {
   [NETEASE_SOURCE.account]: {
     account: { id: 10001 },
@@ -389,6 +394,19 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
       type: "week"
     }
   },
+  [NETEASE_SOURCE.listenReportMonth]: {
+    code: 200,
+    data: {
+      endTime: 1_777_248_000_000,
+      listenTimeDistributionBlock: {
+        durationDetails: monthlyDurationDetails,
+        listenDays: monthlyDurationDetails.filter((point) => point.duration > 0).length,
+        playDuration: monthlyDurationDetails.reduce((total, point) => total + point.duration, 0)
+      },
+      startTime: 1_774_915_200_000,
+      type: "month"
+    }
+  },
   [NETEASE_SOURCE.following]: {
     code: 200,
     follow: [
@@ -513,7 +531,8 @@ export const emptyNeteaseFixture: SanitizedNeteaseFixture = {
   },
   [NETEASE_SOURCE.weeklyRecord]: { code: 200, weekData: [] },
   [NETEASE_SOURCE.recentSongs]: { code: 200, data: { list: [], total: 0 } },
-  [NETEASE_SOURCE.listenReportWeek]: { code: 200, data: {} }
+  [NETEASE_SOURCE.listenReportWeek]: { code: 200, data: {} },
+  [NETEASE_SOURCE.listenReportMonth]: { code: 200, data: { type: "month" } }
 };
 
 export const partialNeteaseFixture: SanitizedNeteaseFixture = {
@@ -610,6 +629,7 @@ export function createNeteaseHttpFixtureFetcher(
   const fixture = scenario === "schema_drift" ? schemaDriftFixture : normalNeteaseFixture;
   let qrChecks = 0;
   let qrGeneration = 0;
+  let listenReportRequests = 0;
   let playRecordRequests = 0;
   return async (input) => {
     const url = new URL(input instanceof Request ? input.url : input.toString());
@@ -677,7 +697,12 @@ export function createNeteaseHttpFixtureFetcher(
       return Response.json(fixture[NETEASE_SOURCE.recentSongs]);
     }
     if (url.pathname.includes("realtime/report")) {
-      return Response.json(fixture[NETEASE_SOURCE.listenReportWeek]);
+      listenReportRequests += 1;
+      return Response.json(
+        listenReportRequests % 2 === 0
+          ? fixture[NETEASE_SOURCE.listenReportMonth]
+          : fixture[NETEASE_SOURCE.listenReportWeek]
+      );
     }
     if (url.pathname.includes("user/getfollows/")) {
       return Response.json(fixture[NETEASE_SOURCE.following]);

@@ -330,15 +330,13 @@ export function createMockWidget(
     return {
       data: {
         provider: "netease",
-        publicFields: ["total_count", "total_duration", "weekly_duration", "trend"],
+        publicFields: ["total_count", "total_duration"],
         totalListenCount: metric(6421, "plays", "all_time"),
         totalListeningDuration: metric(582420, "seconds", "all_time"),
-        trend: { availability: "unavailable", reason: "not_synced" },
-        weeklyListeningDuration: metric(91, "minutes", "provider_week")
+        trend: { availability: "unavailable", reason: "not_public" },
+        weeklyListeningDuration: { availability: "unavailable", reason: "not_public" }
       },
-      dataConfig: {
-        publicFields: ["total_count", "total_duration", "weekly_duration", "trend"]
-      },
+      dataConfig: { publicFields: ["total_count", "total_duration"] },
       enabled: true,
       id,
       presentationConfig: {},
@@ -349,6 +347,27 @@ export function createMockWidget(
       type,
       updatedAt
     } as WidgetOf<"music.netease.listening">;
+  }
+  if (type === "music.netease.calendar") {
+    const unavailable = { availability: "unavailable" as const, reason: "not_synced" as const };
+    return {
+      data: {
+        month: unavailable,
+        provider: "netease",
+        publicRanges: ["week", "month"],
+        week: unavailable
+      },
+      dataConfig: { publicRanges: ["week", "month"] },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "netease",
+      schemaVersion: 1,
+      stale: true,
+      title: "网易云 · 收听日历",
+      type,
+      updatedAt
+    } as WidgetOf<"music.netease.calendar">;
   }
   if (type === "music.netease.ranking") {
     if (schemaVersion === 2) {

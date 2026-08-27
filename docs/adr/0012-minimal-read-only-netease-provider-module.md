@@ -54,6 +54,11 @@ Sanitized production snapshots showed three read-only response changes without e
 - recent-song entries carry the track under `data` (the validator retains legacy `resource` compatibility);
 - the weekly report exposes minute-valued `listenTimeDistributionBlock.playDuration` and dated `durationDetails` instead of the legacy second-valued `duration`/`points` pair.
 
+The same endpoint was later validated with `type: month`: it returns `type: "month"`, Provider
+`startTime`/`endTime`, month-to-date `durationDetails`, `listenDays`, and minute-valued
+`playDuration`. Nivalis fetches week and month as separate immutable Raw Snapshots and rejects a
+response whose declared period does not match the requested source kind.
+
 The Connector now fetches account, user detail, weekly ranking, recent songs, and weekly report sequentially. The Normalizer validates and maps both recognized report/recent shapes explicitly. Unknown shapes still fail with `ProviderSchemaMismatchError`; only explicitly optional Provider omissions become semantic `unavailable` values.
 
 ## Alternatives

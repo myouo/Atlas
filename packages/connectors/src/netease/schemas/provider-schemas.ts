@@ -420,6 +420,7 @@ export const NeteaseListenReportResponseSchema = Type.Object(
     data: Type.Object(
       {
         duration: Type.Optional(Type.Number({ minimum: 0 })),
+        endTime: Type.Optional(Type.Integer({ minimum: 0 })),
         listenTimeDistributionBlock: Type.Optional(
           Type.Union([
             Type.Null(),
@@ -444,6 +445,8 @@ export const NeteaseListenReportResponseSchema = Type.Object(
           ])
         ),
         period: Type.Optional(Type.Union([Type.Literal("week"), Type.Literal("month")])),
+        startTime: Type.Optional(Type.Integer({ minimum: 0 })),
+        type: Type.Optional(Type.Union([Type.Literal("week"), Type.Literal("month")])),
         points: Type.Optional(
           Type.Array(
             Type.Object(

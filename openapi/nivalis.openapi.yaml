@@ -1256,6 +1256,7 @@ components:
             - music.netease.overview
             - music.netease.identity
             - music.netease.listening
+            - music.netease.calendar
             - music.netease.ranking
             - music.netease.social
             - music.netease.playlists
@@ -1882,6 +1883,68 @@ components:
           oneOf:
             - $ref: "#/components/schemas/NeteaseTrendAvailableV2"
             - $ref: "#/components/schemas/DataUnavailable"
+    NeteaseListeningCalendarPointV1:
+      type: object
+      additionalProperties: false
+      required: [date, minutes]
+      properties:
+        date:
+          type: string
+          format: date
+        minutes:
+          type: number
+          minimum: 0
+    NeteaseListeningCalendarRangeV1:
+      type: object
+      additionalProperties: false
+      required: [availability, period, coverage, provenance, totalMinutes, listenDays, points]
+      properties:
+        availability:
+          type: string
+          const: available
+        period:
+          type: string
+          enum: [week, month]
+        coverage:
+          type: string
+          enum: [provider_week, provider_month]
+        provenance:
+          type: string
+          const: provider_reported
+        totalMinutes:
+          type: number
+          minimum: 0
+        listenDays:
+          type: [integer, "null"]
+          minimum: 0
+        points:
+          type: array
+          maxItems: 31
+          items:
+            $ref: "#/components/schemas/NeteaseListeningCalendarPointV1"
+    NeteaseListeningCalendarDataV1:
+      type: object
+      additionalProperties: false
+      required: [provider, publicRanges, week, month]
+      properties:
+        provider:
+          type: string
+          const: netease
+        publicRanges:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum: [week, month]
+        week:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
+            - $ref: "#/components/schemas/DataUnavailable"
+        month:
+          oneOf:
+            - $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
+            - $ref: "#/components/schemas/DataUnavailable"
     NeteaseMetricAvailableV3:
       type: object
       additionalProperties: false
@@ -2464,7 +2527,17 @@ components:
             listening:
               type: object
               additionalProperties: false
-              required: [totalDurationSeconds, totalListenCount, weeklyDurationMinutes, weeklyTrend]
+              required:
+                [
+                  totalDurationSeconds,
+                  totalListenCount,
+                  weeklyDurationMinutes,
+                  weeklyListenDays,
+                  weeklyTrend,
+                  monthlyDurationMinutes,
+                  monthlyListenDays,
+                  monthlyTrend
+                ]
               properties:
                 totalDurationSeconds:
                   type: [number, "null"]
@@ -2475,6 +2548,9 @@ components:
                 weeklyDurationMinutes:
                   type: [number, "null"]
                   minimum: 0
+                weeklyListenDays:
+                  type: [integer, "null"]
+                  minimum: 0
                 weeklyTrend:
                   type: array
                   items:
@@ -2484,6 +2560,25 @@ components:
                     properties:
                       label:
                         type: string
+                      minutes:
+                        type: number
+                        minimum: 0
+                monthlyDurationMinutes:
+                  type: [number, "null"]
+                  minimum: 0
+                monthlyListenDays:
+                  type: [integer, "null"]
+                  minimum: 0
+                monthlyTrend:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [label, minutes]
+                    properties:
+                      label:
+                        type: string
+                        format: date
                       minutes:
                         type: number
                         minimum: 0
@@ -2730,6 +2825,21 @@ components:
               const: netease
             data:
               $ref: "#/components/schemas/NeteaseListeningDataV1"
+    NeteaseListeningCalendarWidgetV1:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data]
+          properties:
+            type:
+              const: music.netease.calendar
+            schemaVersion:
+              const: 1
+            provider:
+              const: netease
+            data:
+              $ref: "#/components/schemas/NeteaseListeningCalendarDataV1"
     NeteaseRankingWidgetV1:
       unevaluatedProperties: false
       allOf:
@@ -2880,6 +2990,7 @@ components:
         - $ref: "#/components/schemas/NeteaseOverviewWidgetV2"
         - $ref: "#/components/schemas/NeteaseIdentityWidgetV1"
         - $ref: "#/components/schemas/NeteaseListeningWidgetV1"
+        - $ref: "#/components/schemas/NeteaseListeningCalendarWidgetV1"
         - $ref: "#/components/schemas/NeteaseRankingWidgetV1"
         - $ref: "#/components/schemas/NeteaseRankingWidgetV2"
         - $ref: "#/components/schemas/NeteaseSocialWidgetV1"

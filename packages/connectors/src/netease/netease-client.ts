@@ -197,6 +197,14 @@ export class NeteaseClient {
     );
   }
 
+  getMonthlyListenReport(credential: string) {
+    return this.eapi(
+      "/api/content/activity/listen/data/realtime/report",
+      { type: "month" },
+      credential
+    );
+  }
+
   protected async weapiResponse(
     path: string,
     data: JsonObject,

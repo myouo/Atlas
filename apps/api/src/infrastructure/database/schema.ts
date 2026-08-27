@@ -265,7 +265,11 @@ export interface NeteaseTrackPlaySnapshotsTable {
 
 export interface NeteaseMetricSnapshotsTable {
   id: string;
-  metric: "total_listen_count" | "listening_duration" | "listening_duration_total";
+  metric:
+    | "total_listen_count"
+    | "listening_duration"
+    | "listening_duration_month"
+    | "listening_duration_total";
   observed_at: Timestamp;
   period: string;
   provenance: "provider_reported" | "nivalis_derived";

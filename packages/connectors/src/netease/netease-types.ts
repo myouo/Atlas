@@ -7,6 +7,7 @@ export const NETEASE_SOURCE = {
   followers: "netease.followers",
   following: "netease.following",
   listenTotal: "netease.listen_total",
+  listenReportMonth: "netease.listen_report.month",
   listenReportWeek: "netease.listen_report.week",
   medals: "netease.medals",
   musicCardTracks: "netease.music_card_tracks",
@@ -157,6 +158,9 @@ export interface NeteaseNormalizedPayload extends JsonObject {
   };
   readonly listeningDurationMinutes: number | null;
   readonly listeningDurationTotalSeconds: number | null;
+  readonly monthlyListenDays: number | null;
+  readonly monthlyListeningDurationMinutes: number | null;
+  readonly monthlyReportPoints: readonly NeteaseReportPoint[];
   readonly medals: {
     readonly obtainedCount: number;
     readonly items: readonly NeteaseNormalizedMedal[];
@@ -174,5 +178,6 @@ export interface NeteaseNormalizedPayload extends JsonObject {
     readonly providerStatusId: string;
   } | null;
   readonly totalListenCount: number;
+  readonly weeklyListenDays: number | null;
   readonly weeklyRecords: readonly NeteaseWeeklyRecord[];
 }

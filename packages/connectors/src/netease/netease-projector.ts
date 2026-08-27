@@ -42,6 +42,15 @@ export class NeteaseProjector implements ProviderProjector {
           return built(target, identity(payload, target.dataConfig), 1, sourceSnapshotId);
         case "music.netease.listening":
           return built(target, listening(payload, target.dataConfig), 1, sourceSnapshotId);
+        case "music.netease.calendar":
+          return built(
+            target,
+            listeningCalendar(payload, target.dataConfig),
+            1,
+            normalized.sourceSnapshotIds[NETEASE_SOURCE.listenReportMonth] ??
+              normalized.sourceSnapshotIds[NETEASE_SOURCE.listenReportWeek] ??
+              sourceSnapshotId
+          );
         case "music.netease.ranking":
           return built(target, ranking(payload, target.dataConfig), 1, sourceSnapshotId);
         case "music.netease.social":
@@ -190,6 +199,58 @@ function listening(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): J
         : { availability: "unavailable", reason: "provider_omitted" }
       : { availability: "unavailable", reason: "not_public" }
   };
+}
+
+function listeningCalendar(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
+  const ranges = calendarRanges(dataConfig.publicRanges);
+  return {
+    month: ranges.includes("month")
+      ? calendarRange(
+          "month",
+          payload.monthlyListeningDurationMinutes,
+          payload.monthlyListenDays,
+          payload.monthlyReportPoints
+        )
+      : { availability: "unavailable", reason: "not_public" },
+    provider: "netease",
+    publicRanges: ranges,
+    week: ranges.includes("week")
+      ? calendarRange(
+          "week",
+          payload.listeningDurationMinutes,
+          payload.weeklyListenDays,
+          payload.reportPoints
+        )
+      : { availability: "unavailable", reason: "not_public" }
+  };
+}
+
+function calendarRange(
+  period: "week" | "month",
+  totalMinutes: number | null,
+  listenDays: number | null,
+  points: readonly { readonly label: string; readonly minutes: number }[]
+) {
+  if (totalMinutes === null) return { availability: "unavailable", reason: "provider_omitted" };
+  return {
+    availability: "available",
+    coverage: period === "month" ? "provider_month" : "provider_week",
+    listenDays,
+    period,
+    points: points.map((point) => ({ date: point.label, minutes: point.minutes })),
+    provenance: "provider_reported",
+    totalMinutes
+  };
+}
+
+function calendarRanges(value: unknown): readonly ("week" | "month")[] {
+  if (!Array.isArray(value)) return ["week", "month"];
+  const ranges = [
+    ...new Set(
+      value.filter((item): item is "week" | "month" => item === "week" || item === "month")
+    )
+  ];
+  return ranges.length > 0 ? ranges : ["week", "month"];
 }
 
 function ranking(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
@@ -508,9 +569,13 @@ export function buildNeteaseOwnerDataCatalog(payload: NeteaseNormalizedPayload):
     following: payload.following,
     levelProgress: payload.levelProgress,
     listening: {
+      monthlyDurationMinutes: payload.monthlyListeningDurationMinutes,
+      monthlyListenDays: payload.monthlyListenDays,
+      monthlyTrend: payload.monthlyReportPoints,
       totalDurationSeconds: payload.listeningDurationTotalSeconds,
       totalListenCount: payload.totalListenCount,
       weeklyDurationMinutes: payload.listeningDurationMinutes,
+      weeklyListenDays: payload.weeklyListenDays,
       weeklyTrend: payload.reportPoints
     },
     medals: payload.medals,

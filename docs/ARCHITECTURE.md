@@ -255,7 +255,7 @@ NeteaseProviderRuntime
 └── NeteaseProjector     Widget v2 availability/provenance/coverage
 ```
 
-The module implements account validation, old/new user detail, level progress, VIP tiers, Provider-reported cumulative duration, weekly/all-time records, recent songs, weekly reports, bounded social lists, created playlists, social status, and medals. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
+The module implements account validation, old/new user detail, level progress, VIP tiers, Provider-reported cumulative duration, weekly/all-time records, recent songs, weekly/monthly daily-duration reports, bounded social lists, created playlists, social status, and medals. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
 
 One SyncRun inserts fifteen base immutable `provider_raw_snapshots` plus bounded page snapshots when a social/playlist list has more results. Every request has its own `source_kind`; pagination stops at the configured cap or when a page yields no new Provider IDs. Normalization deduplicates again and records whether coverage is complete. The Connector recursively strips credential-bearing keys before returning a payload; the Worker independently rejects credential-like Raw input. Runtime schemas intentionally permit harmless extra Provider fields but require every semantic field consumed by normalization. A missing/renamed field raises `ProviderSchemaMismatchError`; it is never coerced to zero, null, or an empty list.
 
@@ -274,6 +274,11 @@ widget_projections (replaceable Last Known Good)
 ```
 
 Provider IDs are scoped unique keys, not database primary keys. Recent-listen rows exist only when the Provider supplied `playTime`; Nivalis never fabricates a historical timestamp. Provider-reported totals/duration and Nivalis-derived ranked aggregates are explicitly distinguished with `provenance` and `coverage`. NetEase Widget schema v2 models full, partial, valid-empty, stale, and unavailable states and does not invent genres or statistics.
+
+`music.netease.listening@1` contains cumulative count/duration only. Provider week/month report
+points are projected independently as `music.netease.calendar@1`, keeping day labels and minute
+values exactly as validated from the Provider. Missing report dates remain unavailable cells rather
+than fabricated zero-minute activity.
 
 Raw insertion precedes normalization so schema drift remains replayable evidence. Native persistence, projection replacement, credential/sync state, and terminal SyncRun completion share the successful transaction. Any later failure retains the previous Projection. Credential errors do not retry and mark the connection as requiring attention; transient network/429/5xx failures retain bounded Phase 4 retry/backoff.
 

@@ -8,6 +8,7 @@ import type { WidgetGridSizes } from "../dashboard/layout-engine";
 import { NeteaseOverviewWidget } from "./renderers/netease-overview-widget";
 import {
   NeteaseIdentityWidget,
+  NeteaseListeningCalendarWidget,
   NeteaseListeningWidget,
   NeteasePlaylistsWidget,
   NeteaseRankingWidget,
@@ -275,39 +276,67 @@ export const widgetRegistry = new WidgetRegistry()
     type: "music.netease.listening",
     schemaVersion: 1,
     name: "网易云 · 收听足迹",
-    description: "听歌次数、时长与趋势",
+    description: "累计听歌与累计时长",
     Icon: SiNeteasecloudmusic,
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
     sizes: {
-      lg: { w: 7, h: 4, minW: 5, minH: 4 },
-      md: { w: 4, h: 4, minW: 4, minH: 4 },
-      sm: { w: 4, h: 6, minW: 4, minH: 5 }
+      lg: { w: 4, h: 3, minW: 3, minH: 3 },
+      md: { w: 4, h: 3, minW: 4, minH: 3 },
+      sm: { w: 4, h: 4, minW: 4, minH: 4 }
     },
     dataPresets: [
       {
         id: "listening-summary",
         label: "核心统计",
-        description: "公开累计听歌、累计时长和本周时长",
-        dataConfig: { publicFields: ["total_count", "total_duration", "weekly_duration"] }
-      },
-      {
-        id: "listening-story",
-        label: "完整足迹",
-        description: "增加官方周期趋势，适合宽卡片",
-        dataConfig: {
-          publicFields: ["total_count", "total_duration", "weekly_duration", "trend"]
-        }
+        description: "公开累计听歌与累计时长",
+        dataConfig: { publicFields: ["total_count", "total_duration"] }
       },
       {
         id: "listening-duration",
         label: "只展示时长",
-        description: "不公开累计听歌首数，只展示累计与本周时长",
-        dataConfig: { publicFields: ["total_duration", "weekly_duration"] }
+        description: "不公开累计听歌首数",
+        dataConfig: { publicFields: ["total_duration"] }
       }
     ],
     Renderer: adaptRenderer(NeteaseListeningWidget)
+  })
+  .register({
+    type: "music.netease.calendar",
+    schemaVersion: 1,
+    name: "网易云 · 收听日历",
+    description: "周月逐日听歌时长",
+    Icon: SiNeteasecloudmusic,
+    accent: "coral",
+    kind: "standard",
+    allowMultiple: false,
+    sizes: {
+      lg: { w: 8, h: 6, minW: 6, minH: 5 },
+      md: { w: 5, h: 6, minW: 4, minH: 5 },
+      sm: { w: 4, h: 7, minW: 4, minH: 6 }
+    },
+    dataPresets: [
+      {
+        id: "calendar-both",
+        label: "周月日历",
+        description: "公开本周与本月逐日听歌时长",
+        dataConfig: { publicRanges: ["week", "month"] }
+      },
+      {
+        id: "calendar-month",
+        label: "仅本月",
+        description: "只公开本月逐日听歌时长",
+        dataConfig: { publicRanges: ["month"] }
+      },
+      {
+        id: "calendar-week",
+        label: "仅本周",
+        description: "只公开本周逐日听歌时长",
+        dataConfig: { publicRanges: ["week"] }
+      }
+    ],
+    Renderer: adaptRenderer(NeteaseListeningCalendarWidget)
   })
   .register({
     type: "music.netease.ranking",

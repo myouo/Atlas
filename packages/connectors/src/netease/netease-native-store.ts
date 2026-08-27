@@ -42,7 +42,11 @@ export interface NeteaseNativeDatabase {
   };
   netease_metric_snapshots: {
     id: string;
-    metric: "total_listen_count" | "listening_duration" | "listening_duration_total";
+    metric:
+      | "total_listen_count"
+      | "listening_duration"
+      | "listening_duration_month"
+      | "listening_duration_total";
     observed_at: Timestamp;
     period: string;
     provenance: "provider_reported" | "nivalis_derived";
@@ -247,6 +251,17 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
         now
       );
     }
+    if (payload.monthlyListeningDurationMinutes !== null) {
+      await this.insertMetric(
+        input.providerConnectionId,
+        "listening_duration_month",
+        payload.monthlyListeningDurationMinutes,
+        "minutes",
+        "month",
+        requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.listenReportMonth),
+        now
+      );
+    }
     if (payload.listeningDurationTotalSeconds !== null) {
       await this.insertMetric(
         input.providerConnectionId,
@@ -320,7 +335,11 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
 
   private async insertMetric(
     connectionId: string,
-    metric: "total_listen_count" | "listening_duration" | "listening_duration_total",
+    metric:
+      | "total_listen_count"
+      | "listening_duration"
+      | "listening_duration_month"
+      | "listening_duration_total",
     value: number,
     unit: "plays" | "minutes" | "seconds",
     period: string,
