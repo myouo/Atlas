@@ -332,7 +332,7 @@ type NeteaseRecordWall = Extract<
   { readonly availability: "available" }
 >;
 
-const COMPACT_RECORD_WALL_LIMIT = 12;
+const COMPACT_RECORD_WALL_LIMIT = 20;
 const EXPANDED_RECORD_WALL_LIMIT = 20;
 
 function CompactListeningCalendar({
@@ -372,7 +372,7 @@ function CompactListeningCalendar({
   if (!wall) return calendar;
 
   return (
-    <div className="netease-calendar-composite grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(116px,0.62fr)] gap-2">
+    <div className="netease-calendar-composite grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(116px,0.62fr)] gap-1.5">
       <ListeningRecordWall compact period={range} wall={wall} />
       {calendar}
     </div>
@@ -574,8 +574,10 @@ function ListeningRecordWall({
     compact ? COMPACT_RECORD_WALL_LIMIT : EXPANDED_RECORD_WALL_LIMIT
   );
   return (
-    <div className="flex min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 p-2">
-      <div className="mb-1.5 flex items-center justify-between gap-1">
+    <div
+      className={`flex min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 ${compact ? "p-1.5" : "p-2"}`}
+    >
+      <div className={`${compact ? "mb-1" : "mb-1.5"} flex items-center justify-between gap-1`}>
         <p className="flex min-w-0 items-center gap-1 text-[8px] font-extrabold text-ink-muted">
           <MusicNotes aria-hidden size={11} />
           <span className="truncate">
@@ -590,7 +592,7 @@ function ListeningRecordWall({
       <div
         className={
           compact
-            ? "netease-calendar-wall-grid grid min-h-0 flex-1 gap-1.5 overflow-hidden"
+            ? "netease-calendar-wall-grid grid min-h-0 flex-1 overflow-hidden"
             : "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5"
         }
       >

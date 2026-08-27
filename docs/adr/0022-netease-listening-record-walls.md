@@ -37,10 +37,10 @@ Evidence was collected without persisting credentials or personal payloads:
 - The compact renderer places the selected calendar beside its Provider record wall. If the current
   weekly wall is unavailable and a previous completed week exists, it renders previous week on the
   left and current week on the right.
-- Compact record walls are bounded at 12 covers and use three explicit container layouts: `3×3`
-  for narrow modules, `4×3` for normal modules, and `6×2` for wide modules. Covers stay within
-  38–42 px; remaining horizontal and vertical space is distributed between tracks instead of
-  scaling artwork without bounds. The expanded wall remains bounded by the Contract at 20 items.
+- Compact record walls are bounded at 20 covers and use three explicit container layouts: `3×4`
+  (12 covers) for narrow modules, `5×4` for normal modules, and `10×2` for wide modules. Covers stay
+  within 32–34 px; remaining horizontal and vertical space is distributed between tracks instead of
+  scaling artwork without bounds. The expanded wall is also bounded by the Contract at 20 items.
 - The expanded ModuleShell renders current then previous week, followed by current then previous
   month. Periods and their daily records are newest-first. Complete current record walls follow the
   calendar history so they cannot obscure it. The source arrays remain Provider-ordered in

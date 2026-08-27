@@ -346,15 +346,17 @@ select:focus-visible {
 }
 
 .netease-calendar-wall-grid {
-  grid-template-columns: repeat(4, 40px);
-  grid-auto-rows: 40px;
+  grid-template-columns: repeat(5, 34px);
+  grid-auto-rows: 34px;
+  column-gap: 3px;
+  row-gap: 2px;
   align-content: space-between;
   justify-content: space-between;
 }
 
 .netease-calendar-wall-item {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
 }
 
 .netease-range-panel {
@@ -393,28 +395,28 @@ select:focus-visible {
   }
 
   .netease-calendar-wall-grid {
-    grid-template-columns: repeat(6, 42px);
-    grid-auto-rows: 42px;
+    grid-template-columns: repeat(10, 34px);
+    grid-auto-rows: 34px;
   }
 
   .netease-calendar-wall-item {
-    width: 42px;
-    height: 42px;
+    width: 34px;
+    height: 34px;
   }
 }
 
 @container module-shell (max-width: 330px) {
   .netease-calendar-wall-grid {
-    grid-template-columns: repeat(3, 38px);
-    grid-auto-rows: 38px;
+    grid-template-columns: repeat(3, 32px);
+    grid-auto-rows: 32px;
   }
 
   .netease-calendar-wall-item {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
   }
 
-  .netease-calendar-wall-item:nth-child(n + 10) {
+  .netease-calendar-wall-item:nth-child(n + 13) {
     display: none;
   }
 }

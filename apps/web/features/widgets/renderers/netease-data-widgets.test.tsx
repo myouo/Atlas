@@ -32,7 +32,7 @@ describe("NetEase semantic data widgets", () => {
       "peak"
     );
     expect(container.querySelector("[data-weekly-rhythm]")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /在网易云打开歌曲 Week wall/ })).toHaveLength(12);
+    expect(screen.getAllByRole("link", { name: /在网易云打开歌曲 Week wall/ })).toHaveLength(20);
   });
 
   it("expands both calendars newest-first and exposes the complete Provider record walls", async () => {
