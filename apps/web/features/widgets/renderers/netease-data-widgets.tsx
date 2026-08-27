@@ -284,6 +284,12 @@ export function NeteaseListeningCalendarWidget({
             </button>
           ))}
         </div>
+        {range === "month" && selected.points.length > 0 ? (
+          <span className="hidden items-center gap-1.5 text-[8px] font-extrabold text-ink-muted sm:inline-flex">
+            <CalendarDots aria-hidden size={12} />
+            {formatCalendarMonth(selected.points[0]!.date)}
+          </span>
+        ) : null}
         <div className="ml-auto flex items-center gap-2 text-right">
           <span className="text-[9px] font-bold text-ink-muted">
             {formatMinutes(selected.totalMinutes)}
@@ -296,44 +302,58 @@ export function NeteaseListeningCalendarWidget({
           <span className="hidden text-[8px] font-bold text-ink-muted md:inline">
             日均 {Math.round(averageMinutes)} 分
           </span>
+          {range === "month" ? (
+            <span aria-label="听歌时长图例" className="hidden items-center gap-1 lg:flex">
+              {[0, 30, 90, 180, 300].map((minutes) => (
+                <span className={`h-2.5 w-2.5 rounded-[3px] ${heatColor(minutes)}`} key={minutes} />
+              ))}
+            </span>
+          ) : null}
         </div>
       </div>
 
-      <ListeningHeatmap period={range} points={selected.points} />
+      {range === "month" ? (
+        <MonthlyListeningCalendar points={selected.points} />
+      ) : (
+        <WeeklyListeningBars points={selected.points} />
+      )}
     </div>
   );
 }
 
-function ListeningHeatmap({
-  period,
+function MonthlyListeningCalendar({
   points
 }: {
-  readonly period: "month" | "week";
   readonly points: readonly { readonly date: string; readonly minutes: number }[];
 }) {
   if (points.length === 0) return <Empty>这是一个有效空日历</Empty>;
   const cells = calendarCells(points);
+  const rowCount = Math.ceil(cells.length / 7);
   const monthLabel = formatCalendarMonth(points[0]!.date);
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/70 bg-white/30 p-2.5">
-      <div className="mb-1.5 flex items-center justify-between gap-3">
-        <p className="flex items-center gap-1.5 text-[9px] font-extrabold text-ink-muted">
-          <CalendarDots aria-hidden size={13} />
-          {period === "month" ? monthLabel : "最近一周"}
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2">
+      <div className="mb-1 flex items-center justify-between gap-2 sm:hidden">
+        <p className="flex items-center gap-1.5 text-[8px] font-extrabold text-ink-muted">
+          <CalendarDots aria-hidden size={12} />
+          {monthLabel}
         </p>
-        <div aria-label="听歌时长图例" className="flex items-center gap-1">
+        <span aria-label="听歌时长图例" className="flex items-center gap-1">
           {[0, 30, 90, 180, 300].map((minutes) => (
             <span className={`h-2.5 w-2.5 rounded-[3px] ${heatColor(minutes)}`} key={minutes} />
           ))}
-        </div>
+        </span>
       </div>
-      <div className="mx-auto mt-1 flex min-h-0 w-full max-w-[520px] flex-1 flex-col justify-center">
+      <div className="mx-auto flex min-h-0 w-full max-w-[520px] flex-1 flex-col">
         <div className="grid grid-cols-7 gap-1 text-center text-[7px] font-bold text-ink-muted/75">
           {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
             <span key={day}>{day}</span>
           ))}
         </div>
-        <div className="mt-1 grid grid-cols-7 auto-rows-[20px] gap-1">
+        <div
+          className="mt-1 grid min-h-0 flex-1 grid-cols-7 gap-1"
+          data-calendar-rows={rowCount}
+          style={{ gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))` }}
+        >
           {cells.map((cell, index) =>
             cell ? (
               <div
@@ -357,6 +377,59 @@ function ListeningHeatmap({
             )
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WeeklyListeningBars({
+  points
+}: {
+  readonly points: readonly { readonly date: string; readonly minutes: number }[];
+}) {
+  if (points.length === 0) return <Empty>这是一个有效空周报</Empty>;
+  const maximum = Math.max(...points.map((point) => point.minutes), 1);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-[9px] font-extrabold text-ink-muted">
+          <CalendarDots aria-hidden size={13} /> 最近一周
+        </p>
+        <span className="text-[8px] font-bold text-ink-muted">{points.length} 个每日记录</span>
+      </div>
+      <div className="flex min-h-0 flex-1 items-stretch justify-center gap-2">
+        {points.map((point) => (
+          <div
+            aria-label={`${point.date}，${point.minutes} 分钟`}
+            className="flex min-w-0 max-w-24 flex-1 flex-col rounded-xl border border-white/70 bg-white/38 px-2 pt-2 pb-1.5"
+            key={point.date}
+            role="img"
+          >
+            <span className="hidden truncate text-center text-[8px] font-black text-[#e83d5b] sm:block">
+              {formatMinutes(point.minutes)}
+            </span>
+            <span className="truncate text-center text-[8px] font-black text-[#e83d5b] sm:hidden">
+              {compactMinutes(point.minutes)}
+            </span>
+            <span className="my-1 flex min-h-0 flex-1 items-end justify-center">
+              <span
+                className={
+                  point.minutes === 0
+                    ? "block h-1 w-full max-w-10 rounded-full bg-slate-200"
+                    : "block w-full max-w-10 rounded-t-lg bg-gradient-to-t from-[#ff4668] to-[#ff9bad] shadow-[0_5px_12px_rgba(255,70,104,0.18)]"
+                }
+                style={
+                  point.minutes === 0
+                    ? undefined
+                    : { height: `${Math.max(8, (point.minutes / maximum) * 100)}%` }
+                }
+              />
+            </span>
+            <span className="truncate text-center text-[7px] font-bold text-ink-muted">
+              {formatWeekDate(point.date)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -402,6 +475,15 @@ function formatCalendarMonth(date: string) {
     timeZone: "UTC",
     year: "numeric"
   }).format(parsed);
+}
+
+function formatWeekDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  const weekday = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "UTC",
+    weekday: "short"
+  }).format(parsed);
+  return `${weekday} ${Number(date.slice(5, 7))}/${Number(date.slice(-2))}`;
 }
 
 function formatMinutes(minutes: number) {

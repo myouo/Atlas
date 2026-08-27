@@ -19,12 +19,42 @@ describe("NetEase semantic data widgets", () => {
     const { container } = render(<NeteaseListeningCalendarWidget widget={calendarWidget()} />);
     expect(screen.getByRole("button", { name: "本月" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("img", { name: "2026-08-01，61 分钟" })).toBeInTheDocument();
-    expect(screen.getByText("2026年8月")).toBeInTheDocument();
+    expect(screen.getAllByText("2026年8月")).toHaveLength(2);
     expect(container.querySelectorAll('[role="img"][aria-label*="分钟"]').length).toBe(27);
 
     await userEvent.click(screen.getByRole("button", { name: "本周" }));
     expect(screen.getByRole("img", { name: "2026-08-25，0 分钟" })).toBeInTheDocument();
     expect(screen.getByText("最近一周")).toBeInTheDocument();
+  });
+
+  it("allocates six adaptive calendar rows for a long month without fixed-height cells", () => {
+    const widget = calendarWidget();
+    const points = Array.from({ length: 31 }, (_, index) => ({
+      date: `2026-03-${String(index + 1).padStart(2, "0")}`,
+      minutes: index * 10
+    }));
+    const { container } = render(
+      <NeteaseListeningCalendarWidget
+        widget={{
+          ...widget,
+          data: {
+            ...widget.data,
+            month: {
+              availability: "available",
+              coverage: "provider_month",
+              listenDays: 30,
+              period: "month",
+              points,
+              provenance: "provider_reported",
+              totalMinutes: 4_650
+            }
+          }
+        }}
+      />
+    );
+    expect(container.querySelector('[data-calendar-rows="6"]')).toHaveStyle({
+      gridTemplateRows: "repeat(6, minmax(0, 1fr))"
+    });
   });
 
   it("keeps playlist cards compact while the reading panel receives every public row", async () => {
