@@ -566,6 +566,10 @@ describe("NetEase Provider module", () => {
     });
     expect(payload.previousWeeklyReport?.points).toHaveLength(7);
     expect(payload.previousMonthlyReport?.points).toHaveLength(31);
+    expect(payload.monthlyRecordWall?.items.at(-1)).toMatchObject({
+      name: null,
+      providerTrackId: null
+    });
 
     const [projection] = await new NeteaseProjector().project(normalized, [
       targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
@@ -576,7 +580,10 @@ describe("NetEase Provider module", () => {
           availability: "available",
           coverage: "provider_month_rank",
           ordering: "provider",
-          songCount: 48
+          songCount: 48,
+          items: expect.arrayContaining([
+            expect.objectContaining({ name: null, providerTrackId: null, webUrl: null })
+          ])
         }
       },
       previousWeek: {

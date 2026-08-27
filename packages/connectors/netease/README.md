@@ -45,3 +45,8 @@ The calendar also consumes the official read-only
 sanitized artwork URL to `songItems`. The immediately previous completed week and month are fetched
 through the historical report endpoint. They power the bounded expanded history; the previous week
 also acts as a semantic fallback when a current weekly wall is unavailable. See ADR 0022.
+
+Provider wall completeness and song identity are separate. A real monthly response returned one
+valid ordered cover without a matching rank item, and no match existed in the other bounded listen
+sources. Nivalis therefore preserves it as non-clickable `仅封面` evidence instead of inventing a
+song name or silently dropping the Provider wall entry.

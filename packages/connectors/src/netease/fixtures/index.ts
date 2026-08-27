@@ -34,7 +34,11 @@ function listenRankFixture(type: "week" | "month") {
     code: 200,
     data: {
       endTime: type === "week" ? 1_777_172_800_000 : 1_777_248_000_000,
-      picUrls: items.map((item) => item.picUrl),
+      picUrls: items.map((item, index) =>
+        type === "month" && index === items.length - 1
+          ? "http://p4.music.126.net/sanitized-fixture/month-wall-cover-only.jpg"
+          : item.picUrl
+      ),
       songCount: 48,
       songItems: items,
       startTime: type === "week" ? 1_776_568_000_000 : 1_774_915_200_000,

@@ -16,6 +16,10 @@ Evidence was collected without persisting credentials or personal payloads:
   `POST /api/content/activity/listen/data/song/play/rank` for both `week` and `month`.
 - That endpoint returns `songItems` plus an ordered `picUrls` array. The official record-wall
   renderer consumes `picUrls` directly and identifies its ordering as Provider-owned.
+- A real current-month response contained 20 `picUrls` but only 19 covers that matched a
+  `songItems` identity. The unmatched cover also failed to match the current weekly Top 100,
+  all-time Top 100, or recent 300 listens; requesting larger limits or offsets still returned the
+  same 20 rank rows.
 - Completed historical periods come from `POST /api/content/activity/listen/data/report` with an
   `endTime` before the current period. A completed week returns seven ordered daily points and a
   `wallpaperBlock`.
@@ -31,7 +35,8 @@ Evidence was collected without persisting credentials or personal payloads:
   `songItems` entry by its sanitized canonical artwork URL; only matched covers receive song
   metadata and a web link.
 - Keep unmatched valid artwork as image-only evidence. Do not infer a song identity from array
-  position because the monthly `picUrls` order is not guaranteed to equal `songItems` order.
+  position because the monthly `picUrls` order is not guaranteed to equal `songItems` order. Its UI
+  label is the semantic `仅封面`; it is never called a song and is not made clickable.
 - Extend the calendar projection with optional semantic `recordWall` and `previousWeek` fields.
   Dashboard Revision, layout, and `rev:` ETag remain unchanged by sync.
 - The compact renderer places the selected calendar beside its Provider record wall. If the current
@@ -42,9 +47,12 @@ Evidence was collected without persisting credentials or personal payloads:
   within 32–34 px; remaining horizontal and vertical space is distributed between tracks instead of
   scaling artwork without bounds. The expanded wall is also bounded by the Contract at 20 items.
 - The expanded ModuleShell renders current then previous week, followed by current then previous
-  month. Periods and their daily records are newest-first. Complete current record walls follow the
-  calendar history so they cannot obscure it. The source arrays remain Provider-ordered in
-  normalized data; reversal is a presentation choice only.
+  month through one week/month switcher and bounded previous/newer arrows. The active period label
+  stays above the visualization; month data uses a circular date-only heatmap and exact minutes stay
+  in accessible labels/tooltips. Current record walls remain beside the selected calendar. Source
+  arrays remain Provider-ordered in normalized data.
+- Compact calendar and ranking controls share a two-option sliding indicator. Content transitions
+  are bounded to 260 ms and reduced-motion preferences disable them through the global motion rule.
 
 ## Alternatives
 

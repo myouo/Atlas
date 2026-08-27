@@ -21,8 +21,16 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.getByRole("img", { name: "2026-08-01，61 分钟" })).toBeInTheDocument();
     expect(screen.getAllByText("2026年8月")).toHaveLength(1);
     expect(container.querySelectorAll('[role="img"][aria-label*="分钟"]').length).toBe(27);
+    expect(container.querySelectorAll(".monthly-heat-dot")).toHaveLength(27);
+    const calendarSwitcher = screen.getByRole("group", { name: "收听日历范围" });
+    expect(calendarSwitcher.querySelector(".netease-sliding-switcher-indicator")).toHaveStyle({
+      transform: "translate3d(0%, 0, 0)"
+    });
 
     await userEvent.click(screen.getByRole("button", { name: "本周" }));
+    expect(calendarSwitcher.querySelector(".netease-sliding-switcher-indicator")).toHaveStyle({
+      transform: "translate3d(100%, 0, 0)"
+    });
     expect(screen.getByRole("img", { name: "2026-08-25，0 分钟" })).toHaveAttribute(
       "data-rhythm-state",
       "dormant"
@@ -35,7 +43,7 @@ describe("NetEase semantic data widgets", () => {
     expect(screen.getAllByRole("link", { name: /在网易云打开歌曲 Week wall/ })).toHaveLength(20);
   });
 
-  it("expands both calendars newest-first and exposes the complete Provider record walls", async () => {
+  it("navigates current and historical calendars while exposing the complete Provider walls", async () => {
     render(
       <ModuleShell accent="coral" editable={false} expandable title="网易云 · 收听日历">
         <NeteaseListeningCalendarWidget widget={calendarWidget()} />
@@ -43,15 +51,23 @@ describe("NetEase semantic data widgets", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 收听日历" }));
     const dialog = await screen.findByRole("dialog", { name: "网易云 · 收听日历" });
-    expect(within(dialog).getByText("周播放日历")).toBeVisible();
-    expect(within(dialog).getByText("月播放日历")).toBeVisible();
-    expect(within(dialog).getByText("8/16 – 8/22")).toBeVisible();
-    expect(within(dialog).getByText("2026年7月")).toBeVisible();
-    expect(within(dialog).getAllByText("历史")).toHaveLength(2);
+    expect(within(dialog).getByRole("group", { name: "收听日历历史范围" })).toBeVisible();
+    expect(within(dialog).getAllByText("本周")).toHaveLength(2);
     const dailyRows = [...dialog.querySelectorAll('[role="img"][aria-label$="分钟"]')];
-    expect(dailyRows[0]).toHaveAttribute("aria-label", "2026-08-27，103 分钟");
-    expect(dailyRows[1]).toHaveAttribute("aria-label", "2026-08-26，276 分钟");
-    expect(within(dialog).getAllByRole("link", { name: /在网易云打开歌曲/ })).toHaveLength(40);
+    expect(dailyRows[0]).toHaveAttribute("aria-label", "2026-08-23，27 分钟");
+    expect(dailyRows.at(-1)).toHaveAttribute("aria-label", "2026-08-27，103 分钟");
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "查看更早一周" }));
+    expect(within(dialog).getAllByText("8/16 – 8/22")).toHaveLength(2);
+    expect(within(dialog).getByText("历史")).toBeVisible();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "月" }));
+    expect(await within(dialog).findByText("2026年8月")).toBeVisible();
+    expect(within(dialog).getAllByRole("link", { name: /在网易云打开歌曲/ })).toHaveLength(19);
+    expect(within(dialog).getByText("仅封面")).toBeVisible();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "查看更早月份" }));
+    expect(within(dialog).getByText("2026年7月")).toBeVisible();
   });
 
   it("falls back to previous-week left and current-week right when the weekly wall is absent", () => {
@@ -127,6 +143,10 @@ describe("NetEase semantic data widgets", () => {
 
   it("switches between weekly and all-time rankings inside one card", async () => {
     render(<NeteaseRankingWidget widget={rankingWidget()} />);
+    const rankingSwitcher = screen.getByRole("group", { name: "听歌榜单范围" });
+    expect(rankingSwitcher.querySelector(".netease-sliding-switcher-indicator")).toHaveStyle({
+      transform: "translate3d(0%, 0, 0)"
+    });
     expect(screen.getByText("Weekly One")).toBeInTheDocument();
     expect(screen.queryByText("All-time One")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "在网易云查看听歌榜单" })).toHaveAttribute(
@@ -139,6 +159,9 @@ describe("NetEase semantic data widgets", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: "全部时间" }));
+    expect(rankingSwitcher.querySelector(".netease-sliding-switcher-indicator")).toHaveStyle({
+      transform: "translate3d(100%, 0, 0)"
+    });
     expect(screen.getByText("All-time One")).toBeInTheDocument();
     expect(screen.queryByText("Weekly One")).not.toBeInTheDocument();
   });
@@ -385,13 +408,16 @@ function calendarRecordWall(period: "month" | "week") {
     coverage:
       period === "week" ? ("provider_week_rank" as const) : ("provider_month_rank" as const),
     items: Array.from({ length: 20 }, (_, index) => ({
-      albumName: `${label} album ${index + 1}`,
+      albumName: period === "month" && index === 19 ? null : `${label} album ${index + 1}`,
       artists: [`${label} artist`],
       coverUrl: `https://p1.music.126.net/sanitized-fixture/${period}-${index + 1}.jpg`,
-      name: `${label} wall song ${index + 1}`,
+      name: period === "month" && index === 19 ? null : `${label} wall song ${index + 1}`,
       playCount: 20 - index,
-      providerTrackId: String(30_000 + index),
-      webUrl: `https://music.163.com/song?id=${30_000 + index}`
+      providerTrackId: period === "month" && index === 19 ? null : String(30_000 + index),
+      webUrl:
+        period === "month" && index === 19
+          ? null
+          : `https://music.163.com/song?id=${30_000 + index}`
     })),
     ordering: "provider" as const,
     provenance: "provider_reported" as const,
