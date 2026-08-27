@@ -332,6 +332,7 @@ const localNeteaseWidgets = [
     id: "00000000-0000-4000-8000-000000009201",
     schemaVersion: 2,
     sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 12, w: 4 } },
+    title: "网易云音乐",
     type: "music.netease.overview"
   },
   {
@@ -347,12 +348,14 @@ const localNeteaseWidgets = [
     type: "music.netease.listening"
   },
   {
+    dataConfig: { publicLimit: 100, publicRanges: ["week", "all_time"] },
     id: "00000000-0000-4000-8000-000000009204",
     schemaVersion: 2,
     sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 7, w: 4 } },
     type: "music.netease.ranking"
   },
   {
+    dataConfig: { publicLimit: 500 },
     id: "00000000-0000-4000-8000-000000009206",
     schemaVersion: 1,
     sizes: { lg: { h: 6, w: 4 }, md: { h: 6, w: 4 }, sm: { h: 9, w: 4 } },
@@ -382,14 +385,11 @@ function pureLocalDashboard(): DashboardReadModel {
   );
   for (const definition of localNeteaseWidgets) {
     const baseWidget = createMockWidget(definition.type, definition.id, definition.schemaVersion);
-    const widget =
-      "dataConfig" in definition
-        ? {
-            ...baseWidget,
-            dataConfig: definition.dataConfig,
-            title: definition.title
-          }
-        : baseWidget;
+    const widget = {
+      ...baseWidget,
+      ...("dataConfig" in definition ? { dataConfig: definition.dataConfig } : {}),
+      ...("title" in definition ? { title: definition.title } : {})
+    } as WidgetProjection;
     widgets.push(widget);
     layout = addWidgetToLayouts(layout, widget.id, definition.sizes);
   }

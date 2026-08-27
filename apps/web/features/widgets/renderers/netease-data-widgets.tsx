@@ -303,12 +303,18 @@ function NeteaseRankingWidgetV2({
     "compact"
   ]);
   const expanded = useModuleShellExpansion();
+  const completePublicRanking = availableRanges.every((candidate) => {
+    const ranking = candidate === "week" ? data.week : data.allTime;
+    return ranking.availability === "available" && ranking.items.length >= ranking.totalAvailable;
+  });
 
   if (expanded) {
     return (
       <div className="min-h-full">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rose-100/70 pb-3">
-          <p className="text-xs font-bold text-ink-muted">完整公开榜单</p>
+          <p className="text-xs font-bold text-ink-muted">
+            {completePublicRanking ? "完整公开榜单" : "当前公开范围"}
+          </p>
           <NeteaseWebLink
             className="inline-flex items-center rounded-full border border-white/80 bg-white/65 px-3 py-1.5 text-[10px] font-bold text-blue-700"
             href={widget.data.webUrl}
@@ -566,30 +572,45 @@ export function NeteasePlaylistsWidget({
   const { data } = widget;
   if (data.items.length === 0) return <Empty>没有公开歌单，或歌单数据尚未同步</Empty>;
   return (
-    <div
-      className={
-        expanded
-          ? "grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-          : "netease-playlists grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto"
-      }
-    >
-      {data.items.map((item) => (
-        <NeteaseWebLink
-          className="netease-playlist-item flex min-w-0 items-center gap-3 rounded-2xl bg-white/42 p-2.5"
-          href={item.webUrl}
-          indicator
-          key={item.providerPlaylistId}
-          label={`在网易云打开歌单 ${item.name}`}
-        >
-          <Artwork label={item.name} url={item.coverUrl} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-extrabold text-ink">{item.name}</p>
-            <p className="mt-1 text-[8px] text-ink-muted">
-              {item.trackCount} 首 · {item.playCount.toLocaleString("zh-CN")} 播放
-            </p>
-          </div>
-        </NeteaseWebLink>
-      ))}
+    <div className="flex min-h-0 flex-col">
+      {expanded ? (
+        <div className="mb-3 flex items-baseline justify-between gap-3 border-b border-rose-100/70 pb-3">
+          <p className="text-xs font-bold text-ink-muted">
+            {data.providerTotal === null || data.items.length >= data.providerTotal
+              ? "全部创建歌单"
+              : "当前公开歌单"}
+          </p>
+          <span className="text-[9px] font-bold text-ink-muted">
+            {data.items.length}
+            {data.providerTotal === null ? "" : ` / ${data.providerTotal}`}
+          </span>
+        </div>
+      ) : null}
+      <div
+        className={
+          expanded
+            ? "grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            : "netease-playlists grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto"
+        }
+      >
+        {data.items.map((item) => (
+          <NeteaseWebLink
+            className="netease-playlist-item flex min-w-0 items-center gap-3 rounded-2xl bg-white/42 p-2.5"
+            href={item.webUrl}
+            indicator
+            key={item.providerPlaylistId}
+            label={`在网易云打开歌单 ${item.name}`}
+          >
+            <Artwork label={item.name} url={item.coverUrl} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-extrabold text-ink">{item.name}</p>
+              <p className="mt-1 text-[8px] text-ink-muted">
+                {item.trackCount} 首 · {item.playCount.toLocaleString("zh-CN")} 播放
+              </p>
+            </div>
+          </NeteaseWebLink>
+        ))}
+      </div>
     </div>
   );
 }

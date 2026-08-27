@@ -215,7 +215,7 @@ function ranking(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Jso
 
 function rankingV2(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
   const ranges = rankingRanges(dataConfig.publicRanges);
-  const limit = boundedInteger(dataConfig.publicLimit, 12, 1, 30);
+  const limit = boundedInteger(dataConfig.publicLimit, 100, 1, 100);
   return {
     allTime: ranges.includes("all_time")
       ? rankingRange(payload.allTimeRecords, limit)
@@ -281,7 +281,7 @@ function social(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): Json
 }
 
 function playlists(payload: NeteaseNormalizedPayload, dataConfig: JsonObject): JsonObject {
-  const limit = boundedInteger(dataConfig.publicLimit, 6, 0, 20);
+  const limit = boundedInteger(dataConfig.publicLimit, 20, 0, 500);
   return {
     availability: "available",
     complete: payload.createdPlaylists.complete,

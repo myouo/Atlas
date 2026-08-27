@@ -191,8 +191,8 @@ function NeteaseOverviewWidgetV2({
   const recent = data.recentListening;
   const duration = data.listeningDuration;
   const total = data.totalListenCount;
-  const showTopTracks = presentationToggle(widget.presentationConfig, "showTopTracks");
-  const showArtists = presentationToggle(widget.presentationConfig, "showArtists");
+  const showTopTracks = expanded || presentationToggle(widget.presentationConfig, "showTopTracks");
+  const showArtists = expanded || presentationToggle(widget.presentationConfig, "showArtists");
   const detailPanel = presentationSelection(widget.presentationConfig, "detailPanel", "trend", [
     "trend",
     "recent",
@@ -202,14 +202,16 @@ function NeteaseOverviewWidgetV2({
     presentationSelection(widget.presentationConfig, "listLimit", "4", ["2", "4", "6"])
   );
   const listLimit = expanded ? Number.POSITIVE_INFINITY : configuredListLimit;
+  const showTrend = expanded || detailPanel === "trend";
+  const showRecent = expanded || detailPanel === "recent";
   const metrics = [
-    presentationToggle(widget.presentationConfig, "showTotalListenCount") ? (
+    expanded || presentationToggle(widget.presentationConfig, "showTotalListenCount") ? (
       <Metric emphasis key="total" label="累计听歌" value={metricValue(total, "首")} />
     ) : null,
-    presentationToggle(widget.presentationConfig, "showListeningDuration") ? (
+    expanded || presentationToggle(widget.presentationConfig, "showListeningDuration") ? (
       <Metric emphasis key="duration" label="本周收听时长" value={metricValue(duration, "分钟")} />
     ) : null,
-    presentationToggle(widget.presentationConfig, "showRankedPlayCount") ? (
+    expanded || presentationToggle(widget.presentationConfig, "showRankedPlayCount") ? (
       <Metric
         key="ranked"
         label="排行播放次数"
@@ -220,7 +222,7 @@ function NeteaseOverviewWidgetV2({
         }
       />
     ) : null,
-    presentationToggle(widget.presentationConfig, "showRecentCount") ? (
+    expanded || presentationToggle(widget.presentationConfig, "showRecentCount") ? (
       <Metric
         key="recent"
         label="最近记录"
@@ -232,13 +234,16 @@ function NeteaseOverviewWidgetV2({
       />
     ) : null
   ].filter(Boolean);
-  const detailCount = Number(showTopTracks) + Number(showArtists) + Number(detailPanel !== "none");
+  const detailCount =
+    Number(showTopTracks) + Number(showArtists) + Number(showTrend) + Number(showRecent);
   const detailGrid =
-    detailCount >= 3
-      ? "sm:grid-cols-[1.25fr_1fr_1.2fr]"
-      : detailCount === 2
-        ? "sm:grid-cols-2"
-        : "sm:grid-cols-1";
+    detailCount >= 4
+      ? "sm:grid-cols-2 xl:grid-cols-4"
+      : detailCount >= 3
+        ? "sm:grid-cols-3"
+        : detailCount === 2
+          ? "sm:grid-cols-2"
+          : "sm:grid-cols-1";
 
   return (
     <div className="netease-overview-v2 flex h-full min-h-0 flex-col">
@@ -315,26 +320,29 @@ function NeteaseOverviewWidgetV2({
           </section>
         ) : null}
 
-        {detailPanel !== "none" ? (
+        {showTrend ? (
           <section className="min-w-0">
-            <p className="text-[10px] font-bold text-ink-muted">
-              {detailPanel === "trend" ? "收听报告" : "最近播放"}
-            </p>
-            {detailPanel === "trend" ? (
-              data.trend.availability === "available" ? (
-                <div className="mt-1 h-[100px] w-full">
-                  <MiniLineChart
-                    label="网易云收听报告"
-                    points={data.trend.points.map((point) => ({
-                      label: point.label,
-                      value: point.minutes
-                    }))}
-                  />
-                </div>
-              ) : (
-                <UnavailableLabel reason={data.trend.reason} />
-              )
-            ) : recent.availability === "available" ? (
+            <p className="text-[10px] font-bold text-ink-muted">收听报告</p>
+            {data.trend.availability === "available" ? (
+              <div className={expanded ? "mt-1 h-40 w-full" : "mt-1 h-[100px] w-full"}>
+                <MiniLineChart
+                  label="网易云收听报告"
+                  points={data.trend.points.map((point) => ({
+                    label: point.label,
+                    value: point.minutes
+                  }))}
+                />
+              </div>
+            ) : (
+              <UnavailableLabel reason={data.trend.reason} />
+            )}
+          </section>
+        ) : null}
+
+        {showRecent ? (
+          <section className="min-w-0">
+            <p className="text-[10px] font-bold text-ink-muted">最近播放</p>
+            {recent.availability === "available" ? (
               <div className="mt-2 space-y-1.5">
                 {recent.items.slice(0, listLimit).map((item) => (
                   <NeteaseWebLink

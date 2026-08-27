@@ -1932,6 +1932,7 @@ components:
           minimum: 0
         items:
           type: array
+          maxItems: 50
           items:
             $ref: "#/components/schemas/NeteaseRankingItemV1"
     NeteaseRankingRangeV2:
@@ -1950,6 +1951,7 @@ components:
           minimum: 0
         items:
           type: array
+          maxItems: 100
           items:
             $ref: "#/components/schemas/NeteaseRankingItemV1"
     NeteaseRankingDataV2:
@@ -1966,7 +1968,7 @@ components:
         publicLimit:
           type: integer
           minimum: 1
-          maximum: 30
+          maximum: 100
         publicRanges:
           type: array
           uniqueItems: true
@@ -2072,9 +2074,10 @@ components:
         publicLimit:
           type: integer
           minimum: 0
-          maximum: 20
+          maximum: 500
         items:
           type: array
+          maxItems: 500
           items:
             $ref: "#/components/schemas/NeteasePlaylistSummaryV1"
     NeteaseShowcaseDataV1:

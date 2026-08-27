@@ -332,6 +332,8 @@ The public homepage is content-only: anonymous visitors receive no mode switcher
 
 Widget display customization is Registry-driven. Each definition may declare toggle/select `presentationControls`; the shared ModuleShell opens one display-field dialog, and Renderers consume the resulting `presentationConfig`. These values are Revision configuration, not Provider data, and are deliberately excluded from Projection Keys. Cloudflare D1 Draft save creates a full immutable successor snapshot through an atomic batch and conditional pointer update; Publish moves only the Published pointer. See ADR 0017.
 
+List-oriented Widgets may also declare a shared expanded reading surface. The compact card is only a presentation preview; the expanded Renderer consumes every row present in the explicitly public Projection. NetEase complete-ranking configuration therefore projects both Provider Top 100 lists, while smaller public-limit presets remain available as deliberate privacy choices. Expansion never calls a Provider and never bypasses `dataConfig` public scope.
+
 ### Owner data catalog and public disclosure
 
 NetEase synchronization now produces two distinct derived read models:

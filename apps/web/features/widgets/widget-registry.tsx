@@ -210,7 +210,6 @@ export const widgetRegistry = new WidgetRegistry()
     accent: "coral",
     kind: "standard",
     allowMultiple: true,
-    expandable: true,
     sizes: {
       lg: { w: 5, h: 5, minW: 4, minH: 4 },
       md: { w: 4, h: 5, minW: 4, minH: 4 },
@@ -365,22 +364,28 @@ export const widgetRegistry = new WidgetRegistry()
     },
     dataPresets: [
       {
+        id: "ranking-both-100",
+        label: "完整双榜 Top 100",
+        description: "放大后完整展示周榜与总榜",
+        dataConfig: { publicLimit: 100, publicRanges: ["week", "all_time"] }
+      },
+      {
         id: "ranking-both-12",
-        label: "双榜 Top 12",
-        description: "周榜与总榜都公开，访客可在卡片内切换",
+        label: "精简双榜 Top 12",
+        description: "仅公开双榜前 12 首",
         dataConfig: { publicLimit: 12, publicRanges: ["week", "all_time"] }
       },
       {
-        id: "ranking-week-12",
-        label: "仅最近一周",
-        description: "只公开最近一周排行",
-        dataConfig: { publicLimit: 12, publicRanges: ["week"] }
+        id: "ranking-week-100",
+        label: "完整周榜",
+        description: "公开最近一周 Top 100",
+        dataConfig: { publicLimit: 100, publicRanges: ["week"] }
       },
       {
-        id: "ranking-all-12",
-        label: "仅全部时间",
-        description: "只公开全部时间排行",
-        dataConfig: { publicLimit: 12, publicRanges: ["all_time"] }
+        id: "ranking-all-100",
+        label: "完整总榜",
+        description: "公开全部时间 Top 100",
+        dataConfig: { publicLimit: 100, publicRanges: ["all_time"] }
       }
     ],
     presentationControls: [
@@ -473,6 +478,12 @@ export const widgetRegistry = new WidgetRegistry()
         label: "歌单橱窗",
         description: "公开前 6 个创建歌单",
         dataConfig: { publicLimit: 6 }
+      },
+      {
+        id: "playlists-all",
+        label: "全部创建歌单",
+        description: "放大后展示全部公开歌单",
+        dataConfig: { publicLimit: 500 }
       },
       {
         id: "playlists-private",

@@ -357,12 +357,12 @@ export function createMockWidget(
         data: {
           allTime: unavailable,
           provider: "netease",
-          publicLimit: 12,
+          publicLimit: 100,
           publicRanges: ["week", "all_time"],
           webUrl: null,
           week: unavailable
         },
-        dataConfig: { publicLimit: 12, publicRanges: ["week", "all_time"] },
+        dataConfig: { publicLimit: 100, publicRanges: ["week", "all_time"] },
         enabled: true,
         id,
         presentationConfig: { rankingStyle: "editorial", showPlayCount: true },

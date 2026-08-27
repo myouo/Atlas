@@ -44,9 +44,9 @@ describe("NetEase semantic data widgets", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 听歌双榜" }));
     expect(await screen.findByRole("dialog", { name: "网易云 · 听歌双榜" })).toBeVisible();
-    expect(screen.getByText("Weekly 12")).toBeInTheDocument();
+    expect(screen.getByText("Weekly 100")).toBeInTheDocument();
     expect(screen.getByText("All-time One")).toBeInTheDocument();
-    expect(screen.getByText("All-time 12")).toBeInTheDocument();
+    expect(screen.getByText("All-time 100")).toBeInTheDocument();
   });
 
   it("renders a curated multi-item showcase without auto-selecting history", () => {
@@ -240,7 +240,7 @@ function rankingWidget(): Extract<WidgetOf<"music.netease.ranking">, { schemaVer
         totalAvailable: 100
       },
       provider: "netease",
-      publicLimit: 12,
+      publicLimit: 100,
       publicRanges: ["week", "all_time"],
       webUrl: "https://music.163.com/user/songs/rank?id=10001",
       week: {
@@ -250,7 +250,7 @@ function rankingWidget(): Extract<WidgetOf<"music.netease.ranking">, { schemaVer
         totalAvailable: 100
       }
     },
-    dataConfig: { publicLimit: 12, publicRanges: ["week", "all_time"] },
+    dataConfig: { publicLimit: 100, publicRanges: ["week", "all_time"] },
     enabled: true,
     id: "00000000-0000-4000-8000-000000009101",
     presentationConfig: { rankingStyle: "editorial", showPlayCount: true },
@@ -333,12 +333,12 @@ function rankingItem(id: string, name: string, rank: number, playCount: number) 
 }
 
 function rankingItems(idPrefix: string, namePrefix: string) {
-  return Array.from({ length: 12 }, (_, index) =>
+  return Array.from({ length: 100 }, (_, index) =>
     rankingItem(
       `${idPrefix}-${index + 1}`,
       index === 0 ? `${namePrefix} One` : `${namePrefix} ${index + 1}`,
       index + 1,
-      88 - index * 4
+      100 - index
     )
   );
 }

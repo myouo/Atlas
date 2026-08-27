@@ -15,10 +15,15 @@ whose official numeric `privacy` value is `10` are excluded before Native/Projec
 while `providerTotal` and pagination completeness continue to describe the original Provider total.
 Sanitized Raw Snapshots remain immutable evidence of the unfiltered response.
 
-The social Widget remains one reusable `music.netease.social` type but supports independent
-`following`, `followers`, and legacy `combined` views. Each independent instance projects only its
-selected list and uses the official `/user/follows` or `/user/fans` Web entrance. Multiple instances
-therefore share one Renderer and Projection contract without merging the two user-facing cards.
+The `music.netease.social` projection remains readable for historical Revision compatibility, but
+the default Dashboard no longer exposes separate following/follower cards because they duplicate
+the identity surface. Owner-only catalog data and official `/user/follows` or `/user/fans` routes
+remain available for future compositions.
+
+Compact rendering limits are presentation concerns, not Projection truncation. When the Owner
+selects the complete-public presets, ranking v2 preserves both Provider Top 100 lists and created
+playlists preserve the normalized collection (bounded by the Connector's 500-item safety limit).
+The compact card renders a dense preview; the expanded reading panel consumes every projected row.
 
 Interactive credential acquisition supports QR scan and SMS OTP through `NeteaseAuthClient`. It returns only semantic status or one in-memory `MUSIC_U` candidate to the Worker. Full Cookies, phone numbers, OTP values, and QR private state are not Raw Snapshot data.
 

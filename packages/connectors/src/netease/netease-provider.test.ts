@@ -166,7 +166,7 @@ describe("NetEase Provider module", () => {
       targetFor("music.netease.showcase", { source: "all_time_track" }),
       targetFor(
         "music.netease.ranking",
-        { publicLimit: 12, publicRanges: ["week", "all_time"] },
+        { publicLimit: 100, publicRanges: ["week", "all_time"] },
         2
       ),
       targetFor("music.netease.showcase", { mode: "provider" }, 2),
@@ -484,6 +484,20 @@ describe("NetEase Provider module", () => {
     const weekly = (projection!.data as JsonObject).weeklyListening as JsonObject;
     expect(weekly.topTracks).toHaveLength(100);
     expect(weekly.topArtists).toHaveLength(5);
+  });
+
+  it("keeps all Top 100 rows when the Owner explicitly publishes the complete ranking", async () => {
+    const normalized = await new NeteaseNormalizer().normalize(snapshots(largeNeteaseFixture));
+    const [projection] = await new NeteaseProjector().project(normalized, [
+      targetFor(
+        "music.netease.ranking",
+        { publicLimit: 100, publicRanges: ["week", "all_time"] },
+        2
+      )
+    ]);
+    const ranking = projection!.data as JsonObject;
+    expect(ranking.publicLimit).toBe(100);
+    expect((ranking.week as JsonObject).items).toHaveLength(100);
   });
 
   it("keeps the credential in the transport boundary and emits sanitized Provider payloads", async () => {
