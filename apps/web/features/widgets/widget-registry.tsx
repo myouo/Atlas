@@ -212,7 +212,7 @@ export const widgetRegistry = new WidgetRegistry()
     kind: "standard",
     allowMultiple: true,
     sizes: {
-      lg: { w: 5, h: 5, minW: 4, minH: 4 },
+      lg: { w: 6, h: 6, minW: 4, minH: 4 },
       md: { w: 4, h: 5, minW: 4, minH: 4 },
       sm: { w: 4, h: 7, minW: 4, minH: 6 }
     },
@@ -312,8 +312,8 @@ export const widgetRegistry = new WidgetRegistry()
     kind: "standard",
     allowMultiple: false,
     sizes: {
-      lg: { w: 8, h: 6, minW: 6, minH: 5 },
-      md: { w: 5, h: 6, minW: 4, minH: 5 },
+      lg: { w: 6, h: 6, minW: 5, minH: 5 },
+      md: { w: 4, h: 6, minW: 4, minH: 5 },
       sm: { w: 4, h: 7, minW: 4, minH: 6 }
     },
     dataPresets: [
@@ -387,8 +387,8 @@ export const widgetRegistry = new WidgetRegistry()
     allowMultiple: true,
     expandable: true,
     sizes: {
-      lg: { w: 7, h: 6, minW: 5, minH: 5 },
-      md: { w: 5, h: 6, minW: 4, minH: 5 },
+      lg: { w: 6, h: 6, minW: 5, minH: 5 },
+      md: { w: 4, h: 6, minW: 4, minH: 5 },
       sm: { w: 4, h: 7, minW: 4, minH: 6 }
     },
     dataPresets: [
@@ -491,7 +491,7 @@ export const widgetRegistry = new WidgetRegistry()
     allowMultiple: true,
     expandable: true,
     sizes: {
-      lg: { w: 7, h: 5, minW: 5, minH: 4 },
+      lg: { w: 6, h: 5, minW: 5, minH: 4 },
       md: { w: 4, h: 5, minW: 4, minH: 4 },
       sm: { w: 4, h: 8, minW: 4, minH: 6 }
     },
@@ -577,9 +577,9 @@ export const widgetRegistry = new WidgetRegistry()
     kind: "standard",
     allowMultiple: false,
     sizes: {
-      lg: { w: 8, h: 6, minW: 6, minH: 5 },
-      md: { w: 5, h: 7, minW: 4, minH: 6 },
-      sm: { w: 4, h: 11, minW: 4, minH: 8 }
+      lg: { w: 6, h: 6, minW: 5, minH: 5 },
+      md: { w: 4, h: 6, minW: 4, minH: 5 },
+      sm: { w: 4, h: 9, minW: 4, minH: 7 }
     },
     presentationControls: [
       {
@@ -609,9 +609,9 @@ export const widgetRegistry = new WidgetRegistry()
     allowMultiple: true,
     expandable: true,
     sizes: {
-      lg: { w: 8, h: 6, minW: 6, minH: 5 },
-      md: { w: 5, h: 6, minW: 5, minH: 5 },
-      sm: { w: 4, h: 12, minW: 4, minH: 10 }
+      lg: { w: 6, h: 6, minW: 5, minH: 5 },
+      md: { w: 4, h: 6, minW: 4, minH: 5 },
+      sm: { w: 4, h: 10, minW: 4, minH: 8 }
     },
     presentationControls: [
       toggle("showTotalListenCount", "累计听歌", "显示 Provider 报告的累计听歌数"),

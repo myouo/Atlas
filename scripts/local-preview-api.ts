@@ -331,14 +331,14 @@ const localNeteaseWidgets = [
   {
     id: "00000000-0000-4000-8000-000000009201",
     schemaVersion: 2,
-    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 12, w: 4 } },
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 4 }, sm: { h: 10, w: 4 } },
     title: "网易云音乐",
     type: "music.netease.overview"
   },
   {
     id: "00000000-0000-4000-8000-000000009202",
     schemaVersion: 1,
-    sizes: { lg: { h: 5, w: 4 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 5, w: 4 }, sm: { h: 7, w: 4 } },
     type: "music.netease.identity"
   },
   {
@@ -351,30 +351,40 @@ const localNeteaseWidgets = [
     dataConfig: { publicRanges: ["week", "month"] },
     id: "00000000-0000-4000-8000-000000009209",
     schemaVersion: 1,
-    sizes: { lg: { h: 6, w: 8 }, md: { h: 6, w: 5 }, sm: { h: 7, w: 4 } },
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 4 }, sm: { h: 7, w: 4 } },
     type: "music.netease.calendar"
   },
   {
     dataConfig: { publicLimit: 100, publicRanges: ["week", "all_time"] },
     id: "00000000-0000-4000-8000-000000009204",
     schemaVersion: 2,
-    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 7, w: 4 } },
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 4 }, sm: { h: 7, w: 4 } },
     type: "music.netease.ranking"
   },
   {
     dataConfig: { publicLimit: 500 },
     id: "00000000-0000-4000-8000-000000009206",
     schemaVersion: 1,
-    sizes: { lg: { h: 6, w: 4 }, md: { h: 6, w: 4 }, sm: { h: 9, w: 4 } },
+    sizes: { lg: { h: 5, w: 6 }, md: { h: 5, w: 4 }, sm: { h: 8, w: 4 } },
     type: "music.netease.playlists"
   },
   {
     id: "00000000-0000-4000-8000-000000009207",
     schemaVersion: 2,
-    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 5 }, sm: { h: 10, w: 4 } },
+    sizes: { lg: { h: 6, w: 6 }, md: { h: 6, w: 4 }, sm: { h: 9, w: 4 } },
     type: "music.netease.showcase"
   }
 ] as const;
+
+const localWidgetOrder = new Map([
+  ["music.netease.overview", 0],
+  ["music.netease.identity", 1],
+  ["music.netease.listening", 2],
+  ["music.netease.calendar", 3],
+  ["music.netease.ranking", 4],
+  ["music.netease.showcase", 5],
+  ["music.netease.playlists", 6]
+]);
 
 function pureLocalDashboard(): DashboardReadModel {
   const removedIds = new Set(
@@ -390,7 +400,11 @@ function pureLocalDashboard(): DashboardReadModel {
   const widgets = mockDashboard.widgets.filter(
     (widget) => !widget.type.startsWith("music.netease.")
   );
-  for (const definition of localNeteaseWidgets) {
+  for (const definition of [...localNeteaseWidgets].sort(
+    (left, right) =>
+      (localWidgetOrder.get(left.type) ?? Number.MAX_SAFE_INTEGER) -
+      (localWidgetOrder.get(right.type) ?? Number.MAX_SAFE_INTEGER)
+  )) {
     const baseWidget = createMockWidget(definition.type, definition.id, definition.schemaVersion);
     const widget = {
       ...baseWidget,

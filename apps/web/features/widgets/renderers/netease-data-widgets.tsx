@@ -130,8 +130,11 @@ export function NeteaseIdentityWidget({
     profile.followerCount === undefined ? null : ["粉丝", profile.followerCount],
     profile.playlistCount === undefined ? null : ["歌单", profile.playlistCount]
   ].filter((item): item is [string, number] => item !== null);
+  const hasMedals = medals.availability === "available" && medals.items.length > 0;
   return (
-    <div className="netease-identity flex h-full min-h-0 flex-col gap-4">
+    <div
+      className={`netease-identity flex h-full min-h-0 flex-col gap-4 ${hasMedals ? "" : "justify-center"}`}
+    >
       <NeteaseWebLink
         className="netease-identity-profile flex min-w-0 items-center gap-4 rounded-2xl"
         href={profile.webUrl}
@@ -192,7 +195,7 @@ export function NeteaseIdentityWidget({
           ))}
         </div>
       ) : null}
-      {medals.availability === "available" && medals.items.length > 0 ? (
+      {hasMedals ? (
         <div className="netease-identity-medals mt-auto flex items-center gap-2 overflow-hidden">
           <Medal aria-hidden className="shrink-0 text-amber-500" size={18} weight="duotone" />
           {medals.items.map((item) => (
@@ -256,6 +259,10 @@ export function NeteaseListeningCalendarWidget({
   if (selected.availability !== "available") {
     return <Empty>当前公开范围没有可用的收听日历</Empty>;
   }
+  const averageMinutes =
+    selected.points.length === 0
+      ? 0
+      : selected.points.reduce((total, point) => total + point.minutes, 0) / selected.points.length;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -286,6 +293,9 @@ export function NeteaseListeningCalendarWidget({
               {selected.listenDays} 天
             </span>
           ) : null}
+          <span className="hidden text-[8px] font-bold text-ink-muted md:inline">
+            日均 {Math.round(averageMinutes)} 分
+          </span>
         </div>
       </div>
 
@@ -304,11 +314,6 @@ function ListeningHeatmap({
   if (points.length === 0) return <Empty>这是一个有效空日历</Empty>;
   const cells = calendarCells(points);
   const monthLabel = formatCalendarMonth(points[0]!.date);
-  const maxPoint = points.reduce((current, point) =>
-    point.minutes > current.minutes ? point : current
-  );
-  const averageMinutes = points.reduce((total, point) => total + point.minutes, 0) / points.length;
-  const silentDays = points.filter((point) => point.minutes === 0).length;
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/70 bg-white/30 p-2.5">
       <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -322,65 +327,37 @@ function ListeningHeatmap({
           ))}
         </div>
       </div>
-      <div className="mt-1 grid min-h-0 flex-1 items-center gap-4 sm:grid-cols-[minmax(180px,0.75fr)_minmax(260px,1.25fr)]">
-        <div className="flex items-center justify-center gap-2">
-          <div className="grid grid-rows-7 gap-1 text-center text-[7px] leading-5 font-bold text-ink-muted/75">
-            {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
-              <span className="h-5" key={day}>
-                {day}
-              </span>
-            ))}
-          </div>
-          <div className="grid grid-flow-col grid-rows-7 auto-cols-[20px] gap-1">
-            {cells.map((cell, index) =>
-              cell ? (
-                <div
-                  aria-label={`${cell.date}，${cell.minutes} 分钟`}
-                  className={`group relative h-5 w-5 rounded-[5px] ${heatColor(cell.minutes)} transition hover:-translate-y-0.5 hover:ring-2 hover:ring-white/80`}
-                  key={cell.date}
-                  role="img"
-                  title={`${cell.date} · ${cell.minutes} 分钟`}
-                >
-                  <span className="absolute inset-0 flex items-center justify-center text-[6px] font-black text-white/90 drop-shadow-sm">
-                    {Number(cell.date.slice(-2))}
-                  </span>
-                </div>
-              ) : (
-                <span aria-hidden className="h-5 w-5" key={`empty-${index}`} />
-              )
-            )}
-          </div>
+      <div className="mx-auto mt-1 flex min-h-0 w-full max-w-[520px] flex-1 flex-col justify-center">
+        <div className="grid grid-cols-7 gap-1 text-center text-[7px] font-bold text-ink-muted/75">
+          {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
+            <span key={day}>{day}</span>
+          ))}
         </div>
-        <div className="hidden grid-cols-3 gap-2 sm:grid">
-          <CalendarInsight label="日均" value={`${Math.round(averageMinutes)} 分`} />
-          <CalendarInsight
-            label="最长一天"
-            value={formatCalendarDay(maxPoint.date)}
-            detail={formatMinutes(maxPoint.minutes)}
-          />
-          <CalendarInsight label="零记录" value={`${silentDays} 天`} />
+        <div className="mt-1 grid grid-cols-7 auto-rows-[20px] gap-1">
+          {cells.map((cell, index) =>
+            cell ? (
+              <div
+                aria-label={`${cell.date}，${cell.minutes} 分钟`}
+                className={`group relative flex min-w-0 items-center justify-between rounded-[6px] px-1 ${heatColor(cell.minutes)} transition hover:-translate-y-0.5 hover:ring-2 hover:ring-white/80`}
+                key={cell.date}
+                role="img"
+                title={`${cell.date} · ${cell.minutes} 分钟`}
+              >
+                <span className={`text-[8px] font-black ${heatTextColor(cell.minutes)}`}>
+                  {Number(cell.date.slice(-2))}
+                </span>
+                <span
+                  className={`calendar-minute-label truncate text-[6px] font-bold ${heatTextColor(cell.minutes)}`}
+                >
+                  {compactMinutes(cell.minutes)}
+                </span>
+              </div>
+            ) : (
+              <span aria-hidden className="rounded-[6px] bg-white/18" key={`empty-${index}`} />
+            )
+          )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function CalendarInsight({
-  detail,
-  label,
-  value
-}: {
-  readonly detail?: string;
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-white/75 bg-white/42 px-3 py-3">
-      <p className="text-[8px] font-bold text-ink-muted">{label}</p>
-      <p className="mt-1 truncate text-[11px] font-black text-ink">{value}</p>
-      {detail ? (
-        <p className="mt-0.5 truncate text-[8px] font-semibold text-[#e83d5b]">{detail}</p>
-      ) : null}
     </div>
   );
 }
@@ -409,21 +386,21 @@ function heatColor(minutes: number) {
   return "bg-[#ef3f60]";
 }
 
+function heatTextColor(minutes: number) {
+  return minutes <= 30 ? "text-ink/70" : "text-white";
+}
+
+function compactMinutes(minutes: number) {
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  return `${(minutes / 60).toFixed(minutes >= 600 ? 0 : 1)}h`;
+}
+
 function formatCalendarMonth(date: string) {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   return new Intl.DateTimeFormat("zh-CN", {
     month: "long",
     timeZone: "UTC",
     year: "numeric"
-  }).format(parsed);
-}
-
-function formatCalendarDay(date: string) {
-  const parsed = new Date(`${date}T00:00:00.000Z`);
-  return new Intl.DateTimeFormat("zh-CN", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC"
   }).format(parsed);
 }
 
@@ -732,6 +709,7 @@ export function NeteasePlaylistsWidget({
   const expanded = useModuleShellExpansion();
   const { data } = widget;
   if (data.items.length === 0) return <Empty>没有公开歌单，或歌单数据尚未同步</Empty>;
+  const visibleItems = expanded ? data.items : data.items.slice(0, 6);
   return (
     <div className="flex min-h-0 flex-col">
       {expanded ? (
@@ -751,10 +729,10 @@ export function NeteasePlaylistsWidget({
         className={
           expanded
             ? "grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-            : "netease-playlists grid h-full min-h-0 grid-cols-1 gap-2 overflow-y-auto"
+            : "netease-playlists grid h-full min-h-0 grid-cols-1 content-start gap-2 overflow-hidden"
         }
       >
-        {data.items.map((item) => (
+        {visibleItems.map((item) => (
           <NeteaseWebLink
             className="netease-playlist-item flex min-w-0 items-center gap-3 rounded-2xl bg-white/42 p-2.5"
             href={item.webUrl}

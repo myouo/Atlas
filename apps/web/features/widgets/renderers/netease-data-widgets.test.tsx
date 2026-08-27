@@ -6,6 +6,7 @@ import { ModuleShell } from "../../../design-system/module-shell";
 import type { WidgetOf } from "../widget-types";
 import {
   NeteaseListeningCalendarWidget,
+  NeteasePlaylistsWidget,
   NeteaseRankingWidget,
   NeteaseShowcaseWidget,
   NeteaseSocialWidget
@@ -24,6 +25,19 @@ describe("NetEase semantic data widgets", () => {
     await userEvent.click(screen.getByRole("button", { name: "本周" }));
     expect(screen.getByRole("img", { name: "2026-08-25，0 分钟" })).toBeInTheDocument();
     expect(screen.getByText("最近一周")).toBeInTheDocument();
+  });
+
+  it("keeps playlist cards compact while the reading panel receives every public row", async () => {
+    render(
+      <ModuleShell accent="coral" editable={false} expandable title="网易云 · 创建歌单">
+        <NeteasePlaylistsWidget widget={playlistsWidget()} />
+      </ModuleShell>
+    );
+    expect(screen.getAllByRole("link", { name: /在网易云打开歌单/ })).toHaveLength(6);
+
+    await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 创建歌单" }));
+    expect(await screen.findByRole("dialog", { name: "网易云 · 创建歌单" })).toBeVisible();
+    expect(screen.getAllByRole("link", { name: /在网易云打开歌单/ })).toHaveLength(8);
   });
 
   it("switches between weekly and all-time rankings inside one card", async () => {
@@ -247,6 +261,38 @@ function calendarWidget(): WidgetOf<"music.netease.calendar"> {
     stale: false,
     title: "网易云 · 收听日历",
     type: "music.netease.calendar",
+    updatedAt: "2026-08-27T00:00:00.000Z"
+  };
+}
+
+function playlistsWidget(): WidgetOf<"music.netease.playlists"> {
+  return {
+    data: {
+      availability: "available",
+      complete: true,
+      items: Array.from({ length: 8 }, (_, index) => ({
+        coverUrl: null,
+        name: `Playlist ${index + 1}`,
+        playCount: index,
+        providerPlaylistId: String(index + 1),
+        subscribedCount: 0,
+        tags: [],
+        trackCount: index + 1,
+        webUrl: `https://music.163.com/playlist?id=${index + 1}`
+      })),
+      provider: "netease",
+      providerTotal: 8,
+      publicLimit: 8
+    },
+    dataConfig: { publicLimit: 8 },
+    enabled: true,
+    id: "00000000-0000-4000-8000-000000009206",
+    presentationConfig: {},
+    provider: "netease",
+    schemaVersion: 1,
+    stale: false,
+    title: "网易云 · 创建歌单",
+    type: "music.netease.playlists",
     updatedAt: "2026-08-27T00:00:00.000Z"
   };
 }

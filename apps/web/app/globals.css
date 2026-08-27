@@ -332,6 +332,10 @@ select:focus-visible {
 }
 
 @container module-shell (max-width: 380px) {
+  .calendar-minute-label {
+    display: none;
+  }
+
   .module-shell-header {
     gap: 0.6rem;
     padding-right: 0.8rem;
