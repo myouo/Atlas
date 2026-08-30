@@ -250,12 +250,12 @@ All transport behavior is isolated under `packages/connectors/src/netease`:
 ```text
 NeteaseProviderRuntime
 ├── NeteaseClient        endpoint/protocol/timeout/error mapping
-├── NeteaseConnector     sequential read-only sync + payload sanitization
+├── NeteaseConnector     bounded read-only scheduling + payload sanitization
 ├── NeteaseNormalizer    TypeBox runtime schemas → native semantics
 └── NeteaseProjector     Widget v2 availability/provenance/coverage
 ```
 
-The module implements account validation, old/new user detail, level progress, VIP tiers, Provider-reported cumulative duration, weekly/all-time records, recent songs, weekly/monthly daily-duration reports, official week/month play-rank record walls, independently anchored three-period week/month history windows, bounded social lists, created playlists, social status, and medals. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
+The module implements account validation, old/new user detail, level progress, VIP tiers, Provider-reported cumulative duration, weekly/all-time records, recent songs, weekly/monthly daily-duration reports, official week/month play-rank record walls, independently anchored three-period week/month history windows, bounded social lists, created playlists, social status, and medals. Provider scheduling remains inside the Connector: the generic runtime defaults to one request, while the Cloudflare adapter opts into a hard-capped three-way scheduler for independent reads. Pagination, history chains, and dependent lookups stay sequential. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
 
 One SyncRun inserts bounded immutable `provider_raw_snapshots` for each Provider request plus page snapshots when a social/playlist list has more results. Every request has its own `source_kind`; pagination stops at the configured cap or when a page yields no new Provider IDs. Normalization deduplicates again and records whether coverage is complete. The Connector recursively strips credential-bearing keys before returning a payload; the Worker independently rejects credential-like Raw input. Runtime schemas intentionally permit harmless extra Provider fields but require every semantic field consumed by normalization. A missing/renamed field raises `ProviderSchemaMismatchError`; it is never coerced to zero, null, or an empty list.
 
@@ -340,7 +340,7 @@ SyncJobQueue / ProviderAuthJobQueue Ports
      Netease Connector → Raw → Projection
 ```
 
-D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, immutable Draft save/Publish CAS, Owner reads, encrypted NetEase connection management, QR/SMS AuthAttempts, Queue-backed SyncRuns, sanitized Raw Snapshots, Owner data catalogs, and Last Known Good projections. Provider messages carry only Nivalis UUIDs; credentials and private authentication state remain contextual AEAD ciphertext in D1. Revision list/detail/restore, full relational NetEase native history, and replay commit remain unported. See ADR 0016.
+D1 uses separate SQLite migrations and never replaces the PostgreSQL adapter in Domain/Application code. The current slices expose the public Published Dashboard, GitHub OAuth/D1 Session, immutable Draft save/Publish CAS, Owner reads, encrypted NetEase connection management, QR/SMS AuthAttempts, Queue-backed SyncRuns, sanitized Raw Snapshots, Owner data catalogs, and Last Known Good projections. Provider messages carry only Nivalis UUIDs; credentials and private authentication state remain contextual AEAD ciphertext in D1. Manual sync uses a `waitUntil` fast path plus the already-durable Queue message; CAS leasing prevents duplicate processing and permits stale recovery. Raw evidence is inserted in one D1 batch before normalization. Revision list/detail/restore, full relational NetEase native history, and replay commit remain unported. See ADR 0016.
 
 The public homepage is content-only: anonymous visitors receive no mode switcher, editing chrome, status/sync/API controls, Settings link, phase badge, or operational footer. Direct `/settings` access owns the authentication entry point. Once the API reports an authenticated Owner session, the same `DashboardCanvas` reveals the existing control surface without introducing a second renderer.
 

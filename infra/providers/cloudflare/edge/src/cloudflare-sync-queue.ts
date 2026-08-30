@@ -42,7 +42,7 @@ export async function consumeQueueMessages(
   database: D1Database,
   handlers: {
     readonly providerAuth: (attemptId: string) => Promise<void>;
-    readonly sync: (syncRunId: string) => Promise<void>;
+    readonly sync: (syncRunId: string) => Promise<"busy" | "processed">;
   }
 ) {
   for (const message of batch.messages) {
@@ -69,7 +69,11 @@ export async function consumeQueueMessages(
       if (message.body.kind === "provider_auth") {
         await handlers.providerAuth(message.body.attemptId);
       } else {
-        await handlers.sync(message.body.syncRunId);
+        const disposition = await handlers.sync(message.body.syncRunId);
+        if (disposition === "busy") {
+          message.retry({ delaySeconds: 15 });
+          continue;
+        }
       }
       message.ack();
     } catch {

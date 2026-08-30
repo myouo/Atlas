@@ -32,6 +32,7 @@ export interface ProviderEnvironment {
   readonly NIVALIS_CREDENTIAL_KEY_ID?: string;
   readonly NIVALIS_CREDENTIAL_MASTER_KEY?: string;
   readonly NETEASE_HTTP_FIXTURE_SCENARIO?: string;
+  readonly NETEASE_REQUEST_CONCURRENCY?: string;
   readonly NETEASE_REQUEST_TIMEOUT_MS?: string;
 }
 
@@ -53,6 +54,7 @@ export function createCloudflareProviderRuntime(
     queue,
     protector,
     positiveInteger(environment.NETEASE_REQUEST_TIMEOUT_MS, 12_000),
+    boundedInteger(environment.NETEASE_REQUEST_CONCURRENCY, 3, 1, 3),
     fetcher
   );
   const connections = new ProviderConnectionService(
@@ -124,6 +126,16 @@ class SingleNeteaseAuthRegistry implements ProviderAuthRuntimeRegistry {
 function positiveInteger(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function boundedInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number
+) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
 }
 
 function providerFetcher(environment: ProviderEnvironment) {

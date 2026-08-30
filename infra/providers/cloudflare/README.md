@@ -105,7 +105,7 @@ CLOUDFLARE_PAGES_PROJECT=<project> \
 pnpm deploy:pages
 ```
 
-The deployed client revalidates Dashboard data every 30 seconds while visible and on window focus. An Owner's dirty local Draft is never replaced by this refresh; only live Projection fields and the Published read model are updated.
+The deployed client revalidates Dashboard data every 30 seconds while visible and on window focus. An Owner's dirty local Draft is never replaced by this refresh; only live Projection fields and the Published read model are updated. Manual NetEase sync persists its Queue message before returning `202`, starts an immediate `waitUntil` attempt, and lets the Queue retry a busy or stale CAS lease. Independent Provider reads are capped at three and the sanitized Raw batch uses one D1 binding call.
 
 ## Remaining adapter work
 

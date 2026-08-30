@@ -358,6 +358,7 @@ const worker = {
               "music_u",
               credential
             );
+            executionContext.waitUntil(progressProviderSync(providers, accepted.validationJob.id));
             return json(
               {
                 connection: serializeProviderConnection(accepted.connection),
@@ -452,6 +453,7 @@ const worker = {
               );
             }
             const run = await providers.sync.enqueue(session.actor.id);
+            executionContext.waitUntil(progressProviderSync(providers, run.id));
             return json(serializeSyncJob(run), 202, corsHeaders, {
               Location: `/v1/me/sync-jobs/${run.id}`
             });
@@ -523,7 +525,8 @@ const worker = {
         await providers.authWorker.process(attemptId);
       },
       sync: async (syncRunId) => {
-        await providers.sync.process(syncRunId);
+        const result = await providers.sync.process(syncRunId);
+        return result.disposition;
       }
     });
   }
@@ -539,6 +542,17 @@ async function progressProviderAuthentication(
     await providers.authWorker.process(attemptId);
   } catch {
     await providers.authQueue.enqueue(attemptId);
+  }
+}
+
+async function progressProviderSync(
+  providers: NonNullable<ReturnType<typeof createCloudflareProviderRuntime>>,
+  syncRunId: string
+) {
+  try {
+    await providers.sync.process(syncRunId);
+  } catch {
+    // The durable Queue message already exists and owns bounded retry/recovery.
   }
 }
 

@@ -28,6 +28,23 @@ ETag-bearing JSON responses include `Cache-Control: no-transform`. Without that 
 
 NetEase QR/SMS authentication continues to use the provider-neutral services from ADR 0014. To avoid adding the Queue batch delay to an interactive login, the Cloudflare fetch adapter persists the attempt, returns `202`, and registers its first `ProviderAuthWorkerService.process()` call with `ExecutionContext.waitUntil()`. The same service sends subsequent QR polls and retry fallback through Cloudflare Queues; credential extraction and persistence never move into the route or browser. A queued attempt with no recorded error can be restarted by a later Owner status read if the original isolate is interrupted. The consumer uses `max_batch_size: 1` and `max_batch_timeout: 0` because authentication messages are latency-sensitive and are not aggregated.
 
+## Sync latency update (2026-08-31)
+
+Recent production SyncRuns showed 2.24–13.72 seconds between persistence and Queue claim, despite a
+zero batch timeout, followed by about 21 seconds of successful processing. Manual sync and credential
+validation therefore retain the durable Queue message but also register the first processing attempt
+with `ExecutionContext.waitUntil()`. A D1 compare-and-swap claim allows only one path to transition a
+queued/retry-wait run to running. The Queue retries a busy lease after 15 seconds; a running lease can
+be reclaimed after 35 seconds if the fast-path isolate terminates. Terminal redelivery remains a
+no-op, preserving at-least-once safety.
+
+The Cloudflare adapter opts into the Connector's hard-capped concurrency of three and persists the
+complete sanitized Raw Snapshot batch with one `D1Database.batch()` call rather than one binding
+round trip per response. Normalization still begins only after every Raw Snapshot is durable, and
+Projection/SyncState/terminal completion remain a separate atomic batch. Structured completion logs
+contain only stage durations, counts, and the Nivalis SyncRun UUID; they never contain Provider data
+or credentials.
+
 Runtime compatibility also required two transport-level changes inside the NetEase Connector only:
 
 - inspect redirects with Fetch `manual` mode and explicitly reject 3xx responses, because edge Fetch does not implement `redirect: "error"`;

@@ -690,15 +690,15 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.allTimeRecord,
       NETEASE_SOURCE.recentSongs,
       NETEASE_SOURCE.listenReportWeek,
-      NETEASE_SOURCE.listenReportMonth,
-      NETEASE_SOURCE.listenRankWeek,
-      NETEASE_SOURCE.listenRankMonth,
       NETEASE_SOURCE.listenReportPreviousWeek,
       `${NETEASE_SOURCE.listenReportPreviousWeek}.period.1`,
       `${NETEASE_SOURCE.listenReportPreviousWeek}.period.2`,
+      NETEASE_SOURCE.listenReportMonth,
       NETEASE_SOURCE.listenReportPreviousMonth,
       `${NETEASE_SOURCE.listenReportPreviousMonth}.period.1`,
       `${NETEASE_SOURCE.listenReportPreviousMonth}.period.2`,
+      NETEASE_SOURCE.listenRankWeek,
+      NETEASE_SOURCE.listenRankMonth,
       NETEASE_SOURCE.following,
       NETEASE_SOURCE.followers,
       NETEASE_SOURCE.createdPlaylists,
@@ -783,6 +783,34 @@ describe("NetEase Provider module", () => {
     );
     expect(profileHomeRequest?.headers.get("user-agent")).toContain("Mozilla/5.0");
     expect(profileHomeRequest?.headers.get("cookie")).toContain("os=pc");
+  });
+
+  it("bounds independent Provider reads without parallelizing pagination or history chains", async () => {
+    const providerFetcher = createNeteaseHttpFixtureFetcher("normal");
+    let inFlight = 0;
+    let maximumInFlight = 0;
+    const fetcher = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      inFlight += 1;
+      maximumInFlight = Math.max(maximumInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      try {
+        return await providerFetcher(input, init);
+      } finally {
+        inFlight -= 1;
+      }
+    });
+    const connector = new NeteaseConnector(
+      new NeteaseClient({ timeoutMs: 2_000 }, fetcher),
+      { resolve: async () => secret },
+      () => fetchedAt,
+      3
+    );
+
+    const results = await connector.fetch(syncRun());
+
+    expect(maximumInFlight).toBe(3);
+    expect(results).toHaveLength(27);
+    expect(results.filter((result) => result.sourceKind.includes("listen_report"))).toHaveLength(8);
   });
 
   it("follows Provider profile cursors only after hasMore and preserves every page as Raw evidence", async () => {

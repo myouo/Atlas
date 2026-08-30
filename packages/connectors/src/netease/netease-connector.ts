@@ -17,7 +17,8 @@ export class NeteaseConnector implements ProviderConnector {
   constructor(
     private readonly client: NeteaseClient,
     private readonly credentials: ProviderCredentialResolver,
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly maxRequestConcurrency = 1
   ) {}
 
   async fetch(run: SyncRun): Promise<readonly ProviderFetchResult[]> {
@@ -27,96 +28,132 @@ export class NeteaseConnector implements ProviderConnector {
     const snapshots: ProviderFetchResult[] = [snapshot(NETEASE_SOURCE.account, account, fetchedAt)];
     const userId = extractUserId(account);
     if (!userId) return snapshots;
-
-    const detail = await this.client.getUserDetail(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.userDetail, detail, this.now()));
-    const profileHome = await this.client.getProfileHome(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.profileHome, profileHome, this.now()));
-    snapshots.push(...(await profileHomePageSnapshots(this.client, credential, userId, this.now)));
-    const profileMusicCards = await this.client.getProfileMusicCards(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.profileMusicCards, profileMusicCards, this.now()));
-    const musicCardTrackIds = profileMusicCardSongIds(profileMusicCards);
-    if (musicCardTrackIds.length > 0) {
-      const musicCardTracks = await this.client.getSongDetails(credential, musicCardTrackIds);
-      snapshots.push(snapshot(NETEASE_SOURCE.musicCardTracks, musicCardTracks, this.now()));
-    }
-    const level = await this.client.getUserLevel(credential);
-    snapshots.push(snapshot(NETEASE_SOURCE.userLevel, level, this.now()));
-    const vip = await this.client.getVipInfo(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.vipInfo, vip, this.now()));
-    const listenTotal = await this.client.getTotalListenData(credential);
-    snapshots.push(snapshot(NETEASE_SOURCE.listenTotal, listenTotal, this.now()));
-    const weekly = await this.client.getWeeklyRecord(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.weeklyRecord, weekly, this.now()));
-    const allTime = await this.client.getAllTimeRecord(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.allTimeRecord, allTime, this.now()));
-    const recent = await this.client.getRecentSongs(credential);
-    snapshots.push(snapshot(NETEASE_SOURCE.recentSongs, recent, this.now()));
-    const report = await this.client.getWeeklyListenReport(credential);
-    snapshots.push(snapshot(NETEASE_SOURCE.listenReportWeek, report, this.now()));
-    const monthlyReport = await this.client.getMonthlyListenReport(credential);
-    snapshots.push(snapshot(NETEASE_SOURCE.listenReportMonth, monthlyReport, this.now()));
-    const weeklyRank = await this.client.getListenPlayRank(credential, "week");
-    snapshots.push(snapshot(NETEASE_SOURCE.listenRankWeek, weeklyRank, this.now()));
-    const monthlyRank = await this.client.getListenPlayRank(credential, "month");
-    snapshots.push(snapshot(NETEASE_SOURCE.listenRankMonth, monthlyRank, this.now()));
-    const previousWeekEndTime = previousPeriodEndTime(report);
-    if (previousWeekEndTime !== null) {
-      snapshots.push(
-        ...(await historicalReportSnapshots(
-          this.client,
-          credential,
-          "week",
-          NETEASE_SOURCE.listenReportPreviousWeek,
-          previousWeekEndTime,
+    const tasks: readonly ProviderFetchTask[] = [
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.userDetail,
+          await this.client.getUserDetail(credential, userId),
+          this.now()
+        )
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.profileHome,
+          await this.client.getProfileHome(credential, userId),
+          this.now()
+        )
+      ],
+      () => profileHomePageSnapshots(this.client, credential, userId, this.now),
+      async () => {
+        const profileMusicCards = await this.client.getProfileMusicCards(credential, userId);
+        const results = [snapshot(NETEASE_SOURCE.profileMusicCards, profileMusicCards, this.now())];
+        const trackIds = profileMusicCardSongIds(profileMusicCards);
+        if (trackIds.length > 0) {
+          results.push(
+            snapshot(
+              NETEASE_SOURCE.musicCardTracks,
+              await this.client.getSongDetails(credential, trackIds),
+              this.now()
+            )
+          );
+        }
+        return results;
+      },
+      async () => [
+        snapshot(NETEASE_SOURCE.userLevel, await this.client.getUserLevel(credential), this.now())
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.vipInfo,
+          await this.client.getVipInfo(credential, userId),
+          this.now()
+        )
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.listenTotal,
+          await this.client.getTotalListenData(credential),
+          this.now()
+        )
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.weeklyRecord,
+          await this.client.getWeeklyRecord(credential, userId),
+          this.now()
+        )
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.allTimeRecord,
+          await this.client.getAllTimeRecord(credential, userId),
+          this.now()
+        )
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.recentSongs,
+          await this.client.getRecentSongs(credential),
+          this.now()
+        )
+      ],
+      () => listeningReportSnapshots(this.client, credential, this.now),
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.listenRankWeek,
+          await this.client.getListenPlayRank(credential, "week"),
+          this.now()
+        )
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.listenRankMonth,
+          await this.client.getListenPlayRank(credential, "month"),
+          this.now()
+        )
+      ],
+      () =>
+        paginatedSnapshots(
+          NETEASE_SOURCE.following,
+          (offset) => this.client.getFollowing(credential, userId, offset),
+          (payload) => pageInfo(payload, "follow", undefined, "userId"),
           this.now
-        ))
-      );
-    }
-    const previousMonthEndTime = previousPeriodEndTime(monthlyReport);
-    if (previousMonthEndTime !== null) {
-      snapshots.push(
-        ...(await historicalReportSnapshots(
-          this.client,
-          credential,
-          "month",
-          NETEASE_SOURCE.listenReportPreviousMonth,
-          previousMonthEndTime,
+        ),
+      () =>
+        paginatedSnapshots(
+          NETEASE_SOURCE.followers,
+          (offset) => this.client.getFollowers(credential, userId, offset),
+          (payload) => pageInfo(payload, "followeds", undefined, "userId"),
           this.now
-        ))
-      );
-    }
-    snapshots.push(
-      ...(await paginatedSnapshots(
-        NETEASE_SOURCE.following,
-        (offset) => this.client.getFollowing(credential, userId, offset),
-        (payload) => pageInfo(payload, "follow", undefined, "userId"),
-        this.now
-      ))
-    );
-    snapshots.push(
-      ...(await paginatedSnapshots(
-        NETEASE_SOURCE.followers,
-        (offset) => this.client.getFollowers(credential, userId, offset),
-        (payload) => pageInfo(payload, "followeds", undefined, "userId"),
-        this.now
-      ))
-    );
-    snapshots.push(
-      ...(await paginatedSnapshots(
-        NETEASE_SOURCE.createdPlaylists,
-        (offset) => this.client.getCreatedPlaylists(credential, userId, offset),
-        (payload) => pageInfo(payload, "playlist", "data", "id"),
-        this.now
-      ))
-    );
-    const medals = await this.client.getUserMedals(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.medals, medals, this.now()));
-    const socialStatus = await this.client.getUserSocialStatus(credential, userId);
-    snapshots.push(snapshot(NETEASE_SOURCE.socialStatus, socialStatus, this.now()));
+        ),
+      () =>
+        paginatedSnapshots(
+          NETEASE_SOURCE.createdPlaylists,
+          (offset) => this.client.getCreatedPlaylists(credential, userId, offset),
+          (payload) => pageInfo(payload, "playlist", "data", "id"),
+          this.now
+        ),
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.medals,
+          await this.client.getUserMedals(credential, userId),
+          this.now()
+        )
+      ],
+      async () => [
+        snapshot(
+          NETEASE_SOURCE.socialStatus,
+          await this.client.getUserSocialStatus(credential, userId),
+          this.now()
+        )
+      ]
+    ];
+    snapshots.push(...(await runProviderTasks(tasks, this.maxRequestConcurrency)));
     return snapshots;
   }
 }
+
+type ProviderFetchTask = () => Promise<readonly ProviderFetchResult[]>;
 
 function profileMusicCardSongIds(payload: JsonValue) {
   if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.cardVOList)) {
@@ -138,6 +175,72 @@ const MAX_PROVIDER_LIST_ITEMS = 500;
 const MAX_PROVIDER_LIST_PAGES = 20;
 const MAX_PROFILE_HOME_PAGES = 20;
 const MAX_LISTEN_HISTORY_PERIODS = 3;
+const MAX_NETEASE_REQUEST_CONCURRENCY = 3;
+
+async function runProviderTasks(tasks: readonly ProviderFetchTask[], requestedConcurrency: number) {
+  const concurrency = Math.min(
+    tasks.length,
+    MAX_NETEASE_REQUEST_CONCURRENCY,
+    Math.max(1, Number.isInteger(requestedConcurrency) ? requestedConcurrency : 1)
+  );
+  const results: Array<readonly ProviderFetchResult[]> = new Array(tasks.length);
+  let nextIndex = 0;
+  let failed = false;
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      while (!failed && nextIndex < tasks.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        try {
+          results[index] = await tasks[index]!();
+        } catch (error) {
+          failed = true;
+          throw error;
+        }
+      }
+    })
+  );
+  return results.flat();
+}
+
+async function listeningReportSnapshots(
+  client: NeteaseClient,
+  credential: string,
+  now: () => Date
+) {
+  const results: ProviderFetchResult[] = [];
+  const weekly = await client.getWeeklyListenReport(credential);
+  results.push(snapshot(NETEASE_SOURCE.listenReportWeek, weekly, now()));
+  const previousWeekEndTime = previousPeriodEndTime(weekly);
+  if (previousWeekEndTime !== null) {
+    results.push(
+      ...(await historicalReportSnapshots(
+        client,
+        credential,
+        "week",
+        NETEASE_SOURCE.listenReportPreviousWeek,
+        previousWeekEndTime,
+        now
+      ))
+    );
+  }
+  const monthly = await client.getMonthlyListenReport(credential);
+  results.push(snapshot(NETEASE_SOURCE.listenReportMonth, monthly, now()));
+  const previousMonthEndTime = previousPeriodEndTime(monthly);
+  if (previousMonthEndTime !== null) {
+    results.push(
+      ...(await historicalReportSnapshots(
+        client,
+        credential,
+        "month",
+        NETEASE_SOURCE.listenReportPreviousMonth,
+        previousMonthEndTime,
+        now
+      ))
+    );
+  }
+  return results;
+}
 
 async function profileHomePageSnapshots(
   client: NeteaseClient,

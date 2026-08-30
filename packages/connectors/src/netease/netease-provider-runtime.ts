@@ -6,6 +6,10 @@ import { NeteaseConnector } from "./netease-connector";
 import { NeteaseNormalizer } from "./netease-normalizer";
 import { NeteaseProjector } from "./netease-projector";
 
+export interface NeteaseProviderRuntimeOptions extends NeteaseClientOptions {
+  readonly requestConcurrency?: number;
+}
+
 export class NeteaseProviderRuntime implements ProviderRuntimeModule {
   readonly connector: NeteaseConnector;
   readonly normalizer = new NeteaseNormalizer();
@@ -14,9 +18,14 @@ export class NeteaseProviderRuntime implements ProviderRuntimeModule {
 
   constructor(
     credentials: ProviderCredentialResolver,
-    options: NeteaseClientOptions,
+    options: NeteaseProviderRuntimeOptions,
     fetcher: typeof fetch = fetch
   ) {
-    this.connector = new NeteaseConnector(new NeteaseClient(options, fetcher), credentials);
+    this.connector = new NeteaseConnector(
+      new NeteaseClient(options, fetcher),
+      credentials,
+      () => new Date(),
+      options.requestConcurrency
+    );
   }
 }

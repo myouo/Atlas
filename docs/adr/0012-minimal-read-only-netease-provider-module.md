@@ -14,7 +14,7 @@ All Netease-specific code lives under `packages/connectors/src/netease/`:
 ```text
 NeteaseProviderRuntime
 ├── NeteaseClient        endpoint allowlist, weapi/eapi, Cookie, timeout
-├── NeteaseConnector     sequential read workflow
+├── NeteaseConnector     bounded read scheduler
 ├── NeteaseNormalizer    TypeBox runtime validation and semantic mapping
 ├── NeteaseNativeStore   provider-specific Kysely persistence
 └── NeteaseProjector     music.netease.overview@2
@@ -30,7 +30,10 @@ The first allowlisted read capabilities are:
 
 The module implements only the protocol necessary for those endpoints using Node's built-in cryptography. It does not import or run the community server/package.
 
-- Requests are sequential (`max concurrency = 1`) and have an explicit abort timeout.
+- Requests use an explicit abort timeout. The generic runtime defaults to sequential transport;
+  infrastructure may opt into the Connector-owned bounded scheduler up to a hard maximum of three
+  independent reads. Cursor pagination, report-history chains, and dependent card-detail requests
+  remain sequential within their task.
 - No proxy, random IP, `X-Real-IP`, region bypass, unlock, playback URL, scrobble, login-by-password, follow, like, comment, or other write operation exists.
 - `MUSIC_U` is resolved inside `NeteaseConnector`; SyncWorkerService never receives the plaintext.
 - Each response is recursively sanitized into a payload-only Raw Snapshot with an explicit source kind. Credential-bearing keys are removed; request objects, request headers, response headers, Cookie, CSRF, and encryption inputs are never returned for persistence.
@@ -59,7 +62,17 @@ The same endpoint was later validated with `type: month`: it returns `type: "mon
 `playDuration`. Nivalis fetches week and month as separate immutable Raw Snapshots and rejects a
 response whose declared period does not match the requested source kind.
 
-The Connector now fetches account, user detail, weekly ranking, recent songs, and weekly report sequentially. The Normalizer validates and maps both recognized report/recent shapes explicitly. Unknown shapes still fail with `ProviderSchemaMismatchError`; only explicitly optional Provider omissions become semantic `unavailable` values.
+The Connector fetches account identity before scheduling the remaining read capabilities. The Normalizer validates and maps both recognized report/recent shapes explicitly. Unknown shapes still fail with `ProviderSchemaMismatchError`; only explicitly optional Provider omissions become semantic `unavailable` values.
+
+## Cloudflare latency update (2026-08-31)
+
+Cloudflare production evidence showed successful NetEase SyncRuns spending about 21 seconds in the
+consumer even without retries. The Connector still resolves account identity first, then schedules
+only independent read groups with a configurable concurrency capped at three. The Cloudflare adapter
+uses three; PostgreSQL and direct callers retain the sequential default unless explicitly configured.
+Weekly/monthly history traversal, Provider pagination, and exhibition-card detail dependencies never
+fan out. A real credential-safe local timing of the same 28 requests fell from 6.68–7.92 seconds to
+2.55 seconds without changing endpoints, schemas, sanitization, or projection semantics.
 
 ## Alternatives
 

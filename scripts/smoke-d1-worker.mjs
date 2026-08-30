@@ -229,9 +229,26 @@ try {
     (body) => body.status === "completed" || body.status === "failed"
   );
   assert(completedJob.status === "completed", "fixture credential validation did not complete");
+  assert(completedJob.attemptCount === 1, "fast path and Queue processed one SyncRun twice");
   const connected = await fetchJson("/v1/me/providers/netease", { headers: ownerHeaders });
   assert(connected.body.configured === true, "credential metadata was not persisted");
   assert(connected.body.credentialStatus === "valid", "credential was not marked valid");
+
+  const syncAcceptedAt = performance.now();
+  const manualSync = await fetchJson("/v1/me/providers/netease/sync", {
+    headers: ownerHeaders,
+    method: "POST"
+  });
+  const syncAcceptedMs = performance.now() - syncAcceptedAt;
+  assert(manualSync.response.status === 202, "manual SyncRun was not accepted");
+  assert(syncAcceptedMs < 2_000, "manual SyncRun acknowledgement exceeded two seconds");
+  const manualSyncCompleted = await pollJson(
+    `/v1/me/sync-jobs/${manualSync.body.jobId}`,
+    ownerHeaders,
+    (body) => body.status === "completed" || body.status === "failed"
+  );
+  assert(manualSyncCompleted.status === "completed", "manual fixture SyncRun did not complete");
+  assert(manualSyncCompleted.attemptCount === 1, "manual SyncRun was processed more than once");
 
   const disconnected = await fetch(`${baseUrl}/v1/me/providers/netease/connection`, {
     headers: ownerHeaders,

@@ -47,6 +47,11 @@ interface D1SyncRun extends SyncRun {
   readonly ownerId: string;
 }
 
+export interface D1SyncProcessResult {
+  readonly disposition: "busy" | "processed";
+  readonly run: SyncRun;
+}
+
 interface TargetRow {
   readonly data_config_json: string;
   readonly enabled: number;
@@ -93,28 +98,31 @@ export class D1NeteaseSyncRuntime {
     private readonly queue: Queue<CloudflareQueueMessage>,
     protector: WebCryptoSecretProtector,
     timeoutMs = 12_000,
+    requestConcurrency = 3,
     fetcher: typeof fetch = fetch
   ) {
     this.credentials = new D1ProviderCredentialRepository(database);
     this.runtime = new NeteaseProviderRuntime(
       new D1ProviderCredentialResolver(this.credentials, protector),
-      { timeoutMs },
+      { requestConcurrency, timeoutMs },
       fetcher
     );
   }
 
   async enqueue(ownerId: string) {
-    const connection = await this.credentials.findEnabledConnectionForOwner(ownerId);
+    const [connection, active] = await Promise.all([
+      this.credentials.findEnabledConnectionForOwner(ownerId),
+      this.database
+        .prepare(
+          `SELECT * FROM provider_sync_runs
+            WHERE owner_id = ? AND provider = 'netease'
+              AND status IN ('queued', 'running', 'retry_wait')
+            ORDER BY requested_at DESC LIMIT 1`
+        )
+        .bind(ownerId)
+        .first<SyncRunRow>()
+    ]);
     if (!connection) throw new ProviderNotConfiguredError("netease");
-    const active = await this.database
-      .prepare(
-        `SELECT * FROM provider_sync_runs
-          WHERE owner_id = ? AND provider = 'netease'
-            AND status IN ('queued', 'running', 'retry_wait')
-          ORDER BY requested_at DESC LIMIT 1`
-      )
-      .bind(ownerId)
-      .first<SyncRunRow>();
     if (active) return mapRun(active);
 
     const id = crypto.randomUUID();
@@ -133,7 +141,20 @@ export class D1NeteaseSyncRuntime {
       .prepare("UPDATE provider_sync_runs SET queue_job_id = ? WHERE id = ?")
       .bind(queueJobId, id)
       .run();
-    return this.requireRun(id);
+    return {
+      attemptCount: 0,
+      finishedAt: null,
+      id,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      ownerId,
+      provider: "netease" as const,
+      providerConnectionId: connection.id,
+      queueJobId,
+      requestedAt: now,
+      startedAt: null,
+      status: "queued" as const
+    };
   }
 
   async getForOwner(ownerId: string, runId: string) {
@@ -196,52 +217,81 @@ export class D1NeteaseSyncRuntime {
     };
   }
 
-  async process(runId: string) {
-    const initial = await this.requireRun(runId);
-    if (initial.status === "completed" || initial.status === "failed") return initial;
+  async process(runId: string): Promise<D1SyncProcessResult> {
     const startedAt = new Date();
-    await this.database
+    const staleBefore = new Date(startedAt.getTime() - SYNC_RUN_LEASE_MS);
+    const claimedRow = await this.database
       .prepare(
         `UPDATE provider_sync_runs
             SET status = 'running', attempt_count = attempt_count + 1,
-                started_at = COALESCE(started_at, ?), last_error_code = NULL,
+                started_at = ?, last_error_code = NULL,
                 last_error_message = NULL
-          WHERE id = ? AND status IN ('queued', 'retry_wait', 'running')`
+          WHERE id = ?
+            AND (
+              status IN ('queued', 'retry_wait')
+              OR (status = 'running' AND (started_at IS NULL OR started_at <= ?))
+            )
+          RETURNING *`
       )
-      .bind(startedAt.toISOString(), runId)
-      .run();
-    const run = await this.requireRun(runId);
+      .bind(startedAt.toISOString(), runId, staleBefore.toISOString())
+      .first<SyncRunRow>();
+    if (!claimedRow) {
+      const current = await this.requireRun(runId);
+      return {
+        disposition:
+          current.status === "completed" || current.status === "failed" ? "processed" : "busy",
+        run: current
+      };
+    }
+    if (!claimedRow.provider_connection_id) throw new Error("SyncRun has no Provider connection.");
+    const run = mapRun(claimedRow);
 
     try {
+      const processStartedAt = performance.now();
+      const fetchStartedAt = performance.now();
       const fetched = await this.runtime.connector.fetch(run);
-      const snapshots: RawSnapshot[] = [];
-      for (const result of fetched) {
-        const id = crypto.randomUUID();
-        const payloadHash = await hashJson(result.payload);
-        const createdAt = new Date();
-        await this.database
-          .prepare(
-            `INSERT INTO provider_raw_snapshots
+      const providerFetchMs = performance.now() - fetchStartedAt;
+      const rawPersistStartedAt = performance.now();
+      const preparedSnapshots = await Promise.all(
+        fetched.map(async (result) => {
+          const payloadJson = JSON.stringify(result.payload);
+          return {
+            createdAt: new Date(),
+            id: crypto.randomUUID(),
+            payloadHash: await hashText(payloadJson),
+            payloadJson,
+            result
+          };
+        })
+      );
+      await this.database.batch(
+        preparedSnapshots.map(({ createdAt, id, payloadHash, payloadJson, result }) =>
+          this.database
+            .prepare(
+              `INSERT INTO provider_raw_snapshots
               (id, sync_run_id, provider_connection_id, provider, source_kind,
                schema_version, payload_json, payload_hash, fetched_at,
                source_cursor, source_timestamp, created_at)
              VALUES (?, ?, ?, 'netease', ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .bind(
-            id,
-            run.id,
-            run.providerConnectionId,
-            result.sourceKind,
-            result.schemaVersion,
-            JSON.stringify(result.payload),
-            payloadHash,
-            result.fetchedAt.toISOString(),
-            result.sourceCursor ?? null,
-            result.sourceTimestamp?.toISOString() ?? null,
-            createdAt.toISOString()
-          )
-          .run();
-        snapshots.push({
+            )
+            .bind(
+              id,
+              run.id,
+              run.providerConnectionId,
+              result.sourceKind,
+              result.schemaVersion,
+              payloadJson,
+              payloadHash,
+              result.fetchedAt.toISOString(),
+              result.sourceCursor ?? null,
+              result.sourceTimestamp?.toISOString() ?? null,
+              createdAt.toISOString()
+            )
+        )
+      );
+      const rawPersistMs = performance.now() - rawPersistStartedAt;
+      const snapshots: RawSnapshot[] = preparedSnapshots.map(
+        ({ createdAt, id, payloadHash, result }) => ({
           createdAt,
           fetchedAt: result.fetchedAt,
           id,
@@ -254,12 +304,14 @@ export class D1NeteaseSyncRuntime {
           sourceKind: result.sourceKind,
           sourceTimestamp: result.sourceTimestamp ?? null,
           syncRunId: run.id
-        });
-      }
+        })
+      );
 
+      const projectionStartedAt = performance.now();
       const normalized = await this.runtime.normalizer.normalize(snapshots);
       const targets = await this.targets(run.ownerId);
       const projections = await this.runtime.projector.project(normalized, targets);
+      const projectionMs = performance.now() - projectionStartedAt;
       const completedAt = new Date();
       const projectionVersionId = crypto.randomUUID();
       const statements: D1PreparedStatement[] = projections.map((projection) =>
@@ -366,8 +418,30 @@ export class D1NeteaseSyncRuntime {
           )
           .bind(completedAt.toISOString(), run.id)
       );
+      const commitStartedAt = performance.now();
       await this.database.batch(statements);
-      return this.requireRun(run.id);
+      const commitMs = performance.now() - commitStartedAt;
+      const completed: D1SyncRun = {
+        ...run,
+        finishedAt: completedAt,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+        status: "completed"
+      };
+      console.info(
+        JSON.stringify({
+          commitMs: Math.round(commitMs),
+          event: "netease_sync_completed",
+          projectionMs: Math.round(projectionMs),
+          providerFetchMs: Math.round(providerFetchMs),
+          rawPersistMs: Math.round(rawPersistMs),
+          requestToClaimMs: startedAt.getTime() - run.requestedAt.getTime(),
+          snapshotCount: snapshots.length,
+          syncRunId: run.id,
+          totalMs: Math.round(performance.now() - processStartedAt)
+        })
+      );
+      return { disposition: "processed", run: completed };
     } catch (error) {
       if (error instanceof RetryableProviderError && run.attemptCount < 3) {
         await this.markRetry(run, safeErrorCode(error));
@@ -380,7 +454,7 @@ export class D1NeteaseSyncRuntime {
         credentialInvalid ? "provider-credential-invalid" : safeErrorCode(error),
         credentialInvalid
       );
-      return this.requireRun(run.id);
+      return { disposition: "processed", run: await this.requireRun(run.id) };
     }
   }
 
@@ -501,6 +575,8 @@ export class D1NeteaseSyncRuntime {
   }
 }
 
+const SYNC_RUN_LEASE_MS = 35_000;
+
 function mapRun(row: SyncRunRow): D1SyncRun {
   return {
     attemptCount: row.attempt_count,
@@ -518,11 +594,8 @@ function mapRun(row: SyncRunRow): D1SyncRun {
   };
 }
 
-async function hashJson(value: unknown) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(JSON.stringify(value))
-  );
+async function hashText(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
