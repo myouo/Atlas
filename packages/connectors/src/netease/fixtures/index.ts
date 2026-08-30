@@ -1,4 +1,4 @@
-import type { JsonObject } from "@nivalis/domain";
+import type { JsonObject, JsonValue } from "@nivalis/domain";
 
 import { NETEASE_SOURCE, type NeteaseSourceKind } from "../netease-types";
 
@@ -8,16 +8,6 @@ export type NeteaseHttpFixtureScenario = "normal" | "credential_expired" | "sche
 const monthlyDurationDetails = Array.from({ length: 30 }, (_, index) => ({
   duration: index % 6 === 0 ? 0 : 24 + ((index * 17) % 180),
   period: `2026-04-${String(index + 1).padStart(2, "0")}`
-}));
-
-const previousWeekDurationDetails = Array.from({ length: 7 }, (_, index) => ({
-  duration: index % 3 === 0 ? 0 : 35 + index * 12,
-  period: `2026-04-${String(index + 13).padStart(2, "0")}`
-}));
-
-const previousMonthDurationDetails = Array.from({ length: 31 }, (_, index) => ({
-  duration: index % 5 === 0 ? 0 : 18 + ((index * 13) % 150),
-  period: `2026-03-${String(index + 1).padStart(2, "0")}`
 }));
 
 function listenRankFixture(type: "week" | "month") {
@@ -43,6 +33,47 @@ function listenRankFixture(type: "week" | "month") {
       songItems: items,
       startTime: type === "week" ? 1_776_568_000_000 : 1_774_915_200_000,
       type
+    }
+  };
+}
+
+export function historicalListenReportFixture(type: "week" | "month", index: number) {
+  const start =
+    type === "week"
+      ? new Date(Date.UTC(2026, 3, 13 - index * 7))
+      : new Date(Date.UTC(2026, 2 - index, 1));
+  const dayCount =
+    type === "week"
+      ? 7
+      : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
+  const durationDetails = Array.from({ length: dayCount }, (_, dayIndex) => ({
+    duration:
+      type === "week"
+        ? dayIndex % 3 === 0
+          ? 0
+          : 35 + dayIndex * 12 + index * 3
+        : dayIndex % 5 === 0
+          ? 0
+          : 18 + ((dayIndex * 13 + index * 7) % 150),
+    period: new Date(start.getTime() + dayIndex * 86_400_000).toISOString().slice(0, 10)
+  }));
+  const wall = listenRankFixture(type).data;
+  return {
+    code: 200,
+    data: {
+      endTime: start.getTime() + dayCount * 86_400_000 - 1,
+      listenTimeDistributionBlock: {
+        durationDetails,
+        listenDays: durationDetails.filter((point) => point.duration > 0).length,
+        playDuration: durationDetails.reduce((total, point) => total + point.duration, 0)
+      },
+      startTime: start.getTime(),
+      type,
+      wallpaperBlock: {
+        items: wall.songItems,
+        picUrls: wall.picUrls,
+        songCount: wall.songCount
+      }
     }
   };
 }
@@ -460,38 +491,8 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
   },
   [NETEASE_SOURCE.listenRankWeek]: listenRankFixture("week"),
   [NETEASE_SOURCE.listenRankMonth]: listenRankFixture("month"),
-  [NETEASE_SOURCE.listenReportPreviousWeek]: {
-    code: 200,
-    data: {
-      endTime: 1_776_567_999_999,
-      listenTimeDistributionBlock: {
-        durationDetails: previousWeekDurationDetails,
-        listenDays: previousWeekDurationDetails.filter((point) => point.duration > 0).length,
-        playDuration: previousWeekDurationDetails.reduce(
-          (total, point) => total + point.duration,
-          0
-        )
-      },
-      startTime: 1_775_963_200_000,
-      type: "week"
-    }
-  },
-  [NETEASE_SOURCE.listenReportPreviousMonth]: {
-    code: 200,
-    data: {
-      endTime: 1_774_915_199_999,
-      listenTimeDistributionBlock: {
-        durationDetails: previousMonthDurationDetails,
-        listenDays: previousMonthDurationDetails.filter((point) => point.duration > 0).length,
-        playDuration: previousMonthDurationDetails.reduce(
-          (total, point) => total + point.duration,
-          0
-        )
-      },
-      startTime: 1_772_236_800_000,
-      type: "month"
-    }
-  },
+  [NETEASE_SOURCE.listenReportPreviousWeek]: historicalListenReportFixture("week", 0),
+  [NETEASE_SOURCE.listenReportPreviousMonth]: historicalListenReportFixture("month", 0),
   [NETEASE_SOURCE.following]: {
     code: 200,
     follow: [
@@ -829,10 +830,23 @@ export function createNeteaseHttpFixtureFetcher(
     }
     if (url.pathname.endsWith("listen/data/report")) {
       historicalReportRequests += 1;
+      const period = historicalReportRequests <= 3 ? "week" : "month";
+      const index = (historicalReportRequests - 1) % 3;
+      const base =
+        fixture[
+          period === "week"
+            ? NETEASE_SOURCE.listenReportPreviousWeek
+            : NETEASE_SOURCE.listenReportPreviousMonth
+        ];
+      const distribution = isFixtureObject(base.data)
+        ? base.data.listenTimeDistributionBlock
+        : null;
       return Response.json(
-        historicalReportRequests % 2 === 0
-          ? fixture[NETEASE_SOURCE.listenReportPreviousMonth]
-          : fixture[NETEASE_SOURCE.listenReportPreviousWeek]
+        isFixtureObject(distribution) &&
+          Array.isArray(distribution.durationDetails) &&
+          distribution.durationDetails.length > 0
+          ? historicalListenReportFixture(period, index)
+          : base
       );
     }
     if (url.pathname.includes("user/getfollows/")) {
@@ -863,6 +877,10 @@ function authSuccessResponse(code = 200) {
       }
     }
   );
+}
+
+function isFixtureObject(value: JsonValue | undefined): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function track(id: number, name: string, artistId: number, artistName: string): JsonObject {

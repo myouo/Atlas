@@ -42,9 +42,11 @@ dates and minute-valued `listenTimeDistributionBlock.durationDetails`; the indep
 The calendar also consumes the official read-only
 `content/activity/listen/data/song/play/rank` endpoint for current week/month record walls. Its
 `picUrls` order is preserved exactly; song metadata and Web links are attached only after matching a
-sanitized artwork URL to `songItems`. The immediately previous completed week and month are fetched
-through the historical report endpoint. They power the bounded expanded history; the previous week
-also acts as a semantic fallback when a current weekly wall is unavailable. See ADR 0022.
+sanitized artwork URL to `songItems`. The historical report endpoint builds independent three-period
+week and month windows by anchoring every next request to the selected response's `startTime - 1`.
+Each historical report keeps its own `wallpaperBlock`; the expanded UI mounts only the active anchor
+and restores separate week/month anchors when the view switches. The first previous week also acts
+as a semantic fallback when a current weekly wall is unavailable. See ADR 0022.
 
 Provider wall completeness and song identity are separate. A real monthly response returned one
 valid ordered cover without a matching rank item, and no match existed in the other bounded listen

@@ -14,7 +14,10 @@ import {
 } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { useModuleShellExpansion } from "../../../design-system/module-shell";
+import {
+  useModuleShellExpansion,
+  useModuleShellTransientState
+} from "../../../design-system/module-shell";
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
 import { NeteaseWebLink, safeNeteaseWebUrl } from "./netease-web-link";
@@ -251,7 +254,8 @@ export function NeteaseListeningCalendarWidget({
     data.month.availability === "available" ? "month" : null,
     data.week.availability === "available" ? "week" : null
   ].filter((range): range is "month" | "week" => range !== null);
-  const [requestedRange, setRequestedRange] = useState<"month" | "week">(
+  const [requestedRange, setRequestedRange] = useModuleShellTransientState<"month" | "week">(
+    "netease-listening-calendar-range",
     availableRanges[0] ?? "month"
   );
   const range = availableRanges.includes(requestedRange)
@@ -259,7 +263,15 @@ export function NeteaseListeningCalendarWidget({
     : (availableRanges[0] ?? "month");
   const selected = range === "month" ? data.month : data.week;
 
-  if (expanded) return <ExpandedListeningCalendars data={data} />;
+  if (expanded) {
+    return (
+      <ExpandedListeningCalendars
+        data={data}
+        onRangeChange={setRequestedRange}
+        selectedRange={range}
+      />
+    );
+  }
 
   if (selected.availability !== "available") {
     return <Empty>当前公开范围没有可用的收听日历</Empty>;
@@ -424,23 +436,37 @@ function CompactListeningCalendar({
   );
 }
 
-function ExpandedListeningCalendars({ data }: { readonly data: NeteaseCalendarData }) {
+function ExpandedListeningCalendars({
+  data,
+  onRangeChange,
+  selectedRange
+}: {
+  readonly data: NeteaseCalendarData;
+  readonly onRangeChange: (range: "month" | "week") => void;
+  readonly selectedRange: "month" | "week";
+}) {
   const availableRanges = [
     data.week.availability === "available" ? "week" : null,
     data.month.availability === "available" ? "month" : null
   ].filter((range): range is "month" | "week" => range !== null);
-  const [requestedRange, setRequestedRange] = useState<"month" | "week">(
-    availableRanges[0] ?? "week"
-  );
-  const range = availableRanges.includes(requestedRange)
-    ? requestedRange
+  const range = availableRanges.includes(selectedRange)
+    ? selectedRange
     : (availableRanges[0] ?? "week");
-  const entries =
-    range === "week"
-      ? calendarHistoryEntries("week", data.week, data.previousWeek)
-      : calendarHistoryEntries("month", data.month, data.previousMonth);
-  const [periodIndex, setPeriodIndex] = useState(0);
-  const activeIndex = Math.min(periodIndex, Math.max(entries.length - 1, 0));
+  const entriesByRange = {
+    month: calendarHistoryEntries("month", data.month, data.monthHistory, data.previousMonth),
+    week: calendarHistoryEntries("week", data.week, data.weekHistory, data.previousWeek)
+  };
+  const entries = entriesByRange[range];
+  const [periodAnchors, setPeriodAnchors] = useModuleShellTransientState<{
+    readonly month: string | null;
+    readonly week: string | null;
+  }>("netease-listening-calendar-history-anchors", () => ({
+    month: entriesByRange.month[0]?.anchor ?? null,
+    week: entriesByRange.week[0]?.anchor ?? null
+  }));
+  const requestedAnchor = periodAnchors[range];
+  const anchoredIndex = entries.findIndex((entry) => entry.anchor === requestedAnchor);
+  const activeIndex = anchoredIndex >= 0 ? anchoredIndex : 0;
   const active = entries[activeIndex];
 
   if (!active) return <Empty>当前公开范围没有可用的收听日历</Empty>;
@@ -454,10 +480,7 @@ function ExpandedListeningCalendars({ data }: { readonly data: NeteaseCalendarDa
         {availableRanges.length === 2 ? (
           <SlidingSwitcher
             label="收听日历历史范围"
-            onChange={(value) => {
-              setRequestedRange(value);
-              setPeriodIndex(0);
-            }}
+            onChange={onRangeChange}
             options={[
               { label: "周", value: "week" },
               { label: "月", value: "month" }
@@ -477,7 +500,11 @@ function ExpandedListeningCalendars({ data }: { readonly data: NeteaseCalendarDa
           aria-label={range === "week" ? "查看更早一周" : "查看更早月份"}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/70 text-blue-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
           disabled={!canGoOlder}
-          onClick={() => setPeriodIndex((index) => Math.min(index + 1, entries.length - 1))}
+          onClick={() => {
+            const next = entries[activeIndex + 1];
+            if (!next) return;
+            setPeriodAnchors((anchors) => ({ ...anchors, [range]: next.anchor }));
+          }}
           type="button"
         >
           <CaretLeft aria-hidden size={14} weight="bold" />
@@ -499,7 +526,11 @@ function ExpandedListeningCalendars({ data }: { readonly data: NeteaseCalendarDa
           aria-label={range === "week" ? "查看更新一周" : "查看更新月份"}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/70 text-blue-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
           disabled={!canGoNewer}
-          onClick={() => setPeriodIndex((index) => Math.max(index - 1, 0))}
+          onClick={() => {
+            const next = entries[activeIndex - 1];
+            if (!next) return;
+            setPeriodAnchors((anchors) => ({ ...anchors, [range]: next.anchor }));
+          }}
           type="button"
         >
           <CaretRight aria-hidden size={14} weight="bold" />
@@ -507,13 +538,15 @@ function ExpandedListeningCalendars({ data }: { readonly data: NeteaseCalendarDa
       </div>
 
       <div
-        className={`netease-range-panel grid min-h-0 items-start gap-4 ${wall ? "lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.72fr)]" : ""}`}
-        key={`${range}:${active.label}`}
+        className={`netease-range-panel grid min-h-0 items-stretch gap-4 ${wall ? "lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.72fr)]" : ""}`}
+        data-history-anchor={`${range}:${active.anchor}`}
+        data-history-index={activeIndex}
+        key={`${range}:${active.anchor}`}
       >
         {range === "month" ? (
-          <MonthlyListeningCalendar hidePeriodLabel points={active.value.points} />
+          <MonthlyListeningCalendar expanded hidePeriodLabel points={active.value.points} />
         ) : (
-          <WeeklyListeningRhythm label={active.label} points={active.value.points} />
+          <WeeklyListeningRhythm expanded label={active.label} points={active.value.points} />
         )}
         {wall ? <ListeningRecordWall period={range} wall={wall} /> : null}
       </div>
@@ -524,15 +557,18 @@ function ExpandedListeningCalendars({ data }: { readonly data: NeteaseCalendarDa
 function calendarHistoryEntries(
   period: "month" | "week",
   current: NeteaseCalendarData["month"] | NeteaseCalendarData["week"],
+  history: NeteaseCalendarData["monthHistory"] | NeteaseCalendarData["weekHistory"],
   previous: NeteaseCalendarData["previousMonth"] | NeteaseCalendarData["previousWeek"]
 ) {
   const entries: {
+    readonly anchor: string;
     readonly historical: boolean;
     readonly label: string;
     readonly value: NeteaseCalendarRange;
   }[] = [];
   if (current.availability === "available") {
     entries.push({
+      anchor: calendarPeriodAnchor(current.points, period, "current"),
       historical: false,
       label:
         period === "week"
@@ -543,14 +579,31 @@ function calendarHistoryEntries(
       value: current
     });
   }
-  if (previous?.availability === "available") {
+  const historicalRanges =
+    history && history.length > 0
+      ? history
+      : previous?.availability === "available"
+        ? [previous]
+        : [];
+  for (const historical of historicalRanges) {
     entries.push({
+      anchor: calendarPeriodAnchor(historical.points, period, `history-${entries.length}`),
       historical: true,
-      label: formatCalendarPeriod(previous.points, period),
-      value: previous
+      label: formatCalendarPeriod(historical.points, period),
+      value: historical
     });
   }
   return entries;
+}
+
+function calendarPeriodAnchor(
+  points: readonly { readonly date: string }[],
+  period: "month" | "week",
+  fallback: string
+) {
+  const firstDate = points[0]?.date;
+  if (!firstDate) return `${period}:${fallback}`;
+  return period === "month" ? firstDate.slice(0, 7) : firstDate;
 }
 
 function ListeningRecordWall({
@@ -568,7 +621,7 @@ function ListeningRecordWall({
   );
   return (
     <div
-      className={`flex min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 ${compact ? "p-1.5" : "p-2"}`}
+      className={`flex h-full min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 ${compact ? "p-1.5" : "p-2"}`}
     >
       <div className={`${compact ? "mb-1" : "mb-1.5"} flex items-center justify-between gap-1`}>
         <p className="flex min-w-0 items-center gap-1 text-[8px] font-extrabold text-ink-muted">
@@ -617,10 +670,12 @@ function ListeningRecordWall({
 
 function MonthlyListeningCalendar({
   compact = false,
+  expanded = false,
   hidePeriodLabel = false,
   points
 }: {
   readonly compact?: boolean;
+  readonly expanded?: boolean;
   readonly hidePeriodLabel?: boolean;
   readonly points: readonly { readonly date: string; readonly minutes: number }[];
 }) {
@@ -629,7 +684,7 @@ function MonthlyListeningCalendar({
   const rowCount = Math.ceil(cells.length / 7);
   const monthLabel = formatCalendarMonth(points[0]!.date);
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2">
       {!hidePeriodLabel ? (
         <div className="mb-1 flex items-center justify-between gap-2 sm:hidden">
           <p className="flex items-center gap-1.5 text-[8px] font-extrabold text-ink-muted">
@@ -645,7 +700,9 @@ function MonthlyListeningCalendar({
           ) : null}
         </div>
       ) : null}
-      <div className="mx-auto flex min-h-0 w-full max-w-[520px] flex-1 flex-col">
+      <div
+        className={`mx-auto flex min-h-0 w-full max-w-[520px] flex-col ${expanded ? "my-auto h-[280px] max-h-full flex-none" : "flex-1"}`}
+      >
         <div className="grid grid-cols-7 gap-1 text-center text-[7px] font-bold text-ink-muted/75">
           {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
             <span key={day}>{day}</span>
@@ -690,11 +747,13 @@ function MonthlyListeningCalendar({
 function WeeklyListeningRhythm({
   compactDates = false,
   compactHeader = false,
+  expanded = false,
   label = "最近一周",
   points
 }: {
   readonly compactDates?: boolean;
   readonly compactHeader?: boolean;
+  readonly expanded?: boolean;
   readonly label?: string;
   readonly points: readonly { readonly date: string; readonly minutes: number }[];
 }) {
@@ -702,7 +761,7 @@ function WeeklyListeningRhythm({
   const maximum = Math.max(...points.map((point) => point.minutes), 1);
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5"
       data-weekly-label={label}
     >
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -714,7 +773,7 @@ function WeeklyListeningRhythm({
         </span>
       </div>
       <div
-        className="weekly-rhythm-chart relative grid min-h-0 flex-1 gap-1 px-1"
+        className={`weekly-rhythm-chart relative grid min-h-0 flex-1 gap-1 px-1 ${expanded ? "my-auto max-h-48" : ""}`}
         data-weekly-rhythm
         style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
       >

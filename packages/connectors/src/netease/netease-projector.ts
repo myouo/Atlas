@@ -222,7 +222,7 @@ function listeningCalendar(payload: NeteaseNormalizedPayload, dataConfig: JsonOb
             payload.previousWeeklyReport.totalMinutes,
             payload.previousWeeklyReport.listenDays,
             payload.previousWeeklyReport.points,
-            null
+            payload.previousWeeklyReport.recordWall
           )
         : { availability: "unavailable", reason: "provider_omitted" },
     previousMonth:
@@ -232,9 +232,35 @@ function listeningCalendar(payload: NeteaseNormalizedPayload, dataConfig: JsonOb
             payload.previousMonthlyReport.totalMinutes,
             payload.previousMonthlyReport.listenDays,
             payload.previousMonthlyReport.points,
-            null
+            payload.previousMonthlyReport.recordWall
           )
         : { availability: "unavailable", reason: "provider_omitted" },
+    weekHistory: ranges.includes("week")
+      ? payload.weeklyHistory
+          .filter((history) => history.totalMinutes !== null)
+          .map((history) =>
+            calendarRange(
+              "week",
+              history.totalMinutes,
+              history.listenDays,
+              history.points,
+              history.recordWall
+            )
+          )
+      : [],
+    monthHistory: ranges.includes("month")
+      ? payload.monthlyHistory
+          .filter((history) => history.totalMinutes !== null)
+          .map((history) =>
+            calendarRange(
+              "month",
+              history.totalMinutes,
+              history.listenDays,
+              history.points,
+              history.recordWall
+            )
+          )
+      : [],
     provider: "netease",
     publicRanges: ranges,
     week: ranges.includes("week")
@@ -624,12 +650,14 @@ export function buildNeteaseOwnerDataCatalog(payload: NeteaseNormalizedPayload):
       monthlyListenDays: payload.monthlyListenDays,
       monthlyTrend: payload.monthlyReportPoints,
       monthlyRecordWall: payload.monthlyRecordWall,
+      monthlyHistory: payload.monthlyHistory,
       previousWeeklyReport: payload.previousWeeklyReport,
       previousMonthlyReport: payload.previousMonthlyReport,
       totalDurationSeconds: payload.listeningDurationTotalSeconds,
       totalListenCount: payload.totalListenCount,
       weeklyDurationMinutes: payload.listeningDurationMinutes,
       weeklyListenDays: payload.weeklyListenDays,
+      weeklyHistory: payload.weeklyHistory,
       weeklyRecordWall: payload.weeklyRecordWall,
       weeklyTrend: payload.reportPoints
     },

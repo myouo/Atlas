@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { ModuleShell } from "./module-shell";
+import { ModuleShell, useModuleShellExpansion, useModuleShellTransientState } from "./module-shell";
 
 describe("ModuleShell", () => {
   it("hides all editing chrome in display mode", () => {
@@ -42,4 +42,33 @@ describe("ModuleShell", () => {
     await userEvent.click(screen.getByRole("button", { name: "关闭 听歌榜单 全屏视图" }));
     expect(screen.queryByRole("dialog", { name: "听歌榜单" })).not.toBeInTheDocument();
   });
+
+  it("preserves transient Widget view state when content moves into and out of the overlay", async () => {
+    render(
+      <ModuleShell accent="coral" editable={false} expandable title="状态保留">
+        <TransientStateFixture />
+      </ModuleShell>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "切换 compact" }));
+    expect(screen.getByRole("button", { name: "切换 selected" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "放大 状态保留" }));
+    const dialog = await screen.findByRole("dialog", { name: "状态保留" });
+    expect(screen.getByRole("button", { name: "切换 selected" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "切换 selected" }));
+    expect(screen.getByRole("button", { name: "切换 expanded" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "关闭 状态保留 全屏视图" }));
+    expect(dialog).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "切换 expanded" })).toBeVisible();
+  });
 });
+
+function TransientStateFixture() {
+  const expanded = useModuleShellExpansion();
+  const [value, setValue] = useModuleShellTransientState("module-shell-test-state", "compact");
+  return (
+    <button onClick={() => setValue(expanded ? "expanded" : "selected")} type="button">
+      切换 {value}
+    </button>
+  );
+}

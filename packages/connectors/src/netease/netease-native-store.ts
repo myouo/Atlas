@@ -406,7 +406,12 @@ function uniqueTracks(payload: NeteaseNormalizedPayload) {
   for (const listen of payload.recentListens) {
     tracks.set(listen.track.providerTrackId, listen.track);
   }
-  for (const wall of [payload.weeklyRecordWall, payload.monthlyRecordWall]) {
+  for (const wall of [
+    payload.weeklyRecordWall,
+    payload.monthlyRecordWall,
+    ...payload.weeklyHistory.map((history) => history.recordWall),
+    ...payload.monthlyHistory.map((history) => history.recordWall)
+  ]) {
     for (const item of wall?.items ?? []) {
       if (!item.providerTrackId || !item.name) continue;
       tracks.set(item.providerTrackId, {

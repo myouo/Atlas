@@ -2006,6 +2006,18 @@ components:
           oneOf:
             - $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
             - $ref: "#/components/schemas/DataUnavailable"
+        weekHistory:
+          description: Latest completed weeks, newest first, loaded through Provider start-time anchors.
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
+        monthHistory:
+          description: Latest completed months, newest first, loaded through Provider start-time anchors.
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/NeteaseListeningCalendarRangeV1"
     NeteaseMetricAvailableV3:
       type: object
       additionalProperties: false

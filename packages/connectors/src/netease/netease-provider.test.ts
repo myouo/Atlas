@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   emptyNeteaseFixture,
   createNeteaseHttpFixtureFetcher,
+  historicalListenReportFixture,
   largeNeteaseFixture,
   missingFieldFixture,
   normalNeteaseFixture,
@@ -556,7 +557,13 @@ describe("NetEase Provider module", () => {
   });
 
   it("projects Provider-ordered weekly and monthly record walls with previous-week fallback data", async () => {
-    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
+    const normalized = await new NeteaseNormalizer().normalize([
+      ...snapshots(normalNeteaseFixture),
+      historySnapshot(NETEASE_SOURCE.listenReportPreviousWeek, "week", 1, 900),
+      historySnapshot(NETEASE_SOURCE.listenReportPreviousWeek, "week", 2, 901),
+      historySnapshot(NETEASE_SOURCE.listenReportPreviousMonth, "month", 1, 902),
+      historySnapshot(NETEASE_SOURCE.listenReportPreviousMonth, "month", 2, 903)
+    ]);
     const payload = normalized.payload as NeteaseNormalizedPayload;
     expect(payload.weeklyRecordWall?.items).toHaveLength(20);
     expect(payload.monthlyRecordWall?.items).toHaveLength(20);
@@ -566,6 +573,14 @@ describe("NetEase Provider module", () => {
     });
     expect(payload.previousWeeklyReport?.points).toHaveLength(7);
     expect(payload.previousMonthlyReport?.points).toHaveLength(31);
+    expect(payload.weeklyHistory).toHaveLength(3);
+    expect(payload.monthlyHistory).toHaveLength(3);
+    expect(payload.weeklyHistory.every((history) => history.recordWall?.items.length === 20)).toBe(
+      true
+    );
+    expect(payload.monthlyHistory.every((history) => history.recordWall?.items.length === 20)).toBe(
+      true
+    );
     expect(payload.monthlyRecordWall?.items.at(-1)).toMatchObject({
       name: null,
       providerTrackId: null
@@ -594,6 +609,16 @@ describe("NetEase Provider module", () => {
         availability: "available",
         points: expect.arrayContaining([{ date: "2026-03-01", minutes: 0 }])
       },
+      weekHistory: expect.arrayContaining([
+        expect.objectContaining({
+          recordWall: expect.objectContaining({ availability: "available" })
+        })
+      ]),
+      monthHistory: expect.arrayContaining([
+        expect.objectContaining({
+          recordWall: expect.objectContaining({ availability: "available" })
+        })
+      ]),
       week: {
         recordWall: {
           availability: "available",
@@ -623,6 +648,8 @@ describe("NetEase Provider module", () => {
     expect(payload.monthlyRecordWall).toBeNull();
     expect(payload.previousWeeklyReport).toBeNull();
     expect(payload.previousMonthlyReport).toBeNull();
+    expect(payload.weeklyHistory).toEqual([]);
+    expect(payload.monthlyHistory).toEqual([]);
     const [projection] = await new NeteaseProjector().project(normalized, [
       targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
     ]);
@@ -636,10 +663,11 @@ describe("NetEase Provider module", () => {
 
   it("keeps the credential in the transport boundary and emits sanitized Provider payloads", async () => {
     const requests: Request[] = [];
+    const providerFetcher = createNeteaseHttpFixtureFetcher("normal");
     const fetcher = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
       const request = new Request(input, init);
       requests.push(request);
-      return Response.json(payloadForPath(new URL(request.url).pathname));
+      return providerFetcher(request);
     });
     const connector = new NeteaseConnector(
       new NeteaseClient({ timeoutMs: 2_000 }, fetcher),
@@ -666,7 +694,11 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.listenRankWeek,
       NETEASE_SOURCE.listenRankMonth,
       NETEASE_SOURCE.listenReportPreviousWeek,
+      `${NETEASE_SOURCE.listenReportPreviousWeek}.period.1`,
+      `${NETEASE_SOURCE.listenReportPreviousWeek}.period.2`,
       NETEASE_SOURCE.listenReportPreviousMonth,
+      `${NETEASE_SOURCE.listenReportPreviousMonth}.period.1`,
+      `${NETEASE_SOURCE.listenReportPreviousMonth}.period.2`,
       NETEASE_SOURCE.following,
       NETEASE_SOURCE.followers,
       NETEASE_SOURCE.createdPlaylists,
@@ -674,7 +706,7 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.socialStatus
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
-    expect(requests).toHaveLength(23);
+    expect(requests).toHaveLength(27);
     for (const request of requests) {
       expect(request.method).toBe("POST");
       expect(["music.163.com", "interface.music.163.com", "interface3.music.163.com"]).toContain(
@@ -684,6 +716,31 @@ describe("NetEase Provider module", () => {
       expect(request.headers.has("x-real-ip")).toBe(false);
       expect(request.headers.has("authorization")).toBe(false);
     }
+
+    const historicalRequests = requests.filter((request) =>
+      new URL(request.url).pathname.endsWith("listen/data/report")
+    );
+    const historicalBodies = await Promise.all(historicalRequests.map(decodeEapiRequest));
+    expect(historicalBodies).toMatchObject([
+      {
+        endTime: reportStartTime(normalNeteaseFixture[NETEASE_SOURCE.listenReportWeek]) - 1,
+        type: "week"
+      },
+      { endTime: reportStartTime(historicalListenReportFixture("week", 0)) - 1, type: "week" },
+      { endTime: reportStartTime(historicalListenReportFixture("week", 1)) - 1, type: "week" },
+      {
+        endTime: reportStartTime(normalNeteaseFixture[NETEASE_SOURCE.listenReportMonth]) - 1,
+        type: "month"
+      },
+      {
+        endTime: reportStartTime(historicalListenReportFixture("month", 0)) - 1,
+        type: "month"
+      },
+      {
+        endTime: reportStartTime(historicalListenReportFixture("month", 1)) - 1,
+        type: "month"
+      }
+    ]);
 
     const showcaseRequest = requests.find((request) =>
       new URL(request.url).pathname.includes("personal/home/page/user")
@@ -950,6 +1007,28 @@ function snapshots(fixture: Readonly<Record<NeteaseSourceKind, JsonObject>>): Ra
   }));
 }
 
+function historySnapshot(
+  sourceKind: string,
+  period: "month" | "week",
+  index: number,
+  id: number
+): RawSnapshot {
+  return {
+    createdAt: fetchedAt,
+    fetchedAt,
+    id: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
+    payload: historicalListenReportFixture(period, index),
+    payloadHash: `${id}`.padStart(64, "0"),
+    provider: "netease",
+    providerConnectionId: connectionId,
+    schemaVersion: 1,
+    sourceCursor: null,
+    sourceKind: `${sourceKind}.period.${index}`,
+    sourceTimestamp: null,
+    syncRunId: "00000000-0000-4000-8000-000000000601"
+  };
+}
+
 function target(range: "7d" | "30d"): ProjectionTarget {
   return {
     dataConfig: { range },
@@ -1065,4 +1144,16 @@ async function decodeEapiRequest(request: Request) {
   const [, json] = plaintext.split("-36cd479b6b5-");
   if (!json) throw new Error("Expected a signed EAPI payload.");
   return JSON.parse(json) as JsonObject;
+}
+
+function reportStartTime(payload: JsonObject) {
+  const data = payload.data;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("Expected a Provider report startTime fixture.");
+  }
+  const report = data as JsonObject;
+  if (typeof report.startTime !== "number") {
+    throw new Error("Expected a Provider report startTime fixture.");
+  }
+  return report.startTime;
 }

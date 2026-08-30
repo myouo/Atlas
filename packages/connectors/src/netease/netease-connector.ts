@@ -62,21 +62,29 @@ export class NeteaseConnector implements ProviderConnector {
     snapshots.push(snapshot(NETEASE_SOURCE.listenRankMonth, monthlyRank, this.now()));
     const previousWeekEndTime = previousPeriodEndTime(report);
     if (previousWeekEndTime !== null) {
-      const previousWeek = await this.client.getHistoricalListenReport(
-        credential,
-        "week",
-        previousWeekEndTime
+      snapshots.push(
+        ...(await historicalReportSnapshots(
+          this.client,
+          credential,
+          "week",
+          NETEASE_SOURCE.listenReportPreviousWeek,
+          previousWeekEndTime,
+          this.now
+        ))
       );
-      snapshots.push(snapshot(NETEASE_SOURCE.listenReportPreviousWeek, previousWeek, this.now()));
     }
     const previousMonthEndTime = previousPeriodEndTime(monthlyReport);
     if (previousMonthEndTime !== null) {
-      const previousMonth = await this.client.getHistoricalListenReport(
-        credential,
-        "month",
-        previousMonthEndTime
+      snapshots.push(
+        ...(await historicalReportSnapshots(
+          this.client,
+          credential,
+          "month",
+          NETEASE_SOURCE.listenReportPreviousMonth,
+          previousMonthEndTime,
+          this.now
+        ))
       );
-      snapshots.push(snapshot(NETEASE_SOURCE.listenReportPreviousMonth, previousMonth, this.now()));
     }
     snapshots.push(
       ...(await paginatedSnapshots(
@@ -129,6 +137,7 @@ function profileMusicCardSongIds(payload: JsonValue) {
 const MAX_PROVIDER_LIST_ITEMS = 500;
 const MAX_PROVIDER_LIST_PAGES = 20;
 const MAX_PROFILE_HOME_PAGES = 20;
+const MAX_LISTEN_HISTORY_PERIODS = 3;
 
 async function profileHomePageSnapshots(
   client: NeteaseClient,
@@ -197,6 +206,7 @@ function canonicalCursor(cursor: NeteaseProfileCursor) {
     Object.fromEntries(Object.entries(cursor).sort(([a], [b]) => a.localeCompare(b)))
   );
 }
+
 async function paginatedSnapshots(
   baseSourceKind: string,
   load: (offset: number) => Promise<JsonValue>,
@@ -227,6 +237,47 @@ async function paginatedSnapshots(
     offset += state.count;
   }
   return results;
+}
+
+async function historicalReportSnapshots(
+  client: NeteaseClient,
+  credential: string,
+  period: "month" | "week",
+  sourceKind: string,
+  initialEndTime: number,
+  now: () => Date
+) {
+  const results: ProviderFetchResult[] = [];
+  const seenStartTimes = new Set<number>();
+  let endTime = initialEndTime;
+  for (let index = 0; index < MAX_LISTEN_HISTORY_PERIODS; index += 1) {
+    const payload = await client.getHistoricalListenReport(credential, period, endTime);
+    const state = historicalReportState(payload);
+    if (!state || seenStartTimes.has(state.startTime)) break;
+    seenStartTimes.add(state.startTime);
+    results.push(
+      snapshot(index === 0 ? sourceKind : `${sourceKind}.period.${index}`, payload, now())
+    );
+    if (!state.hasDailyData || state.startTime <= 1) break;
+    endTime = state.startTime - 1;
+  }
+  return results;
+}
+
+function historicalReportState(payload: JsonValue) {
+  if (!isObject(payload) || !isObject(payload.data)) return null;
+  const startTime = payload.data.startTime;
+  const distribution = payload.data.listenTimeDistributionBlock;
+  if (typeof startTime !== "number" || !Number.isSafeInteger(startTime) || startTime <= 0) {
+    return null;
+  }
+  return {
+    hasDailyData:
+      isObject(distribution) &&
+      Array.isArray(distribution.durationDetails) &&
+      distribution.durationDetails.length > 0,
+    startTime
+  };
 }
 
 function pageInfo(payload: JsonValue, listKey: string, containerKey?: string, idKey = "id") {

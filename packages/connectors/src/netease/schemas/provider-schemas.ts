@@ -414,6 +414,39 @@ export const NeteaseRecentSongsResponseSchema = Type.Object(
   { additionalProperties: true }
 );
 
+const NeteaseListenRankArtistSchema = Type.Object(
+  {
+    artistId: ProviderIdSchema,
+    artistName: Type.String({ minLength: 1 })
+  },
+  { additionalProperties: true }
+);
+
+const NeteaseListenWallSongSchema = Type.Object(
+  {
+    albumName: Type.Optional(NullableStringSchema),
+    artists: Type.Array(NeteaseListenRankArtistSchema),
+    picId: Type.Optional(ProviderIdSchema),
+    picUrl: Type.String({ minLength: 1 }),
+    playCount: Type.Optional(Type.Integer({ minimum: 0 })),
+    songId: ProviderIdSchema,
+    songName: Type.String({ minLength: 1 })
+  },
+  { additionalProperties: true }
+);
+
+const NeteaseListenWallpaperBlockSchema = Type.Union([
+  Type.Null(),
+  Type.Object(
+    {
+      items: Type.Array(NeteaseListenWallSongSchema, { maxItems: 100 }),
+      picUrls: Type.Array(Type.String({ minLength: 1 }), { maxItems: 100 }),
+      songCount: Type.Integer({ minimum: 0 })
+    },
+    { additionalProperties: true }
+  )
+]);
+
 export const NeteaseListenReportResponseSchema = Type.Object(
   {
     code: Type.Literal(200),
@@ -447,6 +480,7 @@ export const NeteaseListenReportResponseSchema = Type.Object(
         period: Type.Optional(Type.Union([Type.Literal("week"), Type.Literal("month")])),
         startTime: Type.Optional(Type.Integer({ minimum: 0 })),
         type: Type.Optional(Type.Union([Type.Literal("week"), Type.Literal("month")])),
+        wallpaperBlock: Type.Optional(NeteaseListenWallpaperBlockSchema),
         points: Type.Optional(
           Type.Array(
             Type.Object(
@@ -461,14 +495,6 @@ export const NeteaseListenReportResponseSchema = Type.Object(
       },
       { additionalProperties: true }
     )
-  },
-  { additionalProperties: true }
-);
-
-const NeteaseListenRankArtistSchema = Type.Object(
-  {
-    artistId: ProviderIdSchema,
-    artistName: Type.String({ minLength: 1 })
   },
   { additionalProperties: true }
 );

@@ -49,6 +49,7 @@ describe("NetEase semantic data widgets", () => {
         <NeteaseListeningCalendarWidget widget={calendarWidget()} />
       </ModuleShell>
     );
+    await userEvent.click(screen.getByRole("button", { name: "本周" }));
     await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 收听日历" }));
     const dialog = await screen.findByRole("dialog", { name: "网易云 · 收听日历" });
     expect(within(dialog).getByRole("group", { name: "收听日历历史范围" })).toBeVisible();
@@ -60,6 +61,11 @@ describe("NetEase semantic data widgets", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "查看更早一周" }));
     expect(within(dialog).getAllByText("8/16 – 8/22")).toHaveLength(2);
     expect(within(dialog).getByText("历史")).toBeVisible();
+    expect(dialog.querySelector('[data-history-anchor="week:2026-08-16"]')).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "查看更早一周" }));
+    expect(within(dialog).getAllByText("8/9 – 8/15")).toHaveLength(2);
+    expect(dialog.querySelector('[data-history-anchor="week:2026-08-09"]')).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("link", { name: /在网易云打开歌曲/ })).toHaveLength(20);
 
     await userEvent.click(within(dialog).getByRole("button", { name: "月" }));
     expect(await within(dialog).findByText("2026年8月")).toBeVisible();
@@ -68,6 +74,13 @@ describe("NetEase semantic data widgets", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "查看更早月份" }));
     expect(within(dialog).getByText("2026年7月")).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "查看更早月份" }));
+    expect(within(dialog).getByText("2026年6月")).toBeVisible();
+    expect(dialog.querySelector('[data-history-anchor="month:2026-06"]')).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "周" }));
+    expect(within(dialog).getAllByText("8/9 – 8/15")).toHaveLength(2);
+    expect(dialog.querySelector('[data-history-anchor="week:2026-08-09"]')).toBeInTheDocument();
   });
 
   it("falls back to previous-week left and current-week right when the weekly wall is absent", () => {
@@ -331,6 +344,10 @@ function calendarWidget(): WidgetOf<"music.netease.calendar"> {
     date: `2026-08-${String(index + 1).padStart(2, "0")}`,
     minutes: index === 0 ? 61 : (index * 23) % 260
   }));
+  const weekHistory = Array.from({ length: 3 }, (_, index) => calendarHistoryRange("week", index));
+  const monthHistory = Array.from({ length: 3 }, (_, index) =>
+    calendarHistoryRange("month", index)
+  );
   return {
     data: {
       month: {
@@ -343,34 +360,12 @@ function calendarWidget(): WidgetOf<"music.netease.calendar"> {
         recordWall: calendarRecordWall("month"),
         totalMinutes: 3_240
       },
-      previousWeek: {
-        availability: "available",
-        coverage: "provider_week",
-        listenDays: 6,
-        period: "week",
-        points: Array.from({ length: 7 }, (_, index) => ({
-          date: `2026-08-${String(index + 16).padStart(2, "0")}`,
-          minutes: index === 2 ? 0 : 40 + index * 11
-        })),
-        provenance: "provider_reported",
-        recordWall: { availability: "unavailable", reason: "provider_omitted" },
-        totalMinutes: 426
-      },
-      previousMonth: {
-        availability: "available",
-        coverage: "provider_month",
-        listenDays: 25,
-        period: "month",
-        points: Array.from({ length: 31 }, (_, index) => ({
-          date: `2026-07-${String(index + 1).padStart(2, "0")}`,
-          minutes: index % 6 === 0 ? 0 : 30 + index * 7
-        })),
-        provenance: "provider_reported",
-        recordWall: { availability: "unavailable", reason: "provider_omitted" },
-        totalMinutes: 3_875
-      },
+      monthHistory,
+      previousMonth: monthHistory[0]!,
+      previousWeek: weekHistory[0]!,
       provider: "netease",
       publicRanges: ["week", "month"],
+      weekHistory,
       week: {
         availability: "available",
         coverage: "provider_week",
@@ -398,6 +393,31 @@ function calendarWidget(): WidgetOf<"music.netease.calendar"> {
     title: "网易云 · 收听日历",
     type: "music.netease.calendar",
     updatedAt: "2026-08-27T00:00:00.000Z"
+  };
+}
+
+function calendarHistoryRange(period: "month" | "week", index: number) {
+  const start =
+    period === "week"
+      ? new Date(Date.UTC(2026, 7, 16 - index * 7))
+      : new Date(Date.UTC(2026, 6 - index, 1));
+  const dayCount =
+    period === "week"
+      ? 7
+      : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
+  const points = Array.from({ length: dayCount }, (_, dayIndex) => ({
+    date: new Date(start.getTime() + dayIndex * 86_400_000).toISOString().slice(0, 10),
+    minutes: dayIndex % 6 === 0 ? 0 : 30 + dayIndex * 7 + index
+  }));
+  return {
+    availability: "available" as const,
+    coverage: period === "week" ? ("provider_week" as const) : ("provider_month" as const),
+    listenDays: points.filter((point) => point.minutes > 0).length,
+    period,
+    points,
+    provenance: "provider_reported" as const,
+    recordWall: calendarRecordWall(period),
+    totalMinutes: points.reduce((total, point) => total + point.minutes, 0)
   };
 }
 

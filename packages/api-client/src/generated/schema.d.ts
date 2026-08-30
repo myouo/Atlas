@@ -972,6 +972,10 @@ export interface components {
             month: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
             previousWeek?: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
             previousMonth?: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
+            /** @description Latest completed weeks, newest first, loaded through Provider start-time anchors. */
+            weekHistory?: components["schemas"]["NeteaseListeningCalendarRangeV1"][];
+            /** @description Latest completed months, newest first, loaded through Provider start-time anchors. */
+            monthHistory?: components["schemas"]["NeteaseListeningCalendarRangeV1"][];
         };
         NeteaseMetricAvailableV3: {
             /** @constant */

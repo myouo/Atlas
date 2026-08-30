@@ -255,7 +255,7 @@ NeteaseProviderRuntime
 └── NeteaseProjector     Widget v2 availability/provenance/coverage
 ```
 
-The module implements account validation, old/new user detail, level progress, VIP tiers, Provider-reported cumulative duration, weekly/all-time records, recent songs, weekly/monthly daily-duration reports, official week/month play-rank record walls, one previous completed week and month, bounded social lists, created playlists, social status, and medals. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
+The module implements account validation, old/new user detail, level progress, VIP tiers, Provider-reported cumulative duration, weekly/all-time records, recent songs, weekly/monthly daily-duration reports, official week/month play-rank record walls, independently anchored three-period week/month history windows, bounded social lists, created playlists, social status, and medals. Provider request concurrency is one per connection. There are no Provider writes, passwords, IP spoofing, proxy pools, region bypasses, or runtime community-API service dependencies.
 
 One SyncRun inserts bounded immutable `provider_raw_snapshots` for each Provider request plus page snapshots when a social/playlist list has more results. Every request has its own `source_kind`; pagination stops at the configured cap or when a page yields no new Provider IDs. Normalization deduplicates again and records whether coverage is complete. The Connector recursively strips credential-bearing keys before returning a payload; the Worker independently rejects credential-like Raw input. Runtime schemas intentionally permit harmless extra Provider fields but require every semantic field consumed by normalization. A missing/renamed field raises `ProviderSchemaMismatchError`; it is never coerced to zero, null, or an empty list.
 
@@ -277,10 +277,12 @@ Provider IDs are scoped unique keys, not database primary keys. Recent-listen ro
 
 `music.netease.calendar@1` combines daily-duration ranges with optional Provider record walls at
 Projection time. Current week/month walls come from the official song-play-rank response and retain
-its `picUrls` order. The previous completed week and month form a bounded history, while the previous
-week is also a compact fallback. Omitted or future dates are never invented as zero. Compact and
-expanded presentation choices do not alter normalized ordering, Dashboard Revisions, or `rev:`
-ETags. See ADR 0022.
+its `picUrls` order. The Worker follows each returned `startTime` to build independent, hard-bounded
+three-period week/month history windows. The expanded renderer mounts only the active date anchor
+and remembers separate week/month anchors across view switches; every historical period retains its
+own wall. The first previous week is also a compact fallback. Omitted or future dates are never
+invented as zero. Compact and expanded presentation choices do not alter normalized ordering,
+Dashboard Revisions, or `rev:` ETags. See ADR 0022.
 
 `music.netease.listening@1` contains cumulative count/duration only. Provider week/month report
 points are projected independently as `music.netease.calendar@1`, keeping day labels and minute

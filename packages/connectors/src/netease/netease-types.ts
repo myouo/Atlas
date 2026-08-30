@@ -139,6 +139,7 @@ export interface NeteaseNormalizedRecordWall extends JsonObject {
 export interface NeteaseNormalizedReport extends JsonObject {
   readonly listenDays: number | null;
   readonly points: readonly NeteaseReportPoint[];
+  readonly recordWall: NeteaseNormalizedRecordWall | null;
   readonly totalMinutes: number | null;
 }
 
@@ -186,6 +187,7 @@ export interface NeteaseNormalizedPayload extends JsonObject {
   readonly monthlyListeningDurationMinutes: number | null;
   readonly monthlyRecordWall: NeteaseNormalizedRecordWall | null;
   readonly monthlyReportPoints: readonly NeteaseReportPoint[];
+  readonly monthlyHistory: readonly NeteaseNormalizedReport[];
   readonly medals: {
     readonly obtainedCount: number;
     readonly items: readonly NeteaseNormalizedMedal[];
@@ -206,6 +208,7 @@ export interface NeteaseNormalizedPayload extends JsonObject {
   } | null;
   readonly totalListenCount: number;
   readonly weeklyListenDays: number | null;
+  readonly weeklyHistory: readonly NeteaseNormalizedReport[];
   readonly weeklyRecordWall: NeteaseNormalizedRecordWall | null;
   readonly weeklyRecords: readonly NeteaseWeeklyRecord[];
 }

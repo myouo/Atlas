@@ -7,6 +7,7 @@ import {
 import {
   KyselyNeteaseNativeStore,
   NeteaseProviderRuntime,
+  historicalListenReportFixture,
   normalNeteaseFixture,
   schemaDriftFixture,
   NETEASE_SOURCE,
@@ -419,10 +420,9 @@ function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
     }
     if (pathname.endsWith("listen/data/report")) {
       historicalReportRequests += 1;
+      const period = historicalReportRequests <= 3 ? "week" : "month";
       return Response.json(
-        historicalReportRequests % 2 === 0
-          ? fixture[NETEASE_SOURCE.listenReportPreviousMonth]
-          : fixture[NETEASE_SOURCE.listenReportPreviousWeek]
+        historicalListenReportFixture(period, (historicalReportRequests - 1) % 3)
       );
     }
     if (pathname.includes("user/getfollows/")) {

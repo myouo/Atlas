@@ -9,7 +9,15 @@ import {
   X
 } from "@phosphor-icons/react";
 import clsx from "clsx";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useCallback,
+  useContext,
+  useState
+} from "react";
 
 export type WidgetAccent = "blue" | "coral" | "ink" | "lilac" | "rose";
 export type ModuleShellKind = "hero" | "standard" | "stat";
@@ -33,9 +41,35 @@ interface ModuleShellFrameProps extends ModuleShellProps {
 }
 
 const ModuleShellExpansionContext = createContext(false);
+const ModuleShellTransientStateContext = createContext<Map<string, unknown> | null>(null);
 
 export function useModuleShellExpansion() {
   return useContext(ModuleShellExpansionContext);
+}
+
+export function useModuleShellTransientState<T>(
+  key: string,
+  initialValue: T | (() => T)
+): readonly [T, Dispatch<SetStateAction<T>>] {
+  const store = useContext(ModuleShellTransientStateContext);
+  const [value, setValue] = useState<T>(() => {
+    if (store?.has(key)) return store.get(key) as T;
+    return typeof initialValue === "function" ? (initialValue as () => T)() : initialValue;
+  });
+  const setPersistentValue = useCallback<Dispatch<SetStateAction<T>>>(
+    (nextValue) => {
+      setValue((currentValue) => {
+        const resolved =
+          typeof nextValue === "function"
+            ? (nextValue as (current: T) => T)(currentValue)
+            : nextValue;
+        store?.set(key, resolved);
+        return resolved;
+      });
+    },
+    [key, store]
+  );
+  return [value, setPersistentValue] as const;
 }
 
 const accentClasses: Record<WidgetAccent, { badge: string; icon: string }> = {
@@ -52,6 +86,7 @@ export function ModuleShell(props: ModuleShellProps) {
 
 function ExpandableModuleShell(props: ModuleShellProps) {
   const [expanded, setExpanded] = useState(false);
+  const [transientState] = useState(() => new Map<string, unknown>());
   const styles = accentClasses[props.accent];
   const expandPosition = props.editable
     ? props.onRemove && props.onConfigure
@@ -62,64 +97,68 @@ function ExpandableModuleShell(props: ModuleShellProps) {
     : "right-3";
 
   return (
-    <Dialog.Root onOpenChange={setExpanded} open={expanded}>
-      <ModuleShellFrame
-        {...props}
-        expandControl={
-          <Dialog.Trigger asChild>
-            <button
-              aria-label={`放大 ${props.title}`}
-              className={clsx(
-                "absolute top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/88 text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white",
-                expandPosition
-              )}
-              type="button"
-            >
-              <ArrowsOutSimple aria-hidden size={14} weight="bold" />
-            </button>
-          </Dialog.Trigger>
-        }
-        expanded={expanded}
-      />
-
-      <Dialog.Portal>
-        <Dialog.Overlay className="module-expand-overlay fixed inset-0 z-[90] bg-[#071a3d]/38 backdrop-blur-sm" />
-        <Dialog.Content className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6">
-          <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-lg font-black tracking-[-0.025em] text-ink">
-            {props.icon ? (
-              <span
+    <ModuleShellTransientStateContext.Provider value={transientState}>
+      <Dialog.Root onOpenChange={setExpanded} open={expanded}>
+        <ModuleShellFrame
+          {...props}
+          expandControl={
+            <Dialog.Trigger asChild>
+              <button
+                aria-label={`放大 ${props.title}`}
                 className={clsx(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
-                  styles.icon
+                  "absolute top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/88 text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white",
+                  expandPosition
                 )}
+                type="button"
               >
-                {props.icon}
-              </span>
-            ) : null}
-            <span className="truncate">{props.title}</span>
-            {props.stale ? (
-              <span className={clsx("rounded-full px-2 py-1 text-[10px] font-bold", styles.badge)}>
-                待更新
-              </span>
-            ) : null}
-          </Dialog.Title>
-          <Dialog.Description className="sr-only">
-            {props.title} 的完整内容。按 Escape 或关闭按钮返回 Dashboard。
-          </Dialog.Description>
-          <Dialog.Close
-            aria-label={`关闭 ${props.title} 全屏视图`}
-            className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/85 bg-white/85 text-ink shadow-sm transition hover:bg-white sm:top-6 sm:right-6"
-          >
-            <X aria-hidden size={17} weight="bold" />
-          </Dialog.Close>
-          <div className="module-shell-expanded-content mt-4 min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-white/65 bg-white/34 p-3 sm:mt-5 sm:p-5">
-            <ModuleShellExpansionContext.Provider value>
-              {props.children}
-            </ModuleShellExpansionContext.Provider>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+                <ArrowsOutSimple aria-hidden size={14} weight="bold" />
+              </button>
+            </Dialog.Trigger>
+          }
+          expanded={expanded}
+        />
+
+        <Dialog.Portal>
+          <Dialog.Overlay className="module-expand-overlay fixed inset-0 z-[90] bg-[#071a3d]/38 backdrop-blur-sm" />
+          <Dialog.Content className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6">
+            <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-lg font-black tracking-[-0.025em] text-ink">
+              {props.icon ? (
+                <span
+                  className={clsx(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
+                    styles.icon
+                  )}
+                >
+                  {props.icon}
+                </span>
+              ) : null}
+              <span className="truncate">{props.title}</span>
+              {props.stale ? (
+                <span
+                  className={clsx("rounded-full px-2 py-1 text-[10px] font-bold", styles.badge)}
+                >
+                  待更新
+                </span>
+              ) : null}
+            </Dialog.Title>
+            <Dialog.Description className="sr-only">
+              {props.title} 的完整内容。按 Escape 或关闭按钮返回 Dashboard。
+            </Dialog.Description>
+            <Dialog.Close
+              aria-label={`关闭 ${props.title} 全屏视图`}
+              className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/85 bg-white/85 text-ink shadow-sm transition hover:bg-white sm:top-6 sm:right-6"
+            >
+              <X aria-hidden size={17} weight="bold" />
+            </Dialog.Close>
+            <div className="module-shell-expanded-content mt-4 min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-white/65 bg-white/34 p-3 sm:mt-5 sm:p-5">
+              <ModuleShellExpansionContext.Provider value>
+                {props.children}
+              </ModuleShellExpansionContext.Provider>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </ModuleShellTransientStateContext.Provider>
   );
 }
 
