@@ -110,6 +110,11 @@ The deployed client revalidates Dashboard data every 30 seconds while visible an
 Fetch Smart Placement is enabled to optimize the `waitUntil` fast path toward the APAC D1/Provider
 workload. Queue processing remains the durable fallback and does not depend on Fetch placement.
 
+Manual enqueue combines connection validation, active-run deduplication, and run creation in one D1
+statement. A partial unique index arbitrates concurrent tabs, and the preallocated Queue UUID avoids
+a post-send D1 update. `Server-Timing` plus structured stage logs expose acceptance latency without
+logging Owner or Provider data.
+
 ## Remaining adapter work
 
 - D1 Revision list/detail/restore and granular Widget mutation routes;

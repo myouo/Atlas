@@ -235,12 +235,24 @@ try {
   assert(connected.body.credentialStatus === "valid", "credential was not marked valid");
 
   const syncAcceptedAt = performance.now();
-  const manualSync = await fetchJson("/v1/me/providers/netease/sync", {
-    headers: ownerHeaders,
-    method: "POST"
-  });
+  const manualSyncRequests = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      fetchJson("/v1/me/providers/netease/sync", {
+        headers: ownerHeaders,
+        method: "POST"
+      })
+    )
+  );
   const syncAcceptedMs = performance.now() - syncAcceptedAt;
-  assert(manualSync.response.status === 202, "manual SyncRun was not accepted");
+  const manualSync = manualSyncRequests[0];
+  assert(
+    manualSyncRequests.every((result) => result.response.status === 202),
+    "manual SyncRun was not accepted"
+  );
+  assert(
+    new Set(manualSyncRequests.map((result) => result.body.jobId)).size === 1,
+    "concurrent manual sync requests created duplicate active runs"
+  );
   assert(
     /^enqueue;dur=\d+$/.test(manualSync.response.headers.get("server-timing") ?? ""),
     "manual SyncRun acknowledgement omitted Server-Timing"

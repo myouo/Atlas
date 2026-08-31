@@ -268,6 +268,10 @@ Cloudflare D1 keeps small Raw payloads as JSON and gzip-compresses sanitized pay
 with an explicit encoding column. Hashes and Normalizer input always use the original JSON bytes;
 compression is an Infrastructure representation detail.
 
+The manual-sync acceptance path creates an active run with one conditional D1 statement and relies
+on a partial unique index for cross-tab deduplication. The Queue UUID is persisted in the same INSERT,
+so the only remaining external acceptance operation is the durable Queue send.
+
 ### NetEase native and derived data
 
 ```text

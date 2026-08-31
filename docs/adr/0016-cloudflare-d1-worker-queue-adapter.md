@@ -65,6 +65,13 @@ The Queue job UUID is now generated before the SyncRun INSERT and stored in that
 send therefore no longer requires a second D1 UPDATE on the request path. The `202` response emits a
 `Server-Timing: enqueue` metric and a secret-safe structured acceptance log.
 
+Connection validation, active-run detection, and new-run creation use one conditional
+`INSERT ... SELECT ... RETURNING` statement on the normal path. A partial unique index on
+`provider_connection_id` for active statuses makes multi-tab races database-safe. If a concurrent
+request wins, the loser reads and returns that active run; a queued active run also re-sends its
+preallocated Queue identity to recover a prior send failure. Structured enqueue logs separate D1
+persistence and Queue binding duration.
+
 Smart Placement is enabled for Fetch events because the successful manual-sync fast path runs under
 `waitUntil()` and repeatedly reaches both the APAC D1 primary and NetEase hosts. The durable Queue
 consumer remains the placement-independent fallback; no correctness assumption depends on Smart

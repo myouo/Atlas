@@ -124,48 +124,58 @@ export class D1NeteaseSyncRuntime {
   }
 
   async enqueue(ownerId: string) {
-    const [connection, active] = await Promise.all([
-      this.credentials.findEnabledConnectionForOwner(ownerId),
-      this.database
-        .prepare(
-          `SELECT * FROM provider_sync_runs
-            WHERE owner_id = ? AND provider = 'netease'
-              AND status IN ('queued', 'running', 'retry_wait')
-            ORDER BY requested_at DESC LIMIT 1`
-        )
-        .bind(ownerId)
-        .first<SyncRunRow>()
-    ]);
-    if (!connection) throw new ProviderNotConfiguredError("netease");
-    if (active) return mapRun(active);
-
     const id = crypto.randomUUID();
     const queueJobId = crypto.randomUUID();
     const now = new Date();
-    await this.database
+    const persistenceStartedAt = performance.now();
+    const created = await this.database
       .prepare(
         `INSERT INTO provider_sync_runs
           (id, owner_id, provider, provider_connection_id, status, attempt_count,
            requested_at, started_at, finished_at, last_error_code, last_error_message, queue_job_id)
-         VALUES (?, ?, 'netease', ?, 'queued', 0, ?, NULL, NULL, NULL, NULL, ?)`
+         SELECT ?, ?, 'netease', connection.id, 'queued', 0, ?, NULL, NULL, NULL, NULL, ?
+           FROM provider_connections AS connection
+          WHERE connection.owner_id = ?
+            AND connection.provider = 'netease'
+            AND connection.enabled = 1
+            AND NOT EXISTS (
+              SELECT 1 FROM provider_sync_runs AS active
+               WHERE active.provider_connection_id = connection.id
+                 AND active.status IN ('queued', 'running', 'retry_wait')
+            )
+         ON CONFLICT DO NOTHING
+         RETURNING *`
       )
-      .bind(id, ownerId, connection.id, now.toISOString(), queueJobId)
-      .run();
-    await new CloudflareSyncJobQueue(this.queue).enqueue(id, queueJobId);
-    return {
-      attemptCount: 0,
-      finishedAt: null,
-      id,
-      lastErrorCode: null,
-      lastErrorMessage: null,
-      ownerId,
-      provider: "netease" as const,
-      providerConnectionId: connection.id,
-      queueJobId,
-      requestedAt: now,
-      startedAt: null,
-      status: "queued" as const
-    };
+      .bind(id, ownerId, now.toISOString(), queueJobId, ownerId)
+      .first<SyncRunRow>();
+    const persistenceMs = performance.now() - persistenceStartedAt;
+    if (created) {
+      const queueStartedAt = performance.now();
+      await new CloudflareSyncJobQueue(this.queue).enqueue(created.id, queueJobId);
+      logEnqueueStages(persistenceMs, performance.now() - queueStartedAt, false, created.id);
+      return mapRun(created);
+    }
+
+    const active = await this.database
+      .prepare(
+        `SELECT run.* FROM provider_sync_runs AS run
+           JOIN provider_connections AS connection ON connection.id = run.provider_connection_id
+          WHERE connection.owner_id = ? AND connection.provider = 'netease'
+            AND connection.enabled = 1
+            AND run.status IN ('queued', 'running', 'retry_wait')
+          ORDER BY run.requested_at DESC LIMIT 1`
+      )
+      .bind(ownerId)
+      .first<SyncRunRow>();
+    if (!active) throw new ProviderNotConfiguredError("netease");
+    let queueMs = 0;
+    if (active.status === "queued" && active.queue_job_id) {
+      const queueStartedAt = performance.now();
+      await new CloudflareSyncJobQueue(this.queue).enqueue(active.id, active.queue_job_id);
+      queueMs = performance.now() - queueStartedAt;
+    }
+    logEnqueueStages(persistenceMs, queueMs, true, active.id);
+    return mapRun(active);
   }
 
   async getForOwner(ownerId: string, runId: string) {
@@ -636,6 +646,23 @@ export class D1NeteaseSyncRuntime {
 }
 
 const SYNC_RUN_LEASE_MS = 35_000;
+
+function logEnqueueStages(
+  persistenceMs: number,
+  queueMs: number,
+  reused: boolean,
+  syncRunId: string
+) {
+  console.info(
+    JSON.stringify({
+      event: "netease_sync_enqueue_stages",
+      persistenceMs: Math.round(persistenceMs),
+      queueMs: Math.round(queueMs),
+      reused,
+      syncRunId
+    })
+  );
+}
 
 function mapRun(row: SyncRunRow): D1SyncRun {
   return {
