@@ -17,8 +17,7 @@ export type CloudflareQueueMessage = CloudflareProviderAuthMessage | CloudflareS
 export class CloudflareSyncJobQueue implements SyncJobQueue {
   constructor(private readonly queue: Queue<CloudflareQueueMessage>) {}
 
-  async enqueue(syncRunId: string) {
-    const queueJobId = crypto.randomUUID();
+  async enqueue(syncRunId: string, queueJobId = crypto.randomUUID()) {
     await this.queue.send({ kind: "sync", queueJobId, syncRunId }, { contentType: "json" });
     return queueJobId;
   }

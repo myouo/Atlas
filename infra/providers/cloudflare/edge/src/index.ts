@@ -452,10 +452,21 @@ const worker = {
                 corsHeaders
               );
             }
+            const enqueueStartedAt = performance.now();
             const run = await providers.sync.enqueue(session.actor.id);
+            const enqueueMs = Math.round(performance.now() - enqueueStartedAt);
             executionContext.waitUntil(progressProviderSync(providers, run.id));
+            console.info(
+              JSON.stringify({
+                enqueueMs,
+                event: "netease_sync_accepted",
+                reused: run.attemptCount > 0,
+                syncRunId: run.id
+              })
+            );
             return json(serializeSyncJob(run), 202, corsHeaders, {
-              Location: `/v1/me/sync-jobs/${run.id}`
+              Location: `/v1/me/sync-jobs/${run.id}`,
+              "Server-Timing": `enqueue;dur=${enqueueMs}`
             });
           }
 
@@ -714,6 +725,7 @@ function resolveCorsHeaders(request: Request, configuredOrigins?: string) {
 
   return new Headers({
     "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Expose-Headers": "ETag, Location, Server-Timing",
     "Access-Control-Allow-Headers": "Content-Type, If-Match",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Origin": origin,

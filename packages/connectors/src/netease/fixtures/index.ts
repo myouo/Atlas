@@ -3,7 +3,7 @@ import type { JsonObject, JsonValue } from "@nivalis/domain";
 import { NETEASE_SOURCE, type NeteaseSourceKind } from "../netease-types";
 
 export type SanitizedNeteaseFixture = Readonly<Record<NeteaseSourceKind, JsonObject>>;
-export type NeteaseHttpFixtureScenario = "normal" | "credential_expired" | "schema_drift";
+export type NeteaseHttpFixtureScenario = "normal" | "credential_expired" | "schema_drift" | "large";
 
 const monthlyDurationDetails = Array.from({ length: 30 }, (_, index) => ({
   duration: index % 6 === 0 ? 0 : 24 + ((index * 17) % 180),
@@ -725,6 +725,7 @@ export const largeNeteaseFixture: SanitizedNeteaseFixture = {
   [NETEASE_SOURCE.weeklyRecord]: {
     code: 200,
     weekData: Array.from({ length: 100 }, (_, index) => ({
+      fixturePadding: "sanitized-performance-fixture-".repeat(24),
       playCount: 100 - index,
       score: 100 - index,
       song: track(
@@ -740,7 +741,12 @@ export const largeNeteaseFixture: SanitizedNeteaseFixture = {
 export function createNeteaseHttpFixtureFetcher(
   scenario: NeteaseHttpFixtureScenario = "normal"
 ): typeof fetch {
-  const fixture = scenario === "schema_drift" ? schemaDriftFixture : normalNeteaseFixture;
+  const fixture =
+    scenario === "schema_drift"
+      ? schemaDriftFixture
+      : scenario === "large"
+        ? largeNeteaseFixture
+        : normalNeteaseFixture;
   let qrChecks = 0;
   let qrGeneration = 0;
   let listenReportRequests = 0;

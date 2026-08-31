@@ -31,7 +31,7 @@ The first allowlisted read capabilities are:
 The module implements only the protocol necessary for those endpoints using Node's built-in cryptography. It does not import or run the community server/package.
 
 - Requests use an explicit abort timeout. The generic runtime defaults to sequential transport;
-  infrastructure may opt into the Connector-owned bounded scheduler up to a hard maximum of three
+  infrastructure may opt into the Connector-owned bounded scheduler up to a hard maximum of four
   independent reads. Cursor pagination, report-history chains, and dependent card-detail requests
   remain sequential within their task.
 - No proxy, random IP, `X-Real-IP`, region bypass, unlock, playback URL, scrobble, login-by-password, follow, like, comment, or other write operation exists.
@@ -68,11 +68,16 @@ The Connector fetches account identity before scheduling the remaining read capa
 
 Cloudflare production evidence showed successful NetEase SyncRuns spending about 21 seconds in the
 consumer even without retries. The Connector still resolves account identity first, then schedules
-only independent read groups with a configurable concurrency capped at three. The Cloudflare adapter
-uses three; PostgreSQL and direct callers retain the sequential default unless explicitly configured.
+only independent read groups with a configurable concurrency capped at four. The Cloudflare adapter
+uses four; PostgreSQL and direct callers retain the sequential default unless explicitly configured.
 Weekly/monthly history traversal, Provider pagination, and exhibition-card detail dependencies never
 fan out. A real credential-safe local timing of the same 28 requests fell from 6.68–7.92 seconds to
 2.55 seconds without changing endpoints, schemas, sanitization, or projection semantics.
+
+The limit of four is evidence-driven: two consecutive real cache-hit runs completed Provider fetch
+in 1.60 and 1.79 seconds without 429/schema/credential failures, while a candidate concurrency of
+five immediately produced a retryable transport failure. Five is therefore rejected rather than
+used as an optimistic default.
 
 Completed listening-history windows are immutable for the duration of the same current Provider
 week/month. Infrastructure may offer the Connector the previous successful window, but the

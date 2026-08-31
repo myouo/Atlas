@@ -2451,6 +2451,8 @@ export interface operations {
             202: {
                 headers: {
                     Location?: string;
+                    /** @description Infrastructure acknowledgement timing; never includes Provider fetch duration. */
+                    "Server-Timing"?: string;
                     [name: string]: unknown;
                 };
                 content: {

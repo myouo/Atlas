@@ -57,7 +57,7 @@ const worker = spawn(
     "--var",
     "OWNER_GITHUB_USER_ID:1",
     "--var",
-    "NETEASE_HTTP_FIXTURE_SCENARIO:normal"
+    "NETEASE_HTTP_FIXTURE_SCENARIO:large"
   ],
   { env: process.env, stdio: ["ignore", "pipe", "pipe"] }
 );
@@ -241,6 +241,10 @@ try {
   });
   const syncAcceptedMs = performance.now() - syncAcceptedAt;
   assert(manualSync.response.status === 202, "manual SyncRun was not accepted");
+  assert(
+    /^enqueue;dur=\d+$/.test(manualSync.response.headers.get("server-timing") ?? ""),
+    "manual SyncRun acknowledgement omitted Server-Timing"
+  );
   assert(syncAcceptedMs < 2_000, "manual SyncRun acknowledgement exceeded two seconds");
   const manualSyncCompleted = await pollJson(
     `/v1/me/sync-jobs/${manualSync.body.jobId}`,

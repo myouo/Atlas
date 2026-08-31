@@ -24,6 +24,24 @@ describe("CloudflareSyncJobQueue", () => {
     );
   });
 
+  it("uses a preallocated Queue identity already persisted with the SyncRun", async () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    const adapter = new CloudflareSyncJobQueue({ send } as unknown as Queue);
+    const queueJobId = "00000000-0000-4000-8000-000000000709";
+
+    await expect(adapter.enqueue("00000000-0000-4000-8000-000000000710", queueJobId)).resolves.toBe(
+      queueJobId
+    );
+    expect(send).toHaveBeenCalledWith(
+      {
+        kind: "sync",
+        queueJobId,
+        syncRunId: "00000000-0000-4000-8000-000000000710"
+      },
+      { contentType: "json" }
+    );
+  });
+
   it("queues only the AuthAttempt identity and never Provider secrets", async () => {
     const send = vi.fn().mockResolvedValue(undefined);
     const adapter = new CloudflareProviderAuthJobQueue({ send } as unknown as Queue);

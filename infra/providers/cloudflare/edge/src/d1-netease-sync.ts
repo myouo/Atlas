@@ -28,6 +28,7 @@ import {
   D1ProviderCredentialResolver
 } from "./d1-provider-credential-repository";
 import { createPortableProjectionKey } from "./projection-key";
+import { decodeRawPayload, encodeRawPayload } from "./raw-payload-codec";
 import type { WebCryptoSecretProtector } from "./web-crypto-auth";
 
 interface SyncRunRow {
@@ -93,6 +94,8 @@ interface ProviderDataCatalogRow {
 
 interface CachedHistoryRow {
   readonly fetched_at: string;
+  readonly payload_blob: ArrayBuffer | null;
+  readonly payload_encoding: "gzip" | "json";
   readonly payload_json: string;
   readonly schema_version: number;
   readonly source_cursor: string | null;
@@ -137,21 +140,18 @@ export class D1NeteaseSyncRuntime {
     if (active) return mapRun(active);
 
     const id = crypto.randomUUID();
+    const queueJobId = crypto.randomUUID();
     const now = new Date();
     await this.database
       .prepare(
         `INSERT INTO provider_sync_runs
           (id, owner_id, provider, provider_connection_id, status, attempt_count,
            requested_at, started_at, finished_at, last_error_code, last_error_message, queue_job_id)
-         VALUES (?, ?, 'netease', ?, 'queued', 0, ?, NULL, NULL, NULL, NULL, NULL)`
+         VALUES (?, ?, 'netease', ?, 'queued', 0, ?, NULL, NULL, NULL, NULL, ?)`
       )
-      .bind(id, ownerId, connection.id, now.toISOString())
+      .bind(id, ownerId, connection.id, now.toISOString(), queueJobId)
       .run();
-    const queueJobId = await new CloudflareSyncJobQueue(this.queue).enqueue(id);
-    await this.database
-      .prepare("UPDATE provider_sync_runs SET queue_job_id = ? WHERE id = ?")
-      .bind(queueJobId, id)
-      .run();
+    await new CloudflareSyncJobQueue(this.queue).enqueue(id, queueJobId);
     return {
       attemptCount: 0,
       finishedAt: null,
@@ -271,38 +271,42 @@ export class D1NeteaseSyncRuntime {
       const preparedSnapshots = await Promise.all(
         fetched.map(async (result) => {
           const payloadJson = JSON.stringify(result.payload);
+          const stored = await encodeRawPayload(payloadJson);
           return {
             createdAt: new Date(),
             id: crypto.randomUUID(),
             payloadHash: await hashText(payloadJson),
-            payloadJson,
-            result
+            result,
+            ...stored
           };
         })
       );
       await this.database.batch(
-        preparedSnapshots.map(({ createdAt, id, payloadHash, payloadJson, result }) =>
-          this.database
-            .prepare(
-              `INSERT INTO provider_raw_snapshots
+        preparedSnapshots.map(
+          ({ createdAt, id, payloadBlob, payloadEncoding, payloadHash, payloadJson, result }) =>
+            this.database
+              .prepare(
+                `INSERT INTO provider_raw_snapshots
               (id, sync_run_id, provider_connection_id, provider, source_kind,
                schema_version, payload_json, payload_hash, fetched_at,
-               source_cursor, source_timestamp, created_at)
-             VALUES (?, ?, ?, 'netease', ?, ?, ?, ?, ?, ?, ?, ?)`
-            )
-            .bind(
-              id,
-              run.id,
-              run.providerConnectionId,
-              result.sourceKind,
-              result.schemaVersion,
-              payloadJson,
-              payloadHash,
-              result.fetchedAt.toISOString(),
-              result.sourceCursor ?? null,
-              result.sourceTimestamp?.toISOString() ?? null,
-              createdAt.toISOString()
-            )
+               source_cursor, source_timestamp, created_at, payload_encoding, payload_blob)
+             VALUES (?, ?, ?, 'netease', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              )
+              .bind(
+                id,
+                run.id,
+                run.providerConnectionId,
+                result.sourceKind,
+                result.schemaVersion,
+                payloadJson,
+                payloadHash,
+                result.fetchedAt.toISOString(),
+                result.sourceCursor ?? null,
+                result.sourceTimestamp?.toISOString() ?? null,
+                createdAt.toISOString(),
+                payloadEncoding,
+                payloadBlob
+              )
         )
       );
       const rawPersistMs = performance.now() - rawPersistStartedAt;
@@ -521,7 +525,8 @@ export class D1NeteaseSyncRuntime {
     const result = await this.database
       .prepare(
         `SELECT snapshot.source_kind, snapshot.schema_version, snapshot.payload_json,
-                snapshot.fetched_at, snapshot.source_cursor, snapshot.source_timestamp
+                snapshot.payload_encoding, snapshot.payload_blob, snapshot.fetched_at,
+                snapshot.source_cursor, snapshot.source_timestamp
            FROM provider_raw_snapshots AS snapshot
            JOIN provider_sync_states AS state
              ON state.last_successful_run_id = snapshot.sync_run_id
@@ -535,14 +540,22 @@ export class D1NeteaseSyncRuntime {
       )
       .bind(providerConnectionId)
       .all<CachedHistoryRow>();
-    return result.results.map((row) => ({
-      fetchedAt: new Date(row.fetched_at),
-      payload: JSON.parse(row.payload_json) as JsonValue,
-      schemaVersion: row.schema_version,
-      ...(row.source_cursor ? { sourceCursor: row.source_cursor } : {}),
-      sourceKind: row.source_kind,
-      ...(row.source_timestamp ? { sourceTimestamp: new Date(row.source_timestamp) } : {})
-    }));
+    return Promise.all(
+      result.results.map(async (row) => ({
+        fetchedAt: new Date(row.fetched_at),
+        payload: JSON.parse(
+          await decodeRawPayload({
+            payloadBlob: row.payload_blob,
+            payloadEncoding: row.payload_encoding,
+            payloadJson: row.payload_json
+          })
+        ) as JsonValue,
+        schemaVersion: row.schema_version,
+        ...(row.source_cursor ? { sourceCursor: row.source_cursor } : {}),
+        sourceKind: row.source_kind,
+        ...(row.source_timestamp ? { sourceTimestamp: new Date(row.source_timestamp) } : {})
+      }))
+    );
   }
 
   private async markRetry(run: SyncRun, code: string) {

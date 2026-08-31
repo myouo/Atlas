@@ -803,12 +803,12 @@ describe("NetEase Provider module", () => {
       new NeteaseClient({ timeoutMs: 2_000 }, fetcher),
       { resolve: async () => secret },
       () => fetchedAt,
-      3
+      99
     );
 
     const results = await connector.fetch(syncRun());
 
-    expect(maximumInFlight).toBe(3);
+    expect(maximumInFlight).toBe(4);
     expect(results).toHaveLength(27);
     expect(results.filter((result) => result.sourceKind.includes("listen_report"))).toHaveLength(8);
   });

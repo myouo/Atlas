@@ -54,7 +54,7 @@ export function createCloudflareProviderRuntime(
     queue,
     protector,
     positiveInteger(environment.NETEASE_REQUEST_TIMEOUT_MS, 12_000),
-    boundedInteger(environment.NETEASE_REQUEST_CONCURRENCY, 3, 1, 3),
+    boundedInteger(environment.NETEASE_REQUEST_CONCURRENCY, 4, 1, 4),
     fetcher
   );
   const connections = new ProviderConnectionService(
@@ -150,5 +150,10 @@ function providerFetcher(environment: ProviderEnvironment) {
 }
 
 function isFixtureScenario(value: string): value is NeteaseHttpFixtureScenario {
-  return value === "normal" || value === "credential_expired" || value === "schema_drift";
+  return (
+    value === "normal" ||
+    value === "credential_expired" ||
+    value === "schema_drift" ||
+    value === "large"
+  );
 }

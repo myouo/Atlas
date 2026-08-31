@@ -178,7 +178,7 @@ const MAX_PROVIDER_LIST_ITEMS = 500;
 const MAX_PROVIDER_LIST_PAGES = 20;
 const MAX_PROFILE_HOME_PAGES = 20;
 const MAX_LISTEN_HISTORY_PERIODS = 3;
-const MAX_NETEASE_REQUEST_CONCURRENCY = 3;
+const MAX_NETEASE_REQUEST_CONCURRENCY = 4;
 const PROVIDER_DAY_MS = 86_400_000;
 
 async function runProviderTasks(tasks: readonly ProviderFetchTask[], requestedConcurrency: number) {

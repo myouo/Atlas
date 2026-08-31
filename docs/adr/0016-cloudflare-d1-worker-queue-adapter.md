@@ -51,6 +51,25 @@ whether each three-entry range is reusable. Cache lookup failure degrades to nor
 it cannot fail a SyncRun. Completion logs expose only `historyCacheHits`, and a cache hit still
 inserts the full immutable Raw batch for the new run.
 
+Raw persistence remains the dominant D1 write. Payloads smaller than 64 KiB stay queryable JSON;
+larger sanitized payloads are gzip-compressed into a BLOB while their hash continues to cover the
+original JSON bytes. `payload_encoding` makes the representation explicit, decoding round-trips are
+tested, and cache/replay readers fail closed when compressed evidence is missing. This changes only
+the storage representation, not Raw immutability, sanitization, source identity, or standalone run
+completeness.
+
+A real sanitized cache-hit batch measured 2.27 MB as JSON and about 493 KB in the stored mixed
+JSON/gzip representation, a 78% reduction before D1 persistence.
+
+The Queue job UUID is now generated before the SyncRun INSERT and stored in that same write. Queue
+send therefore no longer requires a second D1 UPDATE on the request path. The `202` response emits a
+`Server-Timing: enqueue` metric and a secret-safe structured acceptance log.
+
+Smart Placement is enabled for Fetch events because the successful manual-sync fast path runs under
+`waitUntil()` and repeatedly reaches both the APAC D1 primary and NetEase hosts. The durable Queue
+consumer remains the placement-independent fallback; no correctness assumption depends on Smart
+Placement choosing a different location.
+
 Runtime compatibility also required two transport-level changes inside the NetEase Connector only:
 
 - inspect redirects with Fetch `manual` mode and explicitly reject 3xx responses, because edge Fetch does not implement `redirect: "error"`;

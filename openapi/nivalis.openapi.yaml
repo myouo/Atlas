@@ -801,6 +801,11 @@ paths:
             Location:
               schema:
                 type: string
+            Server-Timing:
+              description: Infrastructure acknowledgement timing; never includes Provider fetch duration.
+              schema:
+                type: string
+                example: enqueue;dur=240
           content:
             application/json:
               schema:
