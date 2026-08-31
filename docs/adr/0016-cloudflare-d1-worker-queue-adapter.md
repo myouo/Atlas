@@ -45,6 +45,12 @@ Projection/SyncState/terminal completion remain a separate atomic batch. Structu
 contain only stage durations, counts, and the Nivalis SyncRun UUID; they never contain Provider data
 or credentials.
 
+Before fetching, D1 supplies at most the six completed week/month history snapshots from the last
+successful run. The Connector, not the D1 adapter, owns period-boundary validation and decides
+whether each three-entry range is reusable. Cache lookup failure degrades to normal Provider reads;
+it cannot fail a SyncRun. Completion logs expose only `historyCacheHits`, and a cache hit still
+inserts the full immutable Raw batch for the new run.
+
 Runtime compatibility also required two transport-level changes inside the NetEase Connector only:
 
 - inspect redirects with Fetch `manual` mode and explicitly reject 3xx responses, because edge Fetch does not implement `redirect: "error"`;

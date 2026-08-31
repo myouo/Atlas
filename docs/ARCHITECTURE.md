@@ -259,6 +259,11 @@ The module implements account validation, old/new user detail, level progress, V
 
 One SyncRun inserts bounded immutable `provider_raw_snapshots` for each Provider request plus page snapshots when a social/playlist list has more results. Every request has its own `source_kind`; pagination stops at the configured cap or when a page yields no new Provider IDs. Normalization deduplicates again and records whether coverage is complete. The Connector recursively strips credential-bearing keys before returning a payload; the Worker independently rejects credential-like Raw input. Runtime schemas intentionally permit harmless extra Provider fields but require every semantic field consumed by normalization. A missing/renamed field raises `ProviderSchemaMismatchError`; it is never coerced to zero, null, or an empty list.
 
+The Cloudflare adapter may reuse the last successful completed-week/month payloads inside the same
+current Provider period. The NetEase Connector validates a complete, contiguous three-entry time
+chain before accepting any range; period rollover or partial cache falls back to fresh reads. The new
+SyncRun still receives a complete Raw batch, preserving standalone replay semantics.
+
 ### NetEase native and derived data
 
 ```text

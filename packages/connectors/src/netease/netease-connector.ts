@@ -21,7 +21,10 @@ export class NeteaseConnector implements ProviderConnector {
     private readonly maxRequestConcurrency = 1
   ) {}
 
-  async fetch(run: SyncRun): Promise<readonly ProviderFetchResult[]> {
+  async fetch(
+    run: SyncRun,
+    cachedHistory: Promise<readonly ProviderFetchResult[]> | readonly ProviderFetchResult[] = []
+  ): Promise<readonly ProviderFetchResult[]> {
     const credential = await this.credentials.resolve(run.providerConnectionId, "music_u");
     const account = await this.client.getAccount(credential);
     const fetchedAt = this.now();
@@ -97,7 +100,7 @@ export class NeteaseConnector implements ProviderConnector {
           this.now()
         )
       ],
-      () => listeningReportSnapshots(this.client, credential, this.now),
+      () => listeningReportSnapshots(this.client, credential, this.now, cachedHistory),
       async () => [
         snapshot(
           NETEASE_SOURCE.listenRankWeek,
@@ -176,6 +179,7 @@ const MAX_PROVIDER_LIST_PAGES = 20;
 const MAX_PROFILE_HOME_PAGES = 20;
 const MAX_LISTEN_HISTORY_PERIODS = 3;
 const MAX_NETEASE_REQUEST_CONCURRENCY = 3;
+const PROVIDER_DAY_MS = 86_400_000;
 
 async function runProviderTasks(tasks: readonly ProviderFetchTask[], requestedConcurrency: number) {
   const concurrency = Math.min(
@@ -206,40 +210,96 @@ async function runProviderTasks(tasks: readonly ProviderFetchTask[], requestedCo
 async function listeningReportSnapshots(
   client: NeteaseClient,
   credential: string,
-  now: () => Date
+  now: () => Date,
+  cachedHistory: Promise<readonly ProviderFetchResult[]> | readonly ProviderFetchResult[]
 ) {
   const results: ProviderFetchResult[] = [];
   const weekly = await client.getWeeklyListenReport(credential);
   results.push(snapshot(NETEASE_SOURCE.listenReportWeek, weekly, now()));
   const previousWeekEndTime = previousPeriodEndTime(weekly);
   if (previousWeekEndTime !== null) {
+    const cached = reusableHistoricalSnapshots(
+      await cachedHistory,
+      NETEASE_SOURCE.listenReportPreviousWeek,
+      "week",
+      previousWeekEndTime
+    );
     results.push(
-      ...(await historicalReportSnapshots(
-        client,
-        credential,
-        "week",
-        NETEASE_SOURCE.listenReportPreviousWeek,
-        previousWeekEndTime,
-        now
-      ))
+      ...(cached ??
+        (await historicalReportSnapshots(
+          client,
+          credential,
+          "week",
+          NETEASE_SOURCE.listenReportPreviousWeek,
+          previousWeekEndTime,
+          now
+        )))
     );
   }
   const monthly = await client.getMonthlyListenReport(credential);
   results.push(snapshot(NETEASE_SOURCE.listenReportMonth, monthly, now()));
   const previousMonthEndTime = previousPeriodEndTime(monthly);
   if (previousMonthEndTime !== null) {
+    const cached = reusableHistoricalSnapshots(
+      await cachedHistory,
+      NETEASE_SOURCE.listenReportPreviousMonth,
+      "month",
+      previousMonthEndTime
+    );
     results.push(
-      ...(await historicalReportSnapshots(
-        client,
-        credential,
-        "month",
-        NETEASE_SOURCE.listenReportPreviousMonth,
-        previousMonthEndTime,
-        now
-      ))
+      ...(cached ??
+        (await historicalReportSnapshots(
+          client,
+          credential,
+          "month",
+          NETEASE_SOURCE.listenReportPreviousMonth,
+          previousMonthEndTime,
+          now
+        )))
     );
   }
   return results;
+}
+
+function reusableHistoricalSnapshots(
+  candidates: readonly ProviderFetchResult[],
+  sourceKind: string,
+  period: "month" | "week",
+  initialEndTime: number
+) {
+  const matching = candidates
+    .filter(
+      (candidate) =>
+        candidate.sourceKind === sourceKind ||
+        candidate.sourceKind.startsWith(`${sourceKind}.period.`)
+    )
+    .sort(
+      (left, right) => historySourceIndex(left.sourceKind) - historySourceIndex(right.sourceKind)
+    );
+  if (matching.length !== MAX_LISTEN_HISTORY_PERIODS) return null;
+  let expectedEndTime = initialEndTime;
+  for (const [index, candidate] of matching.entries()) {
+    if (candidate.sourceKind !== historySourceKind(sourceKind, index)) return null;
+    const state = historicalReportState(candidate.payload);
+    if (
+      !state?.hasDailyData ||
+      state.period !== period ||
+      state.endTime !== expectedEndTime - (PROVIDER_DAY_MS - 1)
+    ) {
+      return null;
+    }
+    expectedEndTime = state.startTime - 1;
+  }
+  return matching;
+}
+
+function historySourceKind(sourceKind: string, index: number) {
+  return index === 0 ? sourceKind : `${sourceKind}.period.${index}`;
+}
+
+function historySourceIndex(sourceKind: string) {
+  const match = sourceKind.match(/\.period\.(\d+)$/);
+  return match ? Number(match[1]) : 0;
 }
 
 async function profileHomePageSnapshots(
@@ -370,15 +430,27 @@ async function historicalReportSnapshots(
 function historicalReportState(payload: JsonValue) {
   if (!isObject(payload) || !isObject(payload.data)) return null;
   const startTime = payload.data.startTime;
+  const endTime = payload.data.endTime;
+  const period = payload.data.type ?? payload.data.period;
   const distribution = payload.data.listenTimeDistributionBlock;
-  if (typeof startTime !== "number" || !Number.isSafeInteger(startTime) || startTime <= 0) {
+  if (
+    typeof startTime !== "number" ||
+    !Number.isSafeInteger(startTime) ||
+    startTime <= 0 ||
+    typeof endTime !== "number" ||
+    !Number.isSafeInteger(endTime) ||
+    endTime <= startTime ||
+    (period !== "week" && period !== "month")
+  ) {
     return null;
   }
   return {
+    endTime,
     hasDailyData:
       isObject(distribution) &&
       Array.isArray(distribution.durationDetails) &&
       distribution.durationDetails.length > 0,
+    period,
     startTime
   };
 }

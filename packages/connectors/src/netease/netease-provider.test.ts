@@ -813,6 +813,59 @@ describe("NetEase Provider module", () => {
     expect(results.filter((result) => result.sourceKind.includes("listen_report"))).toHaveLength(8);
   });
 
+  it("reuses only a complete contiguous immutable history window", async () => {
+    const firstConnector = new NeteaseConnector(
+      new NeteaseClient({ timeoutMs: 2_000 }, createNeteaseHttpFixtureFetcher("normal")),
+      { resolve: async () => secret },
+      () => fetchedAt,
+      3
+    );
+    const first = await firstConnector.fetch(syncRun());
+    const cachedHistory = first.filter(
+      (result) =>
+        result.sourceKind.startsWith(NETEASE_SOURCE.listenReportPreviousWeek) ||
+        result.sourceKind.startsWith(NETEASE_SOURCE.listenReportPreviousMonth)
+    );
+    expect(cachedHistory).toHaveLength(6);
+
+    const reusedRequests: Request[] = [];
+    const reusedFixture = createNeteaseHttpFixtureFetcher("normal");
+    const reusedConnector = new NeteaseConnector(
+      new NeteaseClient({ timeoutMs: 2_000 }, async (input, init) => {
+        reusedRequests.push(new Request(input, init));
+        return reusedFixture(input, init);
+      }),
+      { resolve: async () => secret },
+      () => fetchedAt,
+      3
+    );
+    const reused = await reusedConnector.fetch(syncRun(), cachedHistory);
+    expect(
+      reusedRequests.filter((request) =>
+        new URL(request.url).pathname.endsWith("listen/data/report")
+      )
+    ).toHaveLength(0);
+    expect(reused.filter((result) => cachedHistory.includes(result))).toHaveLength(6);
+
+    const incompleteRequests: Request[] = [];
+    const incompleteFixture = createNeteaseHttpFixtureFetcher("normal");
+    const incompleteConnector = new NeteaseConnector(
+      new NeteaseClient({ timeoutMs: 2_000 }, async (input, init) => {
+        incompleteRequests.push(new Request(input, init));
+        return incompleteFixture(input, init);
+      }),
+      { resolve: async () => secret },
+      () => fetchedAt,
+      3
+    );
+    await incompleteConnector.fetch(syncRun(), cachedHistory.slice(0, 5));
+    expect(
+      incompleteRequests.filter((request) =>
+        new URL(request.url).pathname.endsWith("listen/data/report")
+      )
+    ).toHaveLength(3);
+  });
+
   it("follows Provider profile cursors only after hasMore and preserves every page as Raw evidence", async () => {
     const profileRequests: Request[] = [];
     const fetcher = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {

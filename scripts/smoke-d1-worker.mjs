@@ -249,6 +249,10 @@ try {
   );
   assert(manualSyncCompleted.status === "completed", "manual fixture SyncRun did not complete");
   assert(manualSyncCompleted.attemptCount === 1, "manual SyncRun was processed more than once");
+  assert(
+    output.includes('"historyCacheHits":6'),
+    "manual SyncRun did not reuse the complete immutable history window"
+  );
 
   const disconnected = await fetch(`${baseUrl}/v1/me/providers/netease/connection`, {
     headers: ownerHeaders,

@@ -61,7 +61,7 @@ export function historicalListenReportFixture(type: "week" | "month", index: num
   return {
     code: 200,
     data: {
-      endTime: start.getTime() + dayCount * 86_400_000 - 1,
+      endTime: start.getTime() + (dayCount - 1) * 86_400_000,
       listenTimeDistributionBlock: {
         durationDetails,
         listenDays: durationDetails.filter((point) => point.duration > 0).length,
@@ -472,7 +472,7 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
         listenDays: 3,
         playDuration: 91
       },
-      startTime: 1_776_568_000_000,
+      startTime: Date.UTC(2026, 3, 20),
       type: "week"
     }
   },
@@ -485,7 +485,7 @@ export const normalNeteaseFixture: SanitizedNeteaseFixture = {
         listenDays: monthlyDurationDetails.filter((point) => point.duration > 0).length,
         playDuration: monthlyDurationDetails.reduce((total, point) => total + point.duration, 0)
       },
-      startTime: 1_774_915_200_000,
+      startTime: Date.UTC(2026, 3, 1),
       type: "month"
     }
   },

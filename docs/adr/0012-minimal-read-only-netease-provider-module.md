@@ -74,6 +74,14 @@ Weekly/monthly history traversal, Provider pagination, and exhibition-card detai
 fan out. A real credential-safe local timing of the same 28 requests fell from 6.68–7.92 seconds to
 2.55 seconds without changing endpoints, schemas, sanitization, or projection semantics.
 
+Completed listening-history windows are immutable for the duration of the same current Provider
+week/month. Infrastructure may offer the Connector the previous successful window, but the
+Connector reuses it only when all three entries exist, source-kind indexes are contiguous, the
+declared period matches, daily data exists, and every `startTime`/`endTime` boundary forms the exact
+Provider chain behind the new current report. A missing or shifted entry invalidates only that
+week/month range and performs the normal Provider reads. Reused payloads remain part of the new
+sanitized Raw batch, so replay completeness does not depend on an older SyncRun.
+
 ## Alternatives
 
 - Run NeteaseCloudMusicApi Enhanced as another service: rejected because it adds a broad privileged runtime and many features Nivalis forbids.

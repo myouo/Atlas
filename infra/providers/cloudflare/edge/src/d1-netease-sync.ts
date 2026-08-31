@@ -12,7 +12,9 @@ import {
 } from "@nivalis/domain";
 import type {
   JsonObject,
+  JsonValue,
   ProjectionTarget,
+  ProviderFetchResult,
   ProviderStatus,
   RawSnapshot,
   SyncRun,
@@ -87,6 +89,15 @@ interface ProviderDataCatalogRow {
   readonly data_version_id: string;
   readonly generated_at: string;
   readonly schema_version: number;
+}
+
+interface CachedHistoryRow {
+  readonly fetched_at: string;
+  readonly payload_json: string;
+  readonly schema_version: number;
+  readonly source_cursor: string | null;
+  readonly source_kind: string;
+  readonly source_timestamp: string | null;
 }
 
 export class D1NeteaseSyncRuntime {
@@ -249,7 +260,12 @@ export class D1NeteaseSyncRuntime {
     try {
       const processStartedAt = performance.now();
       const fetchStartedAt = performance.now();
-      const fetched = await this.runtime.connector.fetch(run);
+      const cachedHistoryPromise = this.cachedHistory(run.providerConnectionId).catch(
+        (): readonly ProviderFetchResult[] => []
+      );
+      const fetched = await this.runtime.connector.fetch(run, cachedHistoryPromise);
+      const cachedHistory = await cachedHistoryPromise;
+      const historyCacheHits = fetched.filter((item) => cachedHistory.includes(item)).length;
       const providerFetchMs = performance.now() - fetchStartedAt;
       const rawPersistStartedAt = performance.now();
       const preparedSnapshots = await Promise.all(
@@ -432,6 +448,7 @@ export class D1NeteaseSyncRuntime {
         JSON.stringify({
           commitMs: Math.round(commitMs),
           event: "netease_sync_completed",
+          historyCacheHits,
           projectionMs: Math.round(projectionMs),
           providerFetchMs: Math.round(providerFetchMs),
           rawPersistMs: Math.round(rawPersistMs),
@@ -496,6 +513,36 @@ export class D1NeteaseSyncRuntime {
       targets.set(`${target.id}:${target.projectionKey}`, target);
     }
     return [...targets.values()];
+  }
+
+  private async cachedHistory(
+    providerConnectionId: string
+  ): Promise<readonly ProviderFetchResult[]> {
+    const result = await this.database
+      .prepare(
+        `SELECT snapshot.source_kind, snapshot.schema_version, snapshot.payload_json,
+                snapshot.fetched_at, snapshot.source_cursor, snapshot.source_timestamp
+           FROM provider_raw_snapshots AS snapshot
+           JOIN provider_sync_states AS state
+             ON state.last_successful_run_id = snapshot.sync_run_id
+          WHERE state.provider_connection_id = ?
+            AND (
+              snapshot.source_kind = 'netease.listen_report.week.previous'
+              OR snapshot.source_kind LIKE 'netease.listen_report.week.previous.period.%'
+              OR snapshot.source_kind = 'netease.listen_report.month.previous'
+              OR snapshot.source_kind LIKE 'netease.listen_report.month.previous.period.%'
+            )`
+      )
+      .bind(providerConnectionId)
+      .all<CachedHistoryRow>();
+    return result.results.map((row) => ({
+      fetchedAt: new Date(row.fetched_at),
+      payload: JSON.parse(row.payload_json) as JsonValue,
+      schemaVersion: row.schema_version,
+      ...(row.source_cursor ? { sourceCursor: row.source_cursor } : {}),
+      sourceKind: row.source_kind,
+      ...(row.source_timestamp ? { sourceTimestamp: new Date(row.source_timestamp) } : {})
+    }));
   }
 
   private async markRetry(run: SyncRun, code: string) {
