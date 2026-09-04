@@ -81,7 +81,7 @@ used as an optimistic default.
 
 Completed listening-history windows are immutable for the duration of the same current Provider
 week/month. Infrastructure may offer the Connector the previous successful window, but the
-Connector reuses it only when all three entries exist, source-kind indexes are contiguous, the
+Connector reuses it only when all three entries exist, protocol partition indexes are contiguous, the
 declared period matches, daily data exists, and every `startTime`/`endTime` boundary forms the exact
 Provider chain behind the new current report. A missing or shifted entry invalidates only that
 week/month range and performs the normal Provider reads. Reused payloads remain part of the new

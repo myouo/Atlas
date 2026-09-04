@@ -1,8 +1,16 @@
-import { ProjectionError, RawSnapshotNotFoundError } from "@nivalis/domain";
+import {
+  ProjectionError,
+  providerProtocolMetadata,
+  RawSnapshotNotFoundError,
+  toProviderSnapshotRecord
+} from "@nivalis/domain";
 import type {
   BuiltWidgetProjection,
   JsonValue,
   NormalizedProviderData,
+  ProviderNormalizationInput,
+  ProviderProjectionInput,
+  ProviderSourceSnapshotReference,
   ProviderType
 } from "@nivalis/domain";
 
@@ -13,6 +21,16 @@ import type {
   SyncIdentityFactory,
   SyncUnitOfWork
 } from "../ports/sync-runtime";
+import {
+  assertNormalizedProviderData,
+  assertProviderManifest,
+  assertProviderNormalizationInput,
+  assertProviderProjectionBatch,
+  assertProviderProjectionInput,
+  assertProviderProjectionSet,
+  assertProviderSnapshotRecords,
+  unwrapProviderResult
+} from "../validation/provider-protocol-validation";
 
 export interface ProviderReplayResult {
   readonly committed: boolean;
@@ -26,7 +44,7 @@ export interface ProviderReplayResult {
   readonly projections: readonly BuiltWidgetProjection[];
   readonly provider: ProviderType;
   readonly snapshotIds: readonly string[];
-  readonly sourceKinds: readonly string[];
+  readonly sources: readonly ProviderSourceSnapshotReference[];
   readonly syncRunId: string;
 }
 
@@ -53,10 +71,55 @@ export class ProviderReplayService {
     if (!connection) throw new ProjectionError("Replay Provider connection was not found.");
     const runtime = this.providers.get(selected.provider);
     if (!runtime) throw new ProjectionError("Replay Provider runtime is unavailable.");
-    const normalized = await runtime.normalizer.normalize(snapshots);
+    assertProviderManifest(runtime.manifest, selected.provider);
+    const normalizationRecords = snapshots.map(toProviderSnapshotRecord);
+    assertProviderSnapshotRecords(normalizationRecords, runtime.manifest, selected.syncRunId);
+    const collection = normalizationRecords[0]!.meta;
+    const previousNormalized =
+      collection.collectionMode === "incremental"
+        ? await this.unitOfWork.run((repository) =>
+            repository.getPreviousNormalizedData(selected.providerConnectionId, selected.syncRunId)
+          )
+        : null;
+    const normalizationInput = {
+      data: {
+        checkpoint: collection.checkpoint,
+        collectionMode: collection.collectionMode,
+        collectionOutcome: collection.collectionOutcome,
+        issues: collection.issues,
+        previous: previousNormalized,
+        records: normalizationRecords
+      },
+      meta: providerProtocolMetadata("normalization.request", selected.provider, selected.syncRunId)
+    } satisfies ProviderNormalizationInput;
+    assertProviderNormalizationInput(normalizationInput, runtime.manifest, selected.syncRunId);
+    const normalizationResult = await runtime.normalizer.normalize(normalizationInput);
+    const normalized = unwrapProviderResult(
+      normalizationResult,
+      runtime.manifest,
+      selected.syncRunId
+    );
+    assertNormalizedProviderData(
+      normalized,
+      runtime.manifest,
+      normalizationInput,
+      selected.syncRunId
+    );
     const targets = await this.projections.listActiveTargets(connection);
-    const built = await runtime.projector.project(normalized, targets);
-    validateProjectionSet(targets, built);
+    const projectionInput = {
+      data: { normalized, targets },
+      meta: providerProtocolMetadata("projection.request", selected.provider, selected.syncRunId)
+    } satisfies ProviderProjectionInput;
+    assertProviderProjectionInput(projectionInput, runtime.manifest, selected.syncRunId);
+    const projectionResult = await runtime.projector.project(projectionInput);
+    const projectionBatch = unwrapProviderResult(
+      projectionResult,
+      runtime.manifest,
+      selected.syncRunId
+    );
+    assertProviderProjectionBatch(projectionBatch, runtime.manifest, selected.syncRunId);
+    const built = projectionBatch.data;
+    assertProviderProjectionSet(targets, built, normalized);
     const current = await this.projections.getStoredProjections(targets);
     const byIdentity = new Map(
       current.map((projection) => [
@@ -108,7 +171,11 @@ export class ProviderReplayService {
       projections: built,
       provider: selected.provider,
       snapshotIds: snapshots.map((snapshot) => snapshot.id),
-      sourceKinds: snapshots.map((snapshot) => snapshot.sourceKind),
+      sources: normalizationRecords.map((snapshot) => ({
+        partition: snapshot.meta.partition,
+        snapshotId: snapshot.meta.snapshotId,
+        source: snapshot.meta.source
+      })),
       syncRunId: selected.syncRunId
     };
   }
@@ -128,20 +195,4 @@ function canonicalJson(value: JsonValue): string {
       .join(",")}}`;
   }
   return JSON.stringify(value);
-}
-
-function validateProjectionSet(
-  targets: readonly { readonly projectionKey: string; readonly id: string }[],
-  projections: readonly { readonly projectionKey: string; readonly widgetId: string }[]
-) {
-  const expected = new Set(targets.map((target) => `${target.id}:${target.projectionKey}`));
-  const actual = new Set(
-    projections.map((projection) => `${projection.widgetId}:${projection.projectionKey}`)
-  );
-  if (actual.size !== projections.length || actual.size !== expected.size) {
-    throw new ProjectionError("Replay projection output did not match the active target set.");
-  }
-  for (const key of expected) {
-    if (!actual.has(key)) throw new ProjectionError("Replay omitted an active target.");
-  }
 }

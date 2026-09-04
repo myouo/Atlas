@@ -1,9 +1,15 @@
-import { ProviderSchemaMismatchError } from "@nivalis/domain";
+import {
+  materializeProviderLineage,
+  providerNormalizedSchemaId,
+  providerProtocolMetadata,
+  ProviderSchemaMismatchError
+} from "@nivalis/domain";
 import type {
   JsonObject,
   NormalizedProviderData,
+  ProviderNormalizationInput,
   ProviderNormalizer,
-  RawSnapshot
+  ProviderSnapshotRecord
 } from "@nivalis/domain";
 import Value from "typebox/value";
 import type { Static, TSchema } from "typebox";
@@ -43,10 +49,9 @@ import {
 } from "./netease-types";
 
 export class NeteaseNormalizer implements ProviderNormalizer {
-  readonly provider = "netease" as const;
-
-  async normalize(snapshots: readonly RawSnapshot[]): Promise<NormalizedProviderData> {
+  async normalize(input: ProviderNormalizationInput): Promise<NormalizedProviderData> {
     await Promise.resolve();
+    const snapshots = input.data.records;
     const accountSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.account);
     const allTimeSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.allTimeRecord);
     const playlistSnapshots = matchingSnapshots(snapshots, NETEASE_SOURCE.createdPlaylists);
@@ -57,10 +62,10 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const medalsSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.medals);
     const profileHomeSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.profileHome);
     const profileMusicCardsSnapshot = snapshots.find(
-      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.profileMusicCards
+      (snapshot) => snapshot.meta.source === NETEASE_SOURCE.profileMusicCards
     );
     const musicCardTracksSnapshot = snapshots.find(
-      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.musicCardTracks
+      (snapshot) => snapshot.meta.source === NETEASE_SOURCE.musicCardTracks
     );
     const profileShowcaseSnapshots = optionalMatchingSnapshots(
       snapshots,
@@ -70,13 +75,13 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const recentSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.recentSongs);
     const reportSnapshot = requiredSnapshot(snapshots, NETEASE_SOURCE.listenReportWeek);
     const monthlyReportSnapshot = snapshots.find(
-      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenReportMonth
+      (snapshot) => snapshot.meta.source === NETEASE_SOURCE.listenReportMonth
     );
     const weeklyRankSnapshot = snapshots.find(
-      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenRankWeek
+      (snapshot) => snapshot.meta.source === NETEASE_SOURCE.listenRankWeek
     );
     const monthlyRankSnapshot = snapshots.find(
-      (snapshot) => snapshot.sourceKind === NETEASE_SOURCE.listenRankMonth
+      (snapshot) => snapshot.meta.source === NETEASE_SOURCE.listenRankMonth
     );
     const previousWeekSnapshots = optionalSeriesSnapshots(
       snapshots,
@@ -140,19 +145,11 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     const normalizedMonthlyReport = monthlyReport
       ? normalizedReport(monthlyReport, "month", NETEASE_SOURCE.listenReportMonth)
       : null;
-    const weeklyHistory = previousWeeks.map((history, index) =>
-      normalizedReport(
-        history,
-        "week",
-        historySourceKind(NETEASE_SOURCE.listenReportPreviousWeek, index)
-      )
+    const weeklyHistory = previousWeeks.map((history) =>
+      normalizedReport(history, "week", NETEASE_SOURCE.listenReportPreviousWeek)
     );
-    const monthlyHistory = previousMonths.map((history, index) =>
-      normalizedReport(
-        history,
-        "month",
-        historySourceKind(NETEASE_SOURCE.listenReportPreviousMonth, index)
-      )
+    const monthlyHistory = previousMonths.map((history) =>
+      normalizedReport(history, "month", NETEASE_SOURCE.listenReportPreviousMonth)
     );
     const previousWeeklyReport = weeklyHistory[0] ?? null;
     const previousMonthlyReport = monthlyHistory[0] ?? null;
@@ -191,7 +188,7 @@ export class NeteaseNormalizer implements ProviderNormalizer {
         )
       : profileShowcasePages.length > 0
         ? normalizeProfileMusicCards(profileShowcasePages)
-        : normalizeLegacyMusicCards(profileHomeSnapshot.payload);
+        : normalizeLegacyMusicCards(profileHomeSnapshot.data);
     const payload: NeteaseNormalizedPayload = {
       account: {
         avatarFrameUrl: safeArtworkUrl(profile.avatarDetail?.identityIconUrl),
@@ -278,12 +275,16 @@ export class NeteaseNormalizer implements ProviderNormalizer {
     };
 
     return {
-      payload,
-      provider: "netease",
-      schemaVersion: 1,
-      sourceSnapshotIds: Object.fromEntries(
-        snapshots.map((snapshot) => [snapshot.sourceKind, snapshot.id])
-      )
+      data: payload,
+      meta: {
+        ...providerProtocolMetadata("normalization.result", "netease", input.meta.correlationId),
+        checkpoint: input.data.checkpoint,
+        issues: input.data.issues,
+        outcome: input.data.collectionOutcome,
+        schemaId: providerNormalizedSchemaId("netease"),
+        schemaVersion: 1,
+        sourceSnapshots: materializeProviderLineage(input)
+      }
     };
   }
 }
@@ -863,47 +864,38 @@ function uniqueStrings(values: readonly string[]) {
   return [...new Set(values)];
 }
 
-function requiredSnapshot(snapshots: readonly RawSnapshot[], sourceKind: string) {
-  const snapshot = snapshots.find((candidate) => candidate.sourceKind === sourceKind);
+function requiredSnapshot(snapshots: readonly ProviderSnapshotRecord[], sourceKind: string) {
+  const snapshot = snapshots.find((candidate) => candidate.meta.source === sourceKind);
   if (!snapshot) throw new ProviderSchemaMismatchError(sourceKind);
   return snapshot;
 }
 
-function matchingSnapshots(snapshots: readonly RawSnapshot[], sourceKind: string) {
-  const matches = snapshots.filter(
-    (candidate) =>
-      candidate.sourceKind === sourceKind || candidate.sourceKind.startsWith(`${sourceKind}.page.`)
-  );
+function matchingSnapshots(snapshots: readonly ProviderSnapshotRecord[], sourceKind: string) {
+  const matches = snapshots
+    .filter((candidate) => candidate.meta.source === sourceKind)
+    .sort((left, right) => partitionIndex(left) - partitionIndex(right));
   if (matches.length === 0) throw new ProviderSchemaMismatchError(sourceKind);
   return matches;
 }
 
-function optionalMatchingSnapshots(snapshots: readonly RawSnapshot[], sourceKind: string) {
-  return snapshots.filter(
-    (candidate) =>
-      candidate.sourceKind === sourceKind || candidate.sourceKind.startsWith(`${sourceKind}.page.`)
-  );
-}
-
-function optionalSeriesSnapshots(snapshots: readonly RawSnapshot[], sourceKind: string) {
+function optionalMatchingSnapshots(
+  snapshots: readonly ProviderSnapshotRecord[],
+  sourceKind: string
+) {
   return snapshots
-    .filter(
-      (candidate) =>
-        candidate.sourceKind === sourceKind ||
-        candidate.sourceKind.startsWith(`${sourceKind}.period.`)
-    )
-    .sort(
-      (left, right) => historySourceIndex(left.sourceKind) - historySourceIndex(right.sourceKind)
-    );
+    .filter((candidate) => candidate.meta.source === sourceKind)
+    .sort((left, right) => partitionIndex(left) - partitionIndex(right));
 }
 
-function historySourceKind(sourceKind: string, index: number) {
-  return index === 0 ? sourceKind : `${sourceKind}.period.${index}`;
+function optionalSeriesSnapshots(snapshots: readonly ProviderSnapshotRecord[], sourceKind: string) {
+  return snapshots
+    .filter((candidate) => candidate.meta.source === sourceKind)
+    .sort((left, right) => partitionIndex(left) - partitionIndex(right));
 }
 
-function historySourceIndex(sourceKind: string) {
-  const match = sourceKind.match(/\.period\.(\d+)$/);
-  return match ? Number(match[1]) : 0;
+function partitionIndex(snapshot: ProviderSnapshotRecord) {
+  const partition = snapshot.meta.partition;
+  return partition.kind === "cursor" || partition.kind === "index" ? partition.index : 0;
 }
 
 function uniqueBy<T>(items: readonly T[], identity: (item: T) => string) {
@@ -912,11 +904,11 @@ function uniqueBy<T>(items: readonly T[], identity: (item: T) => string) {
   return [...unique.values()];
 }
 
-function checked<T extends TSchema>(schema: T, snapshot: RawSnapshot): Static<T> {
-  if (!Value.Check(schema, snapshot.payload)) {
-    throw new ProviderSchemaMismatchError(snapshot.sourceKind);
+function checked<T extends TSchema>(schema: T, snapshot: ProviderSnapshotRecord): Static<T> {
+  if (!Value.Check(schema, snapshot.data)) {
+    throw new ProviderSchemaMismatchError(snapshot.meta.source);
   }
-  return snapshot.payload as Static<T>;
+  return snapshot.data as Static<T>;
 }
 
 function normalizeTrack(track: {

@@ -1,15 +1,22 @@
 import {
   PermanentProviderError,
   ProjectionError,
+  PROVIDER_JSON_MEDIA_TYPE,
+  providerNormalizedSchemaId,
+  providerProtocolMetadata,
+  providerSourceSchemaId,
   ProviderNotConfiguredError,
+  ProviderProtocolError,
   RawSnapshotSanitizationError,
   RetryableProviderError
 } from "@nivalis/domain";
 import type {
-  BuiltWidgetProjection,
+  JsonObject,
   NormalizedProviderData,
   OwnerContext,
   ProviderConnection,
+  ProviderCollection,
+  ProviderCollectionResult,
   ProviderRuntimeModule,
   ProviderSyncState,
   ProviderType,
@@ -127,6 +134,24 @@ describe("SyncWorkerService", () => {
     expect(repository.run.lastErrorCode).toBe(new RawSnapshotSanitizationError("x").code);
   });
 
+  it("fails closed when a runtime emits another Provider's protocol envelope", async () => {
+    const runtime = runtimeWithPayload({ kind: "fixture" });
+    const collect = runtime.connector.collect;
+    runtime.connector.collect = async (request) => {
+      const result = await collect(request);
+      if (!isCollectionResult(result)) return result;
+      return {
+        ...result,
+        meta: providerProtocolMetadata("collection.result", "netease", request.data.runId)
+      };
+    };
+    await expect(createWorker(repository, runtime).process(runId)).resolves.toMatchObject({
+      status: "failed"
+    });
+    expect(repository.rawSnapshots).toHaveLength(0);
+    expect(repository.run.lastErrorCode).toBe(new ProviderProtocolError("x").code);
+  });
+
   it("keeps Raw Snapshot evidence and Last Known Good Projection when projection fails", async () => {
     const runtime = runtimeWithPayload({ kind: "fixture" });
     runtime.projector.project = async () => {
@@ -138,6 +163,89 @@ describe("SyncWorkerService", () => {
     });
     expect(repository.rawSnapshots).toHaveLength(1);
     expect(repository.projectionVersion).toBe(previous);
+  });
+
+  it("commits an immutable normalized snapshot with a successful projection", async () => {
+    const completed = await createWorker(
+      repository,
+      runtimeWithPayload({ kind: "fixture" })
+    ).process(runId);
+    expect(completed.status).toBe("completed");
+    expect(repository.normalizedSnapshots).toHaveLength(1);
+    expect(repository.normalizedSnapshots[0]?.meta).toMatchObject({
+      kind: "normalization.result",
+      protocolVersion: "2.0",
+      schemaVersion: 1
+    });
+  });
+
+  it("feeds the prior normalized checkpoint and state into incremental materialization", async () => {
+    const base = runtimeWithPayload({ kind: "fixture" });
+    const runtime: ProviderRuntimeModule = {
+      ...base,
+      manifest: {
+        ...base.manifest,
+        data: {
+          ...base.manifest.data,
+          capabilities: {
+            ...base.manifest.data.capabilities,
+            collectionModes: ["snapshot", "incremental"]
+          },
+          sources: [
+            {
+              ...base.manifest.data.sources[0]!,
+              operations: ["replace", "upsert", "delete"]
+            }
+          ]
+        }
+      }
+    };
+    const previous = previousNormalizedFixture();
+    repository.normalizedSnapshots.push(previous);
+    let requestedCheckpoint: JsonObject | null = null;
+    let normalizationPrevious: NormalizedProviderData | null = null;
+    runtime.connector.collect = async (request) => {
+      requestedCheckpoint = request.data.checkpoint;
+      return {
+        data: {
+          checkpoint: { sequence: "2" },
+          continuation: null,
+          issues: [],
+          mode: "incremental",
+          outcome: "complete",
+          records: [
+            {
+              data: { kind: "fixture" },
+              meta: {
+                ...providerProtocolMetadata("source.record", "fixture", request.data.runId),
+                collectedAt: now.toISOString(),
+                mediaType: PROVIDER_JSON_MEDIA_TYPE,
+                operation: "upsert",
+                partition: { kind: "singleton" },
+                payloadKind: "json",
+                schemaId: providerSourceSchemaId("fixture", "fixture.dashboard"),
+                schemaVersion: 1,
+                source: "fixture.dashboard",
+                sourceUpdatedAt: null
+              }
+            }
+          ]
+        },
+        meta: providerProtocolMetadata("collection.result", "fixture", request.data.runId)
+      };
+    };
+    const normalize = runtime.normalizer.normalize;
+    runtime.normalizer.normalize = async (input) => {
+      normalizationPrevious = input.data.previous;
+      return normalize(input);
+    };
+
+    await expect(createWorker(repository, runtime).process(runId)).resolves.toMatchObject({
+      status: "completed"
+    });
+    expect(requestedCheckpoint).toEqual({ sequence: "1" });
+    expect(normalizationPrevious).toBe(previous);
+    expect(repository.normalizedSnapshots).toHaveLength(2);
   });
 });
 
@@ -163,6 +271,7 @@ class FakeSyncRepository implements SyncRepository {
   active = false;
   projectionVersion = "last-known-good";
   readonly rawSnapshots: RawSnapshot[] = [];
+  readonly normalizedSnapshots: NormalizedProviderData[] = [];
 
   async findConnectionForOwnerProvider(_ownerId: string, provider: ProviderType) {
     return provider === "fixture" ? connection : null;
@@ -230,6 +339,14 @@ class FakeSyncRepository implements SyncRepository {
 
   async listRawSnapshotsForRun(syncRunId: string) {
     return this.rawSnapshots.filter((snapshot) => snapshot.syncRunId === syncRunId);
+  }
+
+  async getPreviousNormalizedData() {
+    return this.normalizedSnapshots.at(-1) ?? null;
+  }
+
+  async insertNormalizedSnapshot(input: { normalized: NormalizedProviderData }) {
+    this.normalizedSnapshots.push(input.normalized);
   }
 
   async commitProjectionReplay(input: Omit<CompleteSyncInput, "syncRunId">) {
@@ -312,7 +429,10 @@ function createWorker(repository: FakeSyncRepository, runtime: ProviderRuntimeMo
     new FakeSyncUnitOfWork(repository),
     projections,
     { get: (provider) => (provider === "fixture" ? runtime : null) },
-    { create: () => "00000000-0000-4000-8000-000000000800", hashPayload: () => "hash" },
+    {
+      create: () => "00000000-0000-4000-8000-000000000800",
+      hashPayload: () => "a".repeat(64)
+    },
     { now: () => now },
     3,
     120_000
@@ -322,65 +442,180 @@ function createWorker(repository: FakeSyncRepository, runtime: ProviderRuntimeMo
 function runtimeThatThrows(error: Error): ProviderRuntimeModule {
   return {
     connector: {
-      provider: "fixture",
-      async fetch() {
+      async collect() {
         throw error;
       }
     },
+    manifest: fixtureManifest(),
     normalizer: {
-      provider: "fixture",
       async normalize() {
         throw new Error("not reached");
       }
     },
     projector: {
-      provider: "fixture",
       async project() {
         throw new Error("not reached");
       }
-    },
-    provider: "fixture"
+    }
   };
 }
 
 function runtimeWithPayload(payload: Record<string, string>): ProviderRuntimeModule {
   return {
     connector: {
-      provider: "fixture",
-      async fetch() {
-        return [
-          {
-            fetchedAt: now,
-            payload,
-            schemaVersion: 1,
-            sourceKind: "fixture.dashboard"
-          }
-        ];
+      async collect(request) {
+        return {
+          data: {
+            checkpoint: null,
+            continuation: null,
+            issues: [],
+            mode: "snapshot",
+            outcome: "complete",
+            records: [
+              {
+                data: payload,
+                meta: {
+                  ...providerProtocolMetadata("source.record", "fixture", request.data.runId),
+                  collectedAt: now.toISOString(),
+                  mediaType: PROVIDER_JSON_MEDIA_TYPE,
+                  operation: "replace",
+                  partition: { kind: "singleton" },
+                  payloadKind: "json",
+                  schemaId: providerSourceSchemaId("fixture", "fixture.dashboard"),
+                  schemaVersion: 1,
+                  source: "fixture.dashboard",
+                  sourceUpdatedAt: null
+                }
+              }
+            ]
+          },
+          meta: providerProtocolMetadata("collection.result", "fixture", request.data.runId)
+        };
       }
     },
+    manifest: fixtureManifest(),
     normalizer: {
-      provider: "fixture",
-      async normalize(snapshots): Promise<NormalizedProviderData> {
+      async normalize(input): Promise<NormalizedProviderData> {
         return {
-          payload,
-          provider: "fixture",
-          schemaVersion: 1,
-          sourceSnapshotIds: { "fixture.dashboard": snapshots[0]!.id }
+          data: payload,
+          meta: {
+            ...providerProtocolMetadata(
+              "normalization.result",
+              "fixture",
+              input.meta.correlationId
+            ),
+            checkpoint: input.data.checkpoint,
+            issues: input.data.issues,
+            outcome: input.data.collectionOutcome,
+            schemaId: providerNormalizedSchemaId("fixture"),
+            schemaVersion: 1,
+            sourceSnapshots: [
+              {
+                partition: input.data.records[0]!.meta.partition,
+                snapshotId: input.data.records[0]!.meta.snapshotId,
+                source: "fixture.dashboard"
+              }
+            ]
+          }
         };
       }
     },
     projector: {
-      provider: "fixture",
-      async project(_normalized, targets): Promise<readonly BuiltWidgetProjection[]> {
-        return targets.map((target) => ({
-          data: { stars: 1 },
-          projectionKey: target.projectionKey,
-          projectionSchemaVersion: target.schemaVersion,
-          widgetId: target.id
-        }));
+      async project(input) {
+        return {
+          data: input.data.targets.map((target) => ({
+            data: { stars: 1 },
+            projectionKey: target.projectionKey,
+            projectionSchemaVersion: target.schemaVersion,
+            widgetId: target.id
+          })),
+          meta: {
+            ...providerProtocolMetadata("projection.result", "fixture", input.meta.correlationId),
+            issues: input.data.normalized.meta.issues,
+            outcome: input.data.normalized.meta.outcome
+          }
+        };
       }
+    }
+  };
+}
+
+function fixtureManifest() {
+  return {
+    data: {
+      capabilities: {
+        collectionModes: ["snapshot" as const],
+        continuation: false,
+        partialResults: false,
+        payloadKinds: ["json" as const]
+      },
+      displayName: "Fixture",
+      extensions: {},
+      limits: {
+        maxBatchBytes: 10_000,
+        maxBatchRecords: 1,
+        maxCacheRecords: 0,
+        maxCheckpointBytes: 1_000,
+        maxCollectionBytes: 10_000,
+        maxContinuationBatches: 1,
+        maxIssues: 4,
+        maxNormalizedBytes: 10_000,
+        maxProjectionBytes: 10_000,
+        maxRecordBytes: 5_000
+      },
+      normalizedSchema: {
+        acceptedVersions: [1],
+        id: providerNormalizedSchemaId("fixture"),
+        producedVersion: 1
+      },
+      sources: [
+        {
+          criticality: "required" as const,
+          dataShape: "document" as const,
+          extensions: {},
+          id: "fixture.dashboard",
+          mediaTypes: [PROVIDER_JSON_MEDIA_TYPE],
+          operations: ["replace" as const],
+          partitions: ["singleton" as const],
+          payloadKinds: ["json" as const],
+          schema: {
+            acceptedVersions: [1],
+            id: providerSourceSchemaId("fixture", "fixture.dashboard"),
+            producedVersion: 1
+          }
+        }
+      ]
     },
-    provider: "fixture"
+    meta: providerProtocolMetadata("manifest", "fixture")
+  };
+}
+
+function isCollectionResult(result: ProviderCollectionResult): result is ProviderCollection {
+  return result.meta.kind === "collection.result";
+}
+
+function previousNormalizedFixture(): NormalizedProviderData {
+  return {
+    data: { kind: "fixture" },
+    meta: {
+      ...providerProtocolMetadata(
+        "normalization.result",
+        "fixture",
+        "00000000-0000-4000-8000-000000000499"
+      ),
+      checkpoint: { sequence: "1" },
+      issues: [],
+      outcome: "complete",
+      schemaId: providerNormalizedSchemaId("fixture"),
+      schemaVersion: 1,
+      sourceSnapshots: [
+        {
+          partition: { kind: "singleton" },
+          snapshotId: "00000000-0000-4000-8000-000000000498",
+          source: "fixture.dashboard"
+        }
+      ]
+    }
   };
 }
 

@@ -1,4 +1,5 @@
 import { DashboardReadService, DashboardService, SyncService } from "@nivalis/application";
+import { FIXTURE_PROVIDER_MANIFEST } from "@nivalis/connectors";
 import { RetryableProviderError } from "@nivalis/domain";
 import type { OwnerContext, ProviderRuntimeModule } from "@nivalis/domain";
 import {
@@ -326,24 +327,21 @@ function workerConfig(scenario: WorkerConfig["fixtureScenario"]): WorkerConfig {
 function alwaysRetryableRuntime(): ProviderRuntimeModule {
   return {
     connector: {
-      provider: "fixture",
-      async fetch() {
+      async collect() {
         throw new RetryableProviderError("Fixture remains unavailable.");
       }
     },
+    manifest: FIXTURE_PROVIDER_MANIFEST,
     normalizer: {
-      provider: "fixture",
       async normalize() {
         throw new Error("not reached");
       }
     },
     projector: {
-      provider: "fixture",
       async project() {
         throw new Error("not reached");
       }
-    },
-    provider: "fixture"
+    }
   };
 }
 

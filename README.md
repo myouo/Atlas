@@ -180,8 +180,13 @@ Application startup never creates tables. Seed is idempotent, development-only, 
 - `005`: encrypted, expiring Provider AuthAttempt state for QR and SMS login.
 - `006`: Owner-only Provider data catalog plus total-duration native metric support.
 - `007`: immutable current-Revision upgrade from single-range ranking/single-item pseudo-showcase to dual ranking and a manually curated six-item gallery.
+- `008`: monthly listening history and calendar data.
+- `009`: monthly native ranking snapshots.
+- `010`: immutable Provider Data Protocol 2.0 normalized snapshots for incremental materialization and replay.
 
 Migration rollback and user-facing Revision Restore are unrelated operations. Migration `004` preserves v1 history and creates immutable `schema_upgrade` successors for current NetEase Widget configurations.
+
+Every third-party adapter implements the schema-driven [Provider Data Protocol 2.0](docs/PROVIDER_INTEGRATION_PROTOCOL.md): bounded typed messages, general partitions, explicit partial/incremental semantics, portable failures, and replay-compatible source/normalized versions.
 
 ## Provider replay
 

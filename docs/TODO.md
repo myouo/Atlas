@@ -2,9 +2,9 @@
 
 ## Phase 6+
 
-- Add GitHub, Bangumi, Steam, and Bilibili through the established Connector/Normalizer/Native/Projector pattern, one Provider at a time.
+- Add GitHub, Bangumi, Steam, and Bilibili through `nivalis.provider-data@2.0` and the established Connector/Normalizer/Native/Projector stages, one Provider at a time.
 - Add Provider-specific native tables only when real semantics are known; never introduce a universal activity table.
-- Decide Provider/Raw/Native retention and explicit user data-erasure policies from measured storage growth.
+- Decide Provider Raw/Normalized/Native retention and explicit user data-erasure policies from measured storage growth.
 - Add credential-key rotation tooling; Phase 5 stores a version and key ID but does not run automatic re-encryption.
 - Add session cleanup/rate limiting and production observability without logging Provider payloads or secrets.
 - Complete appearance persistence, backups, and deployment adapters.

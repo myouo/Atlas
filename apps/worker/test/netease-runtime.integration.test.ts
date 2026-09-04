@@ -97,9 +97,13 @@ describe("NetEase encrypted Provider runtime", () => {
       .where("sync_run_id", "=", first.id)
       .orderBy("created_at", "asc")
       .execute();
-    expect(raw.map((snapshot) => snapshot.source_kind).sort()).toEqual(
+    expect([...new Set(raw.map((snapshot) => snapshot.source_kind))].sort()).toEqual(
       Object.values(NETEASE_SOURCE).sort()
     );
+    expect(raw).toHaveLength(27);
+    expect(
+      raw.every((snapshot) => snapshot.source_cursor?.startsWith("nivalis.provider-data/2:"))
+    ).toBe(true);
     expect(JSON.stringify(raw.map((snapshot) => snapshot.payload))).not.toContain(credential);
     expect(JSON.stringify(raw.map((snapshot) => snapshot.payload))).not.toMatch(
       /authorization|cookie|music_u|csrf|access.?token|secret|password/i
@@ -116,9 +120,25 @@ describe("NetEase encrypted Provider runtime", () => {
       listening: { totalDurationSeconds: 582_420 },
       provider: "netease"
     });
+    const normalizedSnapshot = await database
+      .selectFrom("provider_normalized_snapshots")
+      .select(["message", "protocol_version", "schema_version"])
+      .where("sync_run_id", "=", first.id)
+      .executeTakeFirstOrThrow();
+    expect(normalizedSnapshot).toMatchObject({ protocol_version: "2.0", schema_version: 1 });
+    expect(normalizedSnapshot.message.meta).toMatchObject({
+      correlationId: first.id,
+      kind: "normalization.result",
+      provider: "netease"
+    });
 
     const second = await createRun();
     await worker(runtime).process(second.id);
+    const normalizedCount = await database
+      .selectFrom("provider_normalized_snapshots")
+      .select(({ fn }) => fn.countAll().as("count"))
+      .executeTakeFirstOrThrow();
+    expect(Number(normalizedCount.count)).toBe(2);
     expect(await nativeCounts()).toEqual({ artists: 5, recent: 2, tracks: 23 });
     expect(await projectedTotal()).toBe(6_421);
 
@@ -179,7 +199,7 @@ describe("NetEase encrypted Provider runtime", () => {
       lastErrorCode: "provider-schema-mismatch",
       status: "failed"
     });
-    expect(await rawCount(run.id)).toBe(Object.keys(NETEASE_SOURCE).length);
+    expect(await rawCount(run.id)).toBe(27);
     expect(await currentProjection()).toEqual(before);
     expect(await nativeCounts()).toEqual({ artists: 0, recent: 0, tracks: 0 });
   });
@@ -195,7 +215,6 @@ describe("NetEase encrypted Provider runtime", () => {
     const runtime: ProviderRuntimeModule = {
       ...actual,
       projector: {
-        provider: "netease",
         async project() {
           throw new ProjectionError("Intentional projection failure.");
         }
@@ -204,7 +223,7 @@ describe("NetEase encrypted Provider runtime", () => {
     const run = await createRun();
     const failed = await worker(runtime).process(run.id);
     expect(failed).toMatchObject({ lastErrorCode: "projection-error", status: "failed" });
-    expect(await rawCount(run.id)).toBe(Object.keys(NETEASE_SOURCE).length);
+    expect(await rawCount(run.id)).toBe(27);
     expect(await currentProjection()).toEqual(before);
     expect(await nativeCounts()).toEqual({ artists: 0, recent: 0, tracks: 0 });
   });
@@ -272,7 +291,7 @@ describe("NetEase encrypted Provider runtime", () => {
       lastErrorCode: "permanent-provider-error",
       status: "failed"
     });
-    expect(await rawCount(run.id)).toBe(Object.keys(NETEASE_SOURCE).length);
+    expect(await rawCount(run.id)).toBe(27);
     expect(await currentProjection()).toEqual(before);
   });
 });
@@ -349,7 +368,7 @@ function createUnitOfWork() {
 class RuntimeRegistry implements ProviderRuntimeRegistry {
   private readonly values: ReadonlyMap<ProviderType, ProviderRuntimeModule>;
   constructor(values: readonly ProviderRuntimeModule[]) {
-    this.values = new Map(values.map((value) => [value.provider, value]));
+    this.values = new Map(values.map((value) => [value.manifest.meta.provider, value]));
   }
   get(provider: ProviderType) {
     return this.values.get(provider) ?? null;

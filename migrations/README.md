@@ -9,6 +9,9 @@ Migrations are explicit Kysely modules and are never run from API startup.
 - `005_netease_interactive_auth_attempts.mjs` adds expiring QR/SMS AuthAttempt state with AEAD envelope constraints, active-attempt deduplication, leases, and safe public metadata.
 - `006_netease_data_catalog.mjs` adds the Owner-only normalized Provider catalog and extends native metric constraints for Provider-reported total duration in seconds.
 - `007_netease_showcase_and_ranking_v2.mjs` clones current Revisions containing legacy ranking/showcase Widgets, upgrades the rank payload to weekly plus all-time, and replaces implicit single-track cards with an explicit six-item gallery while preserving v1 history.
+- `008_netease_monthly_listening.mjs` extends normalized monthly listening history and calendar persistence.
+- `009_netease_monthly_rank_snapshots.mjs` adds the monthly Provider ranking period to native play snapshots.
+- `010_provider_normalized_snapshots.mjs` stores immutable, versioned normalized protocol messages so incremental adapters and historical replay can consume the correct prior state.
 - Run from the repository root with `pnpm db:migrate`, inspect with `pnpm db:migrate:status`, and roll back one migration with `pnpm db:rollback`.
 - Rolling back migration `002` reconstructs only the then-current Phase 2 Draft/Published state and is a schema-development operation. User-visible Revision Restore instead clones history into a new immutable Draft and never runs a database down migration.
 - Rolling back migration `003` reconstructs Phase 3 runtime Widget columns from matching Last Known Good projections before removing the Phase 4 runtime tables.
@@ -16,3 +19,4 @@ Migrations are explicit Kysely modules and are never run from API startup.
 - Rolling back migration `005` removes only ephemeral Provider AuthAttempts and leaves acquired encrypted credentials untouched.
 - Rolling back migration `006` removes only rebuildable catalog/total-duration derived data before restoring the earlier metric constraints.
 - Rolling back migration `007` restores the pre-upgrade pointers only when no later Dashboard write descends from the generated semantic-upgrade Revision.
+- Rolling back migration `010` removes only rebuildable normalized protocol snapshots; Raw evidence, native data, and Last Known Good projections remain intact.

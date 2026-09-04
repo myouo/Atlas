@@ -1,0 +1,697 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nivalis:schema:provider-data-protocol:2.0",
+  "title": "Nivalis Provider Data Protocol 2.0",
+  "oneOf": [
+    { "$ref": "#/$defs/manifest" },
+    { "$ref": "#/$defs/collectionRequest" },
+    { "$ref": "#/$defs/collectionResult" },
+    { "$ref": "#/$defs/sourceRecord" },
+    { "$ref": "#/$defs/snapshotRecord" },
+    { "$ref": "#/$defs/normalizationRequest" },
+    { "$ref": "#/$defs/normalizedResult" },
+    { "$ref": "#/$defs/projectionRequest" },
+    { "$ref": "#/$defs/projectionResult" },
+    { "$ref": "#/$defs/failure" }
+  ],
+  "$defs": {
+    "provider": {
+      "enum": ["fixture", "netease", "github", "bangumi", "steam", "bilibili"]
+    },
+    "jsonValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "string" },
+        { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        { "type": "number", "not": { "type": "integer" } },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } }
+      ]
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$" },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "correlationId": { "type": ["string", "null"] },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "kind": {
+          "enum": [
+            "collection.request",
+            "collection.result",
+            "failure",
+            "manifest",
+            "normalization.request",
+            "normalization.result",
+            "projection.request",
+            "projection.result",
+            "snapshot.record",
+            "source.record"
+          ]
+        },
+        "protocol": { "const": "nivalis.provider-data" },
+        "protocolVersion": { "const": "2.0" },
+        "provider": { "$ref": "#/$defs/provider" }
+      },
+      "required": ["correlationId", "extensions", "kind", "protocol", "protocolVersion", "provider"]
+    },
+    "schemaSupport": {
+      "type": "object",
+      "properties": {
+        "acceptedVersions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "id": { "type": "string", "pattern": "^(?:https://|urn:)[^\\s]{3,300}$" },
+        "producedVersion": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["acceptedVersions", "id", "producedVersion"],
+      "additionalProperties": false
+    },
+    "partition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "kind": { "const": "singleton" } },
+          "required": ["kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "index": { "type": "integer", "minimum": 0 },
+            "kind": { "const": "index" }
+          },
+          "required": ["index", "kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cursor": { "type": ["string", "null"], "maxLength": 4096 },
+            "index": { "type": "integer", "minimum": 0 },
+            "kind": { "const": "cursor" }
+          },
+          "required": ["cursor", "index", "kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "kind": { "const": "key" }
+          },
+          "required": ["key", "kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "end": { "type": "string", "format": "date-time" },
+            "kind": { "const": "time_window" },
+            "start": { "type": "string", "format": "date-time" }
+          },
+          "required": ["end", "kind", "start"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "issue": {
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 120 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "partition": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/partition" }] },
+        "retryable": { "type": "boolean" },
+        "severity": { "enum": ["error", "warning"] },
+        "source": { "type": ["string", "null"] }
+      },
+      "required": ["code", "message", "partition", "retryable", "severity", "source"],
+      "additionalProperties": false
+    },
+    "blobReference": {
+      "type": "object",
+      "properties": {
+        "byteLength": { "type": "integer", "minimum": 0 },
+        "fileName": { "type": ["string", "null"], "maxLength": 512 },
+        "kind": { "const": "blob_reference" },
+        "mediaType": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "storageKey": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      },
+      "required": ["byteLength", "fileName", "kind", "mediaType", "sha256", "storageKey"],
+      "additionalProperties": false
+    },
+    "sourceRecord": {
+      "type": "object",
+      "properties": {
+        "data": { "$ref": "#/$defs/jsonValue" },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "source.record" },
+                "collectedAt": { "type": "string", "format": "date-time" },
+                "mediaType": { "type": "string" },
+                "operation": { "enum": ["delete", "replace", "upsert"] },
+                "partition": { "$ref": "#/$defs/partition" },
+                "payloadKind": { "enum": ["blob_reference", "json"] },
+                "schemaId": { "type": "string" },
+                "schemaVersion": { "type": "integer", "minimum": 1 },
+                "source": { "type": "string" },
+                "sourceUpdatedAt": { "type": ["string", "null"], "format": "date-time" }
+              },
+              "required": [
+                "collectedAt",
+                "mediaType",
+                "operation",
+                "partition",
+                "payloadKind",
+                "schemaId",
+                "schemaVersion",
+                "source",
+                "sourceUpdatedAt"
+              ]
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "meta": {
+                "properties": { "payloadKind": { "const": "blob_reference" } },
+                "required": ["payloadKind"]
+              }
+            }
+          },
+          "then": { "properties": { "data": { "$ref": "#/$defs/blobReference" } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "meta": {
+                "properties": { "operation": { "const": "delete" } },
+                "required": ["operation"]
+              }
+            }
+          },
+          "then": { "properties": { "data": { "type": "null" } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "sourceDefinition": {
+      "type": "object",
+      "properties": {
+        "criticality": { "enum": ["optional", "required"] },
+        "dataShape": {
+          "enum": ["collection", "document", "graph", "media", "mixed", "scalar", "time_series"]
+        },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "id": { "type": "string", "maxLength": 160 },
+        "mediaTypes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["delete", "replace", "upsert"] }
+        },
+        "partitions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["cursor", "index", "key", "singleton", "time_window"] }
+        },
+        "payloadKinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["blob_reference", "json"] }
+        },
+        "schema": { "$ref": "#/$defs/schemaSupport" }
+      },
+      "required": [
+        "criticality",
+        "dataShape",
+        "extensions",
+        "id",
+        "mediaTypes",
+        "operations",
+        "partitions",
+        "payloadKinds",
+        "schema"
+      ],
+      "additionalProperties": false
+    },
+    "manifest": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "collectionModes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "enum": ["incremental", "snapshot"] }
+                },
+                "continuation": { "type": "boolean" },
+                "partialResults": { "type": "boolean" },
+                "payloadKinds": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "enum": ["blob_reference", "json"] }
+                }
+              },
+              "required": ["collectionModes", "continuation", "partialResults", "payloadKinds"],
+              "additionalProperties": false
+            },
+            "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+            "extensions": { "$ref": "#/$defs/extensions" },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "maxBatchBytes": { "type": "integer", "minimum": 1 },
+                "maxBatchRecords": { "type": "integer", "minimum": 1 },
+                "maxCacheRecords": { "type": "integer", "minimum": 0 },
+                "maxCheckpointBytes": { "type": "integer", "minimum": 1 },
+                "maxCollectionBytes": { "type": "integer", "minimum": 1 },
+                "maxContinuationBatches": { "type": "integer", "minimum": 1 },
+                "maxIssues": { "type": "integer", "minimum": 0 },
+                "maxNormalizedBytes": { "type": "integer", "minimum": 1 },
+                "maxProjectionBytes": { "type": "integer", "minimum": 1 },
+                "maxRecordBytes": { "type": "integer", "minimum": 1 }
+              },
+              "required": [
+                "maxBatchBytes",
+                "maxBatchRecords",
+                "maxCacheRecords",
+                "maxCheckpointBytes",
+                "maxCollectionBytes",
+                "maxContinuationBatches",
+                "maxIssues",
+                "maxNormalizedBytes",
+                "maxProjectionBytes",
+                "maxRecordBytes"
+              ],
+              "additionalProperties": false
+            },
+            "normalizedSchema": { "$ref": "#/$defs/schemaSupport" },
+            "sources": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/sourceDefinition" }
+            }
+          },
+          "required": [
+            "capabilities",
+            "displayName",
+            "extensions",
+            "limits",
+            "normalizedSchema",
+            "sources"
+          ],
+          "additionalProperties": false
+        },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            {
+              "type": "object",
+              "properties": { "kind": { "const": "manifest" }, "correlationId": { "type": "null" } }
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    },
+    "collectionRequest": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "attempt": { "type": "integer", "minimum": 0 },
+            "cachedRecords": { "type": "array", "items": { "$ref": "#/$defs/sourceRecord" } },
+            "checkpoint": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/jsonObject" }] },
+            "connectionId": { "type": "string", "minLength": 1 },
+            "continuation": { "type": ["string", "null"] },
+            "requestedAt": { "type": "string", "format": "date-time" },
+            "runId": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attempt",
+            "cachedRecords",
+            "checkpoint",
+            "connectionId",
+            "continuation",
+            "requestedAt",
+            "runId"
+          ],
+          "additionalProperties": false
+        },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            { "type": "object", "properties": { "kind": { "const": "collection.request" } } }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    },
+    "collectionResult": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "checkpoint": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/jsonObject" }] },
+            "continuation": { "type": ["string", "null"] },
+            "issues": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+            "mode": { "enum": ["incremental", "snapshot"] },
+            "outcome": { "enum": ["complete", "partial"] },
+            "records": { "type": "array", "items": { "$ref": "#/$defs/sourceRecord" } }
+          },
+          "required": ["checkpoint", "continuation", "issues", "mode", "outcome", "records"],
+          "additionalProperties": false
+        },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            { "type": "object", "properties": { "kind": { "const": "collection.result" } } }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    },
+    "snapshotRecord": {
+      "type": "object",
+      "properties": {
+        "data": { "$ref": "#/$defs/jsonValue" },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "snapshot.record" },
+                "checkpoint": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/jsonObject" }] },
+                "collectedAt": { "type": "string", "format": "date-time" },
+                "collectionMode": { "enum": ["incremental", "snapshot"] },
+                "collectionOutcome": { "enum": ["complete", "partial"] },
+                "connectionId": { "type": "string" },
+                "issues": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+                "mediaType": { "type": "string" },
+                "operation": { "enum": ["delete", "replace", "upsert"] },
+                "partition": { "$ref": "#/$defs/partition" },
+                "payloadHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                "payloadKind": { "enum": ["blob_reference", "json"] },
+                "runId": { "type": "string" },
+                "schemaId": { "type": "string" },
+                "schemaVersion": { "type": "integer", "minimum": 1 },
+                "snapshotId": { "type": "string" },
+                "source": { "type": "string" },
+                "sourceUpdatedAt": { "type": ["string", "null"], "format": "date-time" },
+                "storedAt": { "type": "string", "format": "date-time" }
+              },
+              "required": [
+                "checkpoint",
+                "collectedAt",
+                "collectionMode",
+                "collectionOutcome",
+                "connectionId",
+                "issues",
+                "mediaType",
+                "operation",
+                "partition",
+                "payloadHash",
+                "payloadKind",
+                "runId",
+                "schemaId",
+                "schemaVersion",
+                "snapshotId",
+                "source",
+                "sourceUpdatedAt",
+                "storedAt"
+              ]
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "meta": {
+                "properties": { "payloadKind": { "const": "blob_reference" } },
+                "required": ["payloadKind"]
+              }
+            }
+          },
+          "then": { "properties": { "data": { "$ref": "#/$defs/blobReference" } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "meta": {
+                "properties": { "operation": { "const": "delete" } },
+                "required": ["operation"]
+              }
+            }
+          },
+          "then": { "properties": { "data": { "type": "null" } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "normalizedResult": {
+      "type": "object",
+      "properties": {
+        "data": { "$ref": "#/$defs/jsonObject" },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "normalization.result" },
+                "checkpoint": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/jsonObject" }] },
+                "issues": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+                "outcome": { "enum": ["complete", "partial"] },
+                "schemaId": { "type": "string" },
+                "schemaVersion": { "type": "integer", "minimum": 1 },
+                "sourceSnapshots": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "partition": { "$ref": "#/$defs/partition" },
+                      "snapshotId": { "type": "string" },
+                      "source": { "type": "string" }
+                    },
+                    "required": ["partition", "snapshotId", "source"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "checkpoint",
+                "issues",
+                "outcome",
+                "schemaId",
+                "schemaVersion",
+                "sourceSnapshots"
+              ]
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    },
+    "normalizationRequest": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "checkpoint": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/jsonObject" }] },
+            "collectionMode": { "enum": ["incremental", "snapshot"] },
+            "collectionOutcome": { "enum": ["complete", "partial"] },
+            "issues": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+            "previous": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/normalizedResult" }] },
+            "records": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/snapshotRecord" }
+            }
+          },
+          "required": [
+            "checkpoint",
+            "collectionMode",
+            "collectionOutcome",
+            "issues",
+            "previous",
+            "records"
+          ],
+          "additionalProperties": false
+        },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            { "type": "object", "properties": { "kind": { "const": "normalization.request" } } }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    },
+    "projectionRequest": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "normalized": { "$ref": "#/$defs/normalizedResult" },
+            "targets": { "type": "array", "items": { "type": "object" } }
+          },
+          "required": ["normalized", "targets"],
+          "additionalProperties": false
+        },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            { "type": "object", "properties": { "kind": { "const": "projection.request" } } }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    },
+    "projectionResult": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/$defs/jsonValue" },
+              "projectionKey": { "type": "string", "minLength": 1 },
+              "projectionSchemaVersion": { "type": "integer", "minimum": 1 },
+              "sourceSnapshotId": { "type": ["string", "null"] },
+              "widgetId": { "type": "string", "minLength": 1 }
+            },
+            "required": ["data", "projectionKey", "projectionSchemaVersion", "widgetId"],
+            "additionalProperties": false
+          }
+        },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "projection.result" },
+                "issues": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+                "outcome": { "enum": ["complete", "partial"] }
+              },
+              "required": ["issues", "outcome"]
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    },
+    "failure": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "enum": [
+                "configuration",
+                "credential",
+                "normalization",
+                "permanent",
+                "projection",
+                "protocol",
+                "rate_limit",
+                "schema",
+                "transport"
+              ]
+            },
+            "code": { "type": "string" },
+            "credentialStatus": { "enum": ["expired", "invalid", null] },
+            "message": { "type": "string" },
+            "partition": {
+              "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/partition" }]
+            },
+            "retryable": { "type": "boolean" },
+            "retryAfterMs": { "type": ["integer", "null"], "minimum": 0 },
+            "source": { "type": ["string", "null"] }
+          },
+          "required": [
+            "category",
+            "code",
+            "credentialStatus",
+            "message",
+            "partition",
+            "retryable",
+            "retryAfterMs",
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "meta": {
+          "allOf": [
+            { "$ref": "#/$defs/meta" },
+            { "type": "object", "properties": { "kind": { "const": "failure" } } }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["data", "meta"],
+      "additionalProperties": false
+    }
+  }
+}

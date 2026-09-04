@@ -35,6 +35,14 @@ export interface CompleteSyncInput {
   readonly syncRunId: string;
 }
 
+export interface NormalizedProviderSnapshotInput {
+  readonly generatedAt: Date;
+  readonly normalized: import("@nivalis/domain").NormalizedProviderData;
+  readonly provider: ProviderType;
+  readonly providerConnectionId: string;
+  readonly syncRunId: string;
+}
+
 export type CommitProjectionReplayInput = Omit<CompleteSyncInput, "syncRunId">;
 
 export interface SyncRepository {
@@ -49,6 +57,11 @@ export interface SyncRepository {
   getConnection(providerConnectionId: string): Promise<ProviderConnection | null>;
   getRun(syncRunId: string): Promise<SyncRun | null>;
   getRunForOwner(ownerId: string, syncRunId: string): Promise<SyncRun | null>;
+  getPreviousNormalizedData(
+    providerConnectionId: string,
+    syncRunId: string
+  ): Promise<import("@nivalis/domain").NormalizedProviderData | null>;
+  insertNormalizedSnapshot(input: NormalizedProviderSnapshotInput): Promise<void>;
   insertRawSnapshot(input: RawSnapshotInput, now: Date): Promise<RawSnapshot>;
   getRawSnapshot(snapshotId: string): Promise<RawSnapshot | null>;
   listRawSnapshotsForRun(syncRunId: string): Promise<readonly RawSnapshot[]>;

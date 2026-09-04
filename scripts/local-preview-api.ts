@@ -14,17 +14,38 @@ import type {
 import type {
   NormalizedProviderData,
   ProjectionTarget,
+  ProviderNormalizationInput,
+  ProviderProjectionInput,
   RawSnapshot,
   SyncRun
+} from "@nivalis/domain";
+import {
+  encodeProviderSourceContext,
+  providerProtocolMetadata,
+  toProviderSnapshotRecord,
+  toProviderSyncRequest
 } from "@nivalis/domain";
 
 import {
   buildNeteaseOwnerDataCatalog,
+  isNeteaseNormalizedPayload,
   NeteaseClient,
   NeteaseConnector,
   NeteaseNormalizer,
-  NeteaseProjector
+  NeteaseProjector,
+  NETEASE_PROVIDER_MANIFEST
 } from "../packages/connectors/src/index";
+import {
+  assertNormalizedProviderData,
+  assertProviderCollection,
+  assertProviderManifest,
+  assertProviderNormalizationInput,
+  assertProviderProjectionBatch,
+  assertProviderProjectionInput,
+  assertProviderProjectionSet,
+  assertProviderSnapshotRecords,
+  assertProviderSyncRequest
+} from "../packages/application/src/index";
 import { addWidgetToLayouts } from "../apps/web/features/dashboard/layout-engine";
 import { createMockWidget, mockDashboard } from "../apps/web/features/dashboard/mock-dashboard";
 
@@ -270,22 +291,45 @@ async function buildPreviewState(): Promise<PreviewState> {
     { resolve: async () => credential! },
     () => new Date()
   );
-  const fetched = await connector.fetch(run);
+  assertProviderManifest(NETEASE_PROVIDER_MANIFEST, "netease");
+  const collectionRequest = toProviderSyncRequest(run);
+  assertProviderSyncRequest(collectionRequest, NETEASE_PROVIDER_MANIFEST);
+  const collection = await connector.collect(collectionRequest);
+  assertProviderCollection(collection, NETEASE_PROVIDER_MANIFEST, run.id);
+  const fetched = collection.data.records;
   const snapshots = fetched.map((item, index): RawSnapshot => ({
-    createdAt: item.fetchedAt,
-    fetchedAt: item.fetchedAt,
+    createdAt: new Date(item.meta.collectedAt),
+    fetchedAt: new Date(item.meta.collectedAt),
     id: crypto.randomUUID(),
-    payload: item.payload,
+    payload: item.data,
     payloadHash: String(index).padStart(64, "0"),
     provider: "netease",
     providerConnectionId,
-    schemaVersion: item.schemaVersion,
-    sourceCursor: item.sourceCursor ?? null,
-    sourceKind: item.sourceKind,
-    sourceTimestamp: item.sourceTimestamp ?? null,
+    schemaVersion: item.meta.schemaVersion,
+    sourceCursor: encodeProviderSourceContext(item, collection.data),
+    sourceKind: item.meta.source,
+    sourceTimestamp: item.meta.sourceUpdatedAt ? new Date(item.meta.sourceUpdatedAt) : null,
     syncRunId: run.id
   }));
-  const normalized = await new NeteaseNormalizer().normalize(snapshots);
+  const normalizationRecords = snapshots.map(toProviderSnapshotRecord);
+  assertProviderSnapshotRecords(normalizationRecords, NETEASE_PROVIDER_MANIFEST, run.id);
+  const normalizationInput = {
+    data: {
+      checkpoint: collection.data.checkpoint,
+      collectionMode: collection.data.mode,
+      collectionOutcome: collection.data.outcome,
+      issues: collection.data.issues,
+      previous: null,
+      records: normalizationRecords
+    },
+    meta: providerProtocolMetadata("normalization.request", "netease", run.id)
+  } satisfies ProviderNormalizationInput;
+  assertProviderNormalizationInput(normalizationInput, NETEASE_PROVIDER_MANIFEST, run.id);
+  const normalized = await new NeteaseNormalizer().normalize(normalizationInput);
+  assertNormalizedProviderData(normalized, NETEASE_PROVIDER_MANIFEST, normalizationInput, run.id);
+  if (!isNeteaseNormalizedPayload(normalized.data)) {
+    throw new Error("NetEase normalized data did not match its declared schema.");
+  }
   const targets = base.widgets.flatMap((widget, index): ProjectionTarget[] =>
     widget.provider === "netease" && widget.type.startsWith("music.netease.")
       ? [
@@ -303,7 +347,15 @@ async function buildPreviewState(): Promise<PreviewState> {
         ]
       : []
   );
-  const built = await new NeteaseProjector().project(normalized, targets);
+  const projectionInput = {
+    data: { normalized, targets },
+    meta: providerProtocolMetadata("projection.request", "netease", run.id)
+  } satisfies ProviderProjectionInput;
+  assertProviderProjectionInput(projectionInput, NETEASE_PROVIDER_MANIFEST, run.id);
+  const projected = await new NeteaseProjector().project(projectionInput);
+  assertProviderProjectionBatch(projected, NETEASE_PROVIDER_MANIFEST, run.id);
+  const built = projected.data;
+  assertProviderProjectionSet(targets, built, normalized);
   const byWidget = new Map(built.map((projection) => [projection.widgetId, projection]));
   const generatedAt = new Date().toISOString();
   const widgets = base.widgets.map((widget): WidgetProjection => {
@@ -319,7 +371,7 @@ async function buildPreviewState(): Promise<PreviewState> {
   });
   return {
     base,
-    catalog: buildNeteaseOwnerDataCatalog(normalized.payload) as Record<string, unknown>,
+    catalog: buildNeteaseOwnerDataCatalog(normalized.data) as Record<string, unknown>,
     dataVersion: crypto.randomUUID(),
     generatedAt,
     normalized,
@@ -463,7 +515,17 @@ async function projectConfigurations(
         ]
       : []
   );
-  const built = await new NeteaseProjector().project(state.normalized, targets);
+  const correlationId = state.normalized.meta.correlationId;
+  if (!correlationId) throw new Error("Local normalized Provider state omitted correlationId.");
+  const projectionInput = {
+    data: { normalized: state.normalized, targets },
+    meta: providerProtocolMetadata("projection.request", "netease", correlationId)
+  } satisfies ProviderProjectionInput;
+  assertProviderProjectionInput(projectionInput, NETEASE_PROVIDER_MANIFEST, correlationId);
+  const projected = await new NeteaseProjector().project(projectionInput);
+  assertProviderProjectionBatch(projected, NETEASE_PROVIDER_MANIFEST, correlationId);
+  const built = projected.data;
+  assertProviderProjectionSet(targets, built, state.normalized);
   const builtById = new Map(built.map((projection) => [projection.widgetId, projection]));
   const existingById = new Map(state.widgets.map((widget) => [widget.id, widget]));
   return configurations.map((configuration): WidgetProjection => {

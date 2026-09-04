@@ -8,3 +8,5 @@ Implemented runtimes:
 - `src/netease`: minimal direct read-only NetEase client, Connector, sanitizer, TypeBox schemas, Normalizer, Native Store, Projector, and sanitized fixtures.
 
 Application code sees only provider-neutral runtime/credential/native-store ports. The API process never imports this package; `apps/worker` selects modules in its composition root.
+
+Every runtime implements the schema-driven [`nivalis.provider-data@2.0` protocol](../../docs/PROVIDER_INTEGRATION_PROTOCOL.md). Typed messages cover bounded collection, general partitions, replayable normalization, and projection while Provider-specific business semantics remain inside each adapter.

@@ -165,7 +165,11 @@ pg-boss durable PostgreSQL job
   ↓ separate apps/worker process
 ProviderRuntimeRegistry
   ↓
-Connector → sanitized immutable Raw Snapshot → Normalizer → Projector
+versioned `{ data, meta }` Provider protocol
+  ↓
+Connector → sanitized immutable Raw Snapshot → Normalizer
+                                           ↕ prior normalized snapshot for incremental sources
+                              immutable normalized snapshot → Projector
   ↓
 atomic projection/state/SyncRun commit
 ```
@@ -174,7 +178,9 @@ The public `jobId` is the Nivalis SyncRun UUID. The pg-boss job UUID remains inf
 
 The Worker assumes at-least-once delivery. Raw insertion is idempotent per `(sync_run_id, payload_hash)`, current projections upsert by `(widget_id, projection_key)`, terminal runs ignore duplicate delivery, and stale running leases can be reclaimed after pg-boss job expiry. Queue retry is bounded exponential backoff with heartbeat-based crash recovery. Retryable Provider failures are distinct from permanent, normalization, projection, and sanitization failures.
 
-All projections are built before one transaction updates the projection set, Provider state, and SyncRun. Fetch/normalization/projection failure never deletes prior successful values. A successfully fetched Raw Snapshot remains available when later normalization or projection fails. Credential-like keys are rejected recursively before Raw Snapshot persistence.
+All Provider stages implement [`nivalis.provider-data@2.0`](PROVIDER_INTEGRATION_PROTOCOL.md). The schema-driven protocol validates capabilities, bounded collection, partitions, source/read versions, immutable normalized state, and projection messages while deliberately preserving Provider-specific semantics. See ADR 0023.
+
+All projections are built before one transaction inserts the immutable normalized message and updates the native/projection set, Provider state, and SyncRun. Incremental adapters receive the compatible normalized snapshot preceding the current run and must still materialize a complete current view. Fetch/normalization/projection failure never deletes prior successful values. A successfully fetched Raw Snapshot remains available when later normalization or projection fails. Credential-like keys are rejected recursively before Raw Snapshot persistence.
 
 Phase 4 introduced `FixtureProviderRuntime` in development/test. It remains available for pipeline tests and is rejected by production configuration.
 
@@ -187,6 +193,8 @@ Phase 4 introduced `FixtureProviderRuntime` in development/test. It remains avai
 - `SYNC-005`: Raw Snapshots contain no credentials and cannot be updated.
 - `SYNC-006`: projections are rebuildable derived state.
 - `SYNC-007`: Application imports neither pg-boss nor Kysely.
+- `SYNC-008`: every successful run retains one immutable normalized protocol message.
+- `SYNC-009`: incremental input is materialized against the normalized snapshot preceding its run.
 
 ## Phase 5 Owner Auth and credential boundary
 

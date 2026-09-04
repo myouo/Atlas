@@ -104,7 +104,8 @@ export class RetryableProviderError extends SyncPipelineError {
 
   constructor(
     message: string,
-    readonly diagnosticCode: string | null = null
+    readonly diagnosticCode: string | null = null,
+    readonly retryAfterMs: number | null = null
   ) {
     super(message);
   }
@@ -134,6 +135,12 @@ export class ProviderSchemaMismatchError extends SyncPipelineError {
   constructor(readonly sourceKind: string) {
     super(`The Provider response for '${sourceKind}' did not match the expected schema.`);
   }
+}
+
+/** A Provider adapter emitted a message that does not conform to the Nivalis protocol. */
+export class ProviderProtocolError extends SyncPipelineError {
+  readonly code = "provider-protocol-error";
+  readonly retryable = false;
 }
 
 export class NormalizationError extends SyncPipelineError {

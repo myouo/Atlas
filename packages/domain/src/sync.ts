@@ -51,6 +51,7 @@ export interface RawSnapshot {
   readonly providerConnectionId: string;
   readonly schemaVersion: number;
   readonly sourceKind: ProviderRawSourceKind;
+  /** Storage-compatibility column containing encoded protocol source context for v2 records. */
   readonly sourceCursor: string | null;
   readonly sourceTimestamp: Date | null;
   readonly syncRunId: string;
@@ -76,47 +77,6 @@ export interface StoredWidgetProjection extends BuiltWidgetProjection {
   readonly providerConnectionId: string | null;
   readonly sourceSnapshotId: string | null;
   readonly stale: boolean;
-}
-
-export interface ProviderFetchResult {
-  readonly fetchedAt: Date;
-  readonly payload: JsonValue;
-  readonly schemaVersion: number;
-  readonly sourceKind: ProviderRawSourceKind;
-  readonly sourceCursor?: string;
-  readonly sourceTimestamp?: Date;
-}
-
-export interface NormalizedProviderData {
-  readonly payload: JsonObject;
-  readonly provider: ProviderType;
-  readonly schemaVersion: number;
-  readonly sourceSnapshotIds: Readonly<Record<string, string>>;
-}
-
-export interface ProviderConnector {
-  readonly provider: ProviderType;
-  fetch(run: SyncRun): Promise<readonly ProviderFetchResult[]>;
-}
-
-export interface ProviderNormalizer {
-  readonly provider: ProviderType;
-  normalize(snapshots: readonly RawSnapshot[]): Promise<NormalizedProviderData>;
-}
-
-export interface ProviderProjector {
-  readonly provider: ProviderType;
-  project(
-    normalized: NormalizedProviderData,
-    targets: readonly ProjectionTarget[]
-  ): Promise<readonly BuiltWidgetProjection[]>;
-}
-
-export interface ProviderRuntimeModule {
-  readonly connector: ProviderConnector;
-  readonly normalizer: ProviderNormalizer;
-  readonly projector: ProviderProjector;
-  readonly provider: ProviderType;
 }
 
 export interface ProjectionIdentityInput {

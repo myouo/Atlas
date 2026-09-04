@@ -1,5 +1,11 @@
-import type { ProjectionTarget, ProviderFetchResult, RawSnapshot, SyncRun } from "@nivalis/domain";
-import { PermanentProviderError, RetryableProviderError } from "@nivalis/domain";
+import type { JsonValue, ProjectionTarget, RawSnapshot, SyncRun } from "@nivalis/domain";
+import {
+  PermanentProviderError,
+  providerProtocolMetadata,
+  RetryableProviderError,
+  toProviderSyncRequest,
+  toProviderSnapshotRecord
+} from "@nivalis/domain";
 import { describe, expect, it } from "vitest";
 
 import { FixtureProviderRuntime } from "./fixture-provider";
@@ -7,23 +13,50 @@ import { FixtureProviderRuntime } from "./fixture-provider";
 describe("FixtureProviderRuntime", () => {
   it("exercises Connector -> Normalizer -> Projector without Provider HTTP", async () => {
     const runtime = new FixtureProviderRuntime();
-    const fetched = await runtime.connector.fetch(run(1));
-    const normalized = await runtime.normalizer.normalize([snapshot(fetched[0]!.payload)]);
-    const projection = await runtime.projector.project(normalized, [neteaseTarget("7d")]);
-    expect(projection[0]).toMatchObject({
+    const collected = await runtime.connector.collect(request(1));
+    const records = [toProviderSnapshotRecord(snapshot(collected.data.records[0]!.data))];
+    const normalized = await runtime.normalizer.normalize({
+      data: {
+        checkpoint: collected.data.checkpoint,
+        collectionMode: collected.data.mode,
+        collectionOutcome: collected.data.outcome,
+        issues: collected.data.issues,
+        previous: null,
+        records
+      },
+      meta: providerProtocolMetadata("normalization.request", "fixture", run(1).id)
+    });
+    const projection = await runtime.projector.project({
+      data: { normalized, targets: [neteaseTarget("7d")] },
+      meta: providerProtocolMetadata("projection.request", "fixture", run(1).id)
+    });
+    expect(projection.data[0]).toMatchObject({
       data: { plays: 267, range: "7d" },
       projectionKey: "key-7d"
     });
+    expect(collected.meta).toEqual(
+      providerProtocolMetadata("collection.result", "fixture", run(1).id)
+    );
   });
 
   it("classifies retryable and permanent Fixture scenarios", async () => {
     const retrying = new FixtureProviderRuntime(() => "retry_then_success");
-    await expect(retrying.connector.fetch(run(1))).rejects.toBeInstanceOf(RetryableProviderError);
-    await expect(retrying.connector.fetch(run(3))).resolves.toMatchObject([{ schemaVersion: 1 }]);
+    await expect(retrying.connector.collect(request(1))).rejects.toBeInstanceOf(
+      RetryableProviderError
+    );
+    await expect(retrying.connector.collect(request(3))).resolves.toMatchObject({
+      data: { records: [{ meta: { schemaVersion: 1 } }] }
+    });
     const permanent = new FixtureProviderRuntime(() => "permanent_failure");
-    await expect(permanent.connector.fetch(run(1))).rejects.toBeInstanceOf(PermanentProviderError);
+    await expect(permanent.connector.collect(request(1))).rejects.toBeInstanceOf(
+      PermanentProviderError
+    );
   });
 });
+
+function request(attempt: number) {
+  return toProviderSyncRequest(run(attempt));
+}
 
 function run(attemptCount: number): SyncRun {
   return {
@@ -41,14 +74,14 @@ function run(attemptCount: number): SyncRun {
   };
 }
 
-function snapshot(payload: ProviderFetchResult["payload"]): RawSnapshot {
+function snapshot(payload: JsonValue): RawSnapshot {
   const time = new Date("2026-08-24T01:00:00.000Z");
   return {
     createdAt: time,
     fetchedAt: time,
     id: "00000000-0000-4000-8000-000000000600",
     payload,
-    payloadHash: "hash",
+    payloadHash: "a".repeat(64),
     provider: "fixture",
     providerConnectionId: "00000000-0000-4000-8000-000000000400",
     schemaVersion: 1,

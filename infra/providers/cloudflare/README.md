@@ -23,7 +23,7 @@ Queue Consumer
        ↓
 ProviderAuthWorkerService / NeteaseProviderRuntime
        ↓
-Sanitized Raw Snapshot + Last Known Good Projection
+Sanitized Raw Snapshot + immutable Normalized Snapshot + Last Known Good Projection
 ```
 
 Implemented Worker routes:
@@ -67,7 +67,7 @@ OAuth state/PKCE material is short-lived and AEAD-encrypted in D1. Session cooki
 
 ## NetEase Provider runtime
 
-Cloudflare D1 stores Provider connection metadata, encrypted credentials, ephemeral AuthAttempts, SyncRuns, sanitized Raw Snapshots, sync state, Last Known Good Widget projections, and an Owner-only normalized NetEase data catalog. `MUSIC_U`, QR private state, phone numbers, and submitted SMS codes are protected with AES-256-GCM and contextual associated data. Terminal or cancelled AuthAttempts erase their encrypted state.
+Cloudflare D1 stores Provider connection metadata, encrypted credentials, ephemeral AuthAttempts, SyncRuns, sanitized Raw Snapshots, immutable protocol-2 Normalized Snapshots, sync state, Last Known Good Widget projections, and an Owner-only normalized NetEase data catalog. The preceding compatible Normalized Snapshot is available to incremental Providers without replaying public reads from deltas. `MUSIC_U`, QR private state, phone numbers, and submitted SMS codes are protected with AES-256-GCM and contextual associated data. Terminal or cancelled AuthAttempts erase their encrypted state.
 
 Provider authentication remains owned by `ProviderAuthWorkerService`: the API persists an AuthAttempt, returns `202` immediately, and starts its first step with `ExecutionContext.waitUntil()`. QR polling, retry fallback, and credential extraction use the Cloudflare Queue adapter, whose messages contain only the attempt UUID. The consumer uses single-message batches with zero batch wait so interactive work is delivered immediately; the browser polls only Nivalis. The Connector uses manual redirect inspection because edge Fetch implementations do not universally implement `redirect: "error"`, and the default transport is wrapped through `globalThis.fetch` to preserve the required runtime receiver.
 

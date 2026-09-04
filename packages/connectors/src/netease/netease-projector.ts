@@ -1,9 +1,10 @@
-import { ProjectionError } from "@nivalis/domain";
+import { ProjectionError, providerProtocolMetadata } from "@nivalis/domain";
 import type {
   BuiltWidgetProjection,
   JsonObject,
-  NormalizedProviderData,
   ProjectionTarget,
+  ProviderProjectionBatch,
+  ProviderProjectionInput,
   ProviderProjector
 } from "@nivalis/domain";
 
@@ -11,60 +12,66 @@ import { isNeteaseNormalizedPayload } from "./netease-normalizer";
 import { NETEASE_SOURCE, type NeteaseNormalizedPayload } from "./netease-types";
 
 export class NeteaseProjector implements ProviderProjector {
-  readonly provider = "netease" as const;
-
-  async project(
-    normalized: NormalizedProviderData,
-    targets: readonly ProjectionTarget[]
-  ): Promise<readonly BuiltWidgetProjection[]> {
+  async project(input: ProviderProjectionInput): Promise<ProviderProjectionBatch> {
     await Promise.resolve();
-    if (!isNeteaseNormalizedPayload(normalized.payload)) {
+    const { normalized, targets } = input.data;
+    if (!isNeteaseNormalizedPayload(normalized.data)) {
       throw new ProjectionError("Normalized NetEase payload is invalid.");
     }
-    const payload = normalized.payload as NeteaseNormalizedPayload;
+    const payload = normalized.data as NeteaseNormalizedPayload;
+    const sourceSnapshotIds = new Map(
+      normalized.meta.sourceSnapshots.map((source) => [source.source, source.snapshotId])
+    );
     const sourceSnapshotId =
-      normalized.sourceSnapshotIds[NETEASE_SOURCE.weeklyRecord] ??
-      normalized.sourceSnapshotIds[NETEASE_SOURCE.account];
+      sourceSnapshotIds.get(NETEASE_SOURCE.weeklyRecord) ??
+      sourceSnapshotIds.get(NETEASE_SOURCE.account);
     if (!sourceSnapshotId) throw new ProjectionError("NetEase source snapshot is missing.");
-    return targets.map((target) => {
-      if (target.type === "music.netease.overview" && target.schemaVersion === 2) {
-        return built(target, overview(payload, target.dataConfig), 2, sourceSnapshotId);
+    return {
+      data: targets.map((target) => {
+        if (target.type === "music.netease.overview" && target.schemaVersion === 2) {
+          return built(target, overview(payload, target.dataConfig), 2, sourceSnapshotId);
+        }
+        if (target.type === "music.netease.ranking" && target.schemaVersion === 2) {
+          return built(target, rankingV2(payload, target.dataConfig), 2, sourceSnapshotId);
+        }
+        if (target.type === "music.netease.showcase" && target.schemaVersion === 2) {
+          return built(target, showcaseGallery(payload, target.dataConfig), 2, sourceSnapshotId);
+        }
+        if (target.schemaVersion !== 1) throw unsupported();
+        switch (target.type) {
+          case "music.netease.identity":
+            return built(target, identity(payload, target.dataConfig), 1, sourceSnapshotId);
+          case "music.netease.listening":
+            return built(target, listening(payload, target.dataConfig), 1, sourceSnapshotId);
+          case "music.netease.calendar":
+            return built(
+              target,
+              listeningCalendar(payload, target.dataConfig),
+              1,
+              sourceSnapshotIds.get(NETEASE_SOURCE.listenRankMonth) ??
+                sourceSnapshotIds.get(NETEASE_SOURCE.listenRankWeek) ??
+                sourceSnapshotIds.get(NETEASE_SOURCE.listenReportMonth) ??
+                sourceSnapshotIds.get(NETEASE_SOURCE.listenReportWeek) ??
+                sourceSnapshotId
+            );
+          case "music.netease.ranking":
+            return built(target, ranking(payload, target.dataConfig), 1, sourceSnapshotId);
+          case "music.netease.social":
+            return built(target, social(payload, target.dataConfig), 1, sourceSnapshotId);
+          case "music.netease.playlists":
+            return built(target, playlists(payload, target.dataConfig), 1, sourceSnapshotId);
+          case "music.netease.showcase":
+            return built(target, showcase(payload, target.dataConfig), 1, sourceSnapshotId);
+          default:
+            throw unsupported();
+        }
+      }),
+      meta: {
+        ...providerProtocolMetadata("projection.result", "netease", input.meta.correlationId),
+        issues: normalized.meta.issues,
+        outcome: normalized.meta.outcome
       }
-      if (target.type === "music.netease.ranking" && target.schemaVersion === 2) {
-        return built(target, rankingV2(payload, target.dataConfig), 2, sourceSnapshotId);
-      }
-      if (target.type === "music.netease.showcase" && target.schemaVersion === 2) {
-        return built(target, showcaseGallery(payload, target.dataConfig), 2, sourceSnapshotId);
-      }
-      if (target.schemaVersion !== 1) throw unsupported();
-      switch (target.type) {
-        case "music.netease.identity":
-          return built(target, identity(payload, target.dataConfig), 1, sourceSnapshotId);
-        case "music.netease.listening":
-          return built(target, listening(payload, target.dataConfig), 1, sourceSnapshotId);
-        case "music.netease.calendar":
-          return built(
-            target,
-            listeningCalendar(payload, target.dataConfig),
-            1,
-            normalized.sourceSnapshotIds[NETEASE_SOURCE.listenRankMonth] ??
-              normalized.sourceSnapshotIds[NETEASE_SOURCE.listenRankWeek] ??
-              normalized.sourceSnapshotIds[NETEASE_SOURCE.listenReportMonth] ??
-              normalized.sourceSnapshotIds[NETEASE_SOURCE.listenReportWeek] ??
-              sourceSnapshotId
-          );
-        case "music.netease.ranking":
-          return built(target, ranking(payload, target.dataConfig), 1, sourceSnapshotId);
-        case "music.netease.social":
-          return built(target, social(payload, target.dataConfig), 1, sourceSnapshotId);
-        case "music.netease.playlists":
-          return built(target, playlists(payload, target.dataConfig), 1, sourceSnapshotId);
-        case "music.netease.showcase":
-          return built(target, showcase(payload, target.dataConfig), 1, sourceSnapshotId);
-        default:
-          throw unsupported();
-      }
-    });
+    };
   }
 }
 

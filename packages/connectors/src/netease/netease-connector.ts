@@ -1,19 +1,24 @@
 import type { ProviderCredentialResolver } from "@nivalis/application";
-import { ProviderSchemaMismatchError } from "@nivalis/domain";
+import {
+  PROVIDER_JSON_MEDIA_TYPE,
+  providerProtocolMetadata,
+  ProviderSchemaMismatchError,
+  providerSourceSchemaId
+} from "@nivalis/domain";
 import type {
   JsonObject,
   JsonValue,
+  ProviderCollection,
   ProviderConnector,
-  ProviderFetchResult,
-  SyncRun
+  ProviderPartition,
+  ProviderSourceRecord,
+  ProviderSyncRequest
 } from "@nivalis/domain";
 
 import { NeteaseClient, type NeteaseProfileCursor } from "./netease-client";
 import { NETEASE_SOURCE } from "./netease-types";
 
 export class NeteaseConnector implements ProviderConnector {
-  readonly provider = "netease" as const;
-
   constructor(
     private readonly client: NeteaseClient,
     private readonly credentials: ProviderCredentialResolver,
@@ -21,16 +26,15 @@ export class NeteaseConnector implements ProviderConnector {
     private readonly maxRequestConcurrency = 1
   ) {}
 
-  async fetch(
-    run: SyncRun,
-    cachedHistory: Promise<readonly ProviderFetchResult[]> | readonly ProviderFetchResult[] = []
-  ): Promise<readonly ProviderFetchResult[]> {
-    const credential = await this.credentials.resolve(run.providerConnectionId, "music_u");
+  async collect(request: ProviderSyncRequest): Promise<ProviderCollection> {
+    const snapshot: SnapshotFactory = (source, payload, collectedAt, partition) =>
+      snapshotRecord(request.data.runId, source, payload, collectedAt, partition);
+    const credential = await this.credentials.resolve(request.data.connectionId, "music_u");
     const account = await this.client.getAccount(credential);
     const fetchedAt = this.now();
-    const snapshots: ProviderFetchResult[] = [snapshot(NETEASE_SOURCE.account, account, fetchedAt)];
+    const records: ProviderSourceRecord[] = [snapshot(NETEASE_SOURCE.account, account, fetchedAt)];
     const userId = extractUserId(account);
-    if (!userId) return snapshots;
+    if (!userId) return collection(records, request.data.runId);
     const tasks: readonly ProviderFetchTask[] = [
       async () => [
         snapshot(
@@ -46,7 +50,7 @@ export class NeteaseConnector implements ProviderConnector {
           this.now()
         )
       ],
-      () => profileHomePageSnapshots(this.client, credential, userId, this.now),
+      () => profileHomePageSnapshots(this.client, credential, userId, this.now, snapshot),
       async () => {
         const profileMusicCards = await this.client.getProfileMusicCards(credential, userId);
         const results = [snapshot(NETEASE_SOURCE.profileMusicCards, profileMusicCards, this.now())];
@@ -100,7 +104,15 @@ export class NeteaseConnector implements ProviderConnector {
           this.now()
         )
       ],
-      () => listeningReportSnapshots(this.client, credential, this.now, cachedHistory),
+      () =>
+        listeningReportSnapshots(
+          this.client,
+          credential,
+          this.now,
+          request.data.cachedRecords,
+          snapshot,
+          request.data.runId
+        ),
       async () => [
         snapshot(
           NETEASE_SOURCE.listenRankWeek,
@@ -120,21 +132,24 @@ export class NeteaseConnector implements ProviderConnector {
           NETEASE_SOURCE.following,
           (offset) => this.client.getFollowing(credential, userId, offset),
           (payload) => pageInfo(payload, "follow", undefined, "userId"),
-          this.now
+          this.now,
+          snapshot
         ),
       () =>
         paginatedSnapshots(
           NETEASE_SOURCE.followers,
           (offset) => this.client.getFollowers(credential, userId, offset),
           (payload) => pageInfo(payload, "followeds", undefined, "userId"),
-          this.now
+          this.now,
+          snapshot
         ),
       () =>
         paginatedSnapshots(
           NETEASE_SOURCE.createdPlaylists,
           (offset) => this.client.getCreatedPlaylists(credential, userId, offset),
           (payload) => pageInfo(payload, "playlist", "data", "id"),
-          this.now
+          this.now,
+          snapshot
         ),
       async () => [
         snapshot(
@@ -151,12 +166,18 @@ export class NeteaseConnector implements ProviderConnector {
         )
       ]
     ];
-    snapshots.push(...(await runProviderTasks(tasks, this.maxRequestConcurrency)));
-    return snapshots;
+    records.push(...(await runProviderTasks(tasks, this.maxRequestConcurrency)));
+    return collection(records, request.data.runId);
   }
 }
 
-type ProviderFetchTask = () => Promise<readonly ProviderFetchResult[]>;
+type ProviderFetchTask = () => Promise<readonly ProviderSourceRecord[]>;
+type SnapshotFactory = (
+  source: string,
+  payload: JsonValue,
+  collectedAt: Date,
+  partition?: ProviderPartition
+) => ProviderSourceRecord;
 
 function profileMusicCardSongIds(payload: JsonValue) {
   if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.cardVOList)) {
@@ -187,7 +208,7 @@ async function runProviderTasks(tasks: readonly ProviderFetchTask[], requestedCo
     MAX_NETEASE_REQUEST_CONCURRENCY,
     Math.max(1, Number.isInteger(requestedConcurrency) ? requestedConcurrency : 1)
   );
-  const results: Array<readonly ProviderFetchResult[]> = new Array(tasks.length);
+  const results: Array<readonly ProviderSourceRecord[]> = new Array(tasks.length);
   let nextIndex = 0;
   let failed = false;
   await Promise.all(
@@ -211,18 +232,21 @@ async function listeningReportSnapshots(
   client: NeteaseClient,
   credential: string,
   now: () => Date,
-  cachedHistory: Promise<readonly ProviderFetchResult[]> | readonly ProviderFetchResult[]
+  cachedHistory: readonly ProviderSourceRecord[],
+  snapshot: SnapshotFactory,
+  correlationId: string
 ) {
-  const results: ProviderFetchResult[] = [];
+  const results: ProviderSourceRecord[] = [];
   const weekly = await client.getWeeklyListenReport(credential);
   results.push(snapshot(NETEASE_SOURCE.listenReportWeek, weekly, now()));
   const previousWeekEndTime = previousPeriodEndTime(weekly);
   if (previousWeekEndTime !== null) {
     const cached = reusableHistoricalSnapshots(
-      await cachedHistory,
+      cachedHistory,
       NETEASE_SOURCE.listenReportPreviousWeek,
       "week",
-      previousWeekEndTime
+      previousWeekEndTime,
+      correlationId
     );
     results.push(
       ...(cached ??
@@ -232,7 +256,8 @@ async function listeningReportSnapshots(
           "week",
           NETEASE_SOURCE.listenReportPreviousWeek,
           previousWeekEndTime,
-          now
+          now,
+          snapshot
         )))
     );
   }
@@ -241,10 +266,11 @@ async function listeningReportSnapshots(
   const previousMonthEndTime = previousPeriodEndTime(monthly);
   if (previousMonthEndTime !== null) {
     const cached = reusableHistoricalSnapshots(
-      await cachedHistory,
+      cachedHistory,
       NETEASE_SOURCE.listenReportPreviousMonth,
       "month",
-      previousMonthEndTime
+      previousMonthEndTime,
+      correlationId
     );
     results.push(
       ...(cached ??
@@ -254,7 +280,8 @@ async function listeningReportSnapshots(
           "month",
           NETEASE_SOURCE.listenReportPreviousMonth,
           previousMonthEndTime,
-          now
+          now,
+          snapshot
         )))
     );
   }
@@ -262,25 +289,24 @@ async function listeningReportSnapshots(
 }
 
 function reusableHistoricalSnapshots(
-  candidates: readonly ProviderFetchResult[],
+  candidates: readonly ProviderSourceRecord[],
   sourceKind: string,
   period: "month" | "week",
-  initialEndTime: number
+  initialEndTime: number,
+  correlationId: string
 ) {
   const matching = candidates
     .filter(
-      (candidate) =>
-        candidate.sourceKind === sourceKind ||
-        candidate.sourceKind.startsWith(`${sourceKind}.period.`)
+      (candidate) => candidate.meta.schemaVersion === 1 && candidate.meta.source === sourceKind
     )
     .sort(
-      (left, right) => historySourceIndex(left.sourceKind) - historySourceIndex(right.sourceKind)
+      (left, right) => partitionIndex(left.meta.partition) - partitionIndex(right.meta.partition)
     );
   if (matching.length !== MAX_LISTEN_HISTORY_PERIODS) return null;
   let expectedEndTime = initialEndTime;
   for (const [index, candidate] of matching.entries()) {
-    if (candidate.sourceKind !== historySourceKind(sourceKind, index)) return null;
-    const state = historicalReportState(candidate.payload);
+    if (partitionIndex(candidate.meta.partition) !== index) return null;
+    const state = historicalReportState(candidate.data);
     if (
       !state?.hasDailyData ||
       state.period !== period ||
@@ -290,39 +316,34 @@ function reusableHistoricalSnapshots(
     }
     expectedEndTime = state.startTime - 1;
   }
-  return matching;
-}
-
-function historySourceKind(sourceKind: string, index: number) {
-  return index === 0 ? sourceKind : `${sourceKind}.period.${index}`;
-}
-
-function historySourceIndex(sourceKind: string) {
-  const match = sourceKind.match(/\.period\.(\d+)$/);
-  return match ? Number(match[1]) : 0;
+  return matching.map((candidate) => ({
+    ...candidate,
+    meta: {
+      ...candidate.meta,
+      ...providerProtocolMetadata("source.record", "netease", correlationId)
+    }
+  }));
 }
 
 async function profileHomePageSnapshots(
   client: NeteaseClient,
   credential: string,
   userId: string,
-  now: () => Date
+  now: () => Date,
+  snapshot: SnapshotFactory
 ) {
-  const results: ProviderFetchResult[] = [];
+  const results: ProviderSourceRecord[] = [];
   const seenCursors = new Set<string>();
   let cursor: NeteaseProfileCursor | undefined;
   for (let page = 0; page < MAX_PROFILE_HOME_PAGES; page += 1) {
     const payload = await client.getProfileHomePage(credential, userId, cursor);
     const sourceCursor = cursor ? canonicalCursor(cursor) : undefined;
     results.push(
-      snapshot(
-        page === 0
-          ? NETEASE_SOURCE.profileShowcase
-          : `${NETEASE_SOURCE.profileShowcase}.page.${page}`,
-        payload,
-        now(),
-        sourceCursor
-      )
+      snapshot(NETEASE_SOURCE.profileShowcase, payload, now(), {
+        cursor: sourceCursor ?? null,
+        index: page,
+        kind: "cursor"
+      })
     );
     const state = profileHomePageState(payload);
     if (!state.more) return results;
@@ -378,9 +399,10 @@ async function paginatedSnapshots(
     readonly ids: readonly string[];
     readonly more: boolean;
   },
-  now: () => Date
+  now: () => Date,
+  snapshot: SnapshotFactory
 ) {
-  const results: ProviderFetchResult[] = [];
+  const results: ProviderSourceRecord[] = [];
   const seenIds = new Set<string>();
   let offset = 0;
   for (
@@ -389,9 +411,7 @@ async function paginatedSnapshots(
     page += 1
   ) {
     const payload = await load(offset);
-    results.push(
-      snapshot(page === 0 ? baseSourceKind : `${baseSourceKind}.page.${page}`, payload, now())
-    );
+    results.push(snapshot(baseSourceKind, payload, now(), { index: page, kind: "index" }));
     const state = inspect(payload);
     if (!state.more || state.count === 0) break;
     const newIds = state.ids.filter((id) => !seenIds.has(id));
@@ -408,9 +428,10 @@ async function historicalReportSnapshots(
   period: "month" | "week",
   sourceKind: string,
   initialEndTime: number,
-  now: () => Date
+  now: () => Date,
+  snapshot: SnapshotFactory
 ) {
-  const results: ProviderFetchResult[] = [];
+  const results: ProviderSourceRecord[] = [];
   const seenStartTimes = new Set<number>();
   let endTime = initialEndTime;
   for (let index = 0; index < MAX_LISTEN_HISTORY_PERIODS; index += 1) {
@@ -418,9 +439,7 @@ async function historicalReportSnapshots(
     const state = historicalReportState(payload);
     if (!state || seenStartTimes.has(state.startTime)) break;
     seenStartTimes.add(state.startTime);
-    results.push(
-      snapshot(index === 0 ? sourceKind : `${sourceKind}.period.${index}`, payload, now())
-    );
+    results.push(snapshot(sourceKind, payload, now(), { index, kind: "index" }));
     if (!state.hasDailyData || state.startTime <= 1) break;
     endTime = state.startTime - 1;
   }
@@ -471,19 +490,49 @@ function pageInfo(payload: JsonValue, listKey: string, containerKey?: string, id
   };
 }
 
-function snapshot(
-  sourceKind: string,
-  payload: ProviderFetchResult["payload"],
-  fetchedAt: Date,
-  sourceCursor?: string
-) {
+function snapshotRecord(
+  correlationId: string,
+  source: string,
+  payload: JsonValue,
+  collectedAt: Date,
+  partition: ProviderPartition = { kind: "singleton" }
+): ProviderSourceRecord {
   return {
-    fetchedAt,
-    payload: sanitizeNeteasePayload(payload),
-    schemaVersion: 1,
-    sourceKind,
-    ...(sourceCursor ? { sourceCursor } : {})
+    data: sanitizeNeteasePayload(payload),
+    meta: {
+      ...providerProtocolMetadata("source.record", "netease", correlationId),
+      collectedAt: collectedAt.toISOString(),
+      mediaType: PROVIDER_JSON_MEDIA_TYPE,
+      operation: "replace",
+      partition,
+      payloadKind: "json",
+      schemaId: providerSourceSchemaId("netease", source),
+      schemaVersion: 1,
+      source,
+      sourceUpdatedAt: null
+    }
   };
+}
+
+function collection(
+  records: readonly ProviderSourceRecord[],
+  correlationId: string
+): ProviderCollection {
+  return {
+    data: {
+      checkpoint: null,
+      continuation: null,
+      issues: [],
+      mode: "snapshot",
+      outcome: "complete",
+      records
+    },
+    meta: providerProtocolMetadata("collection.result", "netease", correlationId)
+  };
+}
+
+function partitionIndex(partition: ProviderPartition): number {
+  return partition.kind === "index" || partition.kind === "cursor" ? partition.index : 0;
 }
 
 export function sanitizeNeteasePayload(value: JsonValue): JsonValue {
@@ -529,7 +578,7 @@ function isCredentialKey(key: string) {
   );
 }
 
-function extractUserId(payload: ProviderFetchResult["payload"]): string | null {
+function extractUserId(payload: JsonValue): string | null {
   if (!isObject(payload) || payload.code !== 200) return null;
   const profile = isObject(payload.profile) ? payload.profile : null;
   const account = isObject(payload.account) ? payload.account : null;
@@ -537,7 +586,7 @@ function extractUserId(payload: ProviderFetchResult["payload"]): string | null {
   return typeof value === "string" || typeof value === "number" ? String(value) : null;
 }
 
-function previousPeriodEndTime(payload: ProviderFetchResult["payload"]): number | null {
+function previousPeriodEndTime(payload: JsonValue): number | null {
   if (!isObject(payload) || !isObject(payload.data)) return null;
   const startTime = payload.data.startTime;
   return typeof startTime === "number" && Number.isSafeInteger(startTime) && startTime > 1

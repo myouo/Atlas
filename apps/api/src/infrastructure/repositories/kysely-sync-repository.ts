@@ -4,6 +4,7 @@ import type {
   CommitProjectionReplayInput,
   CompleteSyncInput,
   CreateSyncRunResult,
+  NormalizedProviderSnapshotInput,
   RawSnapshotInput,
   ProviderNativeStoreRegistry,
   SyncRepository,
@@ -146,6 +147,45 @@ export class KyselySyncRepository implements SyncRepository {
       .where("run.id", "=", syncRunId)
       .executeTakeFirst();
     return row ? mapRun(row) : null;
+  }
+
+  async getPreviousNormalizedData(providerConnectionId: string, syncRunId: string) {
+    const current = await this.database
+      .selectFrom("provider_sync_runs")
+      .select("requested_at")
+      .where("id", "=", syncRunId)
+      .executeTakeFirst();
+    if (!current) return null;
+    const row = await this.database
+      .selectFrom("provider_normalized_snapshots as normalized")
+      .innerJoin("provider_sync_runs as run", "run.id", "normalized.sync_run_id")
+      .select("normalized.message")
+      .where("normalized.provider_connection_id", "=", providerConnectionId)
+      .where("run.id", "!=", syncRunId)
+      .where("run.requested_at", "<=", current.requested_at)
+      .orderBy("run.requested_at", "desc")
+      .orderBy("normalized.created_at", "desc")
+      .limit(1)
+      .executeTakeFirst();
+    return row?.message ?? null;
+  }
+
+  async insertNormalizedSnapshot(input: NormalizedProviderSnapshotInput): Promise<void> {
+    await this.database
+      .insertInto("provider_normalized_snapshots")
+      .values({
+        created_at: input.generatedAt,
+        id: randomUUID(),
+        message: JSON.stringify(input.normalized),
+        protocol_version: input.normalized.meta.protocolVersion,
+        provider: input.provider,
+        provider_connection_id: input.providerConnectionId,
+        schema_id: input.normalized.meta.schemaId,
+        schema_version: input.normalized.meta.schemaVersion,
+        sync_run_id: input.syncRunId
+      })
+      .onConflict((conflict) => conflict.column("sync_run_id").doNothing())
+      .execute();
   }
 
   async claimRun(syncRunId: string, now: Date, staleBefore: Date) {

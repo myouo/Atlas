@@ -66,7 +66,7 @@ async function main() {
       projections: result.projections,
       provider: result.provider,
       snapshotIds: result.snapshotIds,
-      sourceKinds: result.sourceKinds,
+      sources: result.sources,
       syncRunId: result.syncRunId
     });
   } finally {

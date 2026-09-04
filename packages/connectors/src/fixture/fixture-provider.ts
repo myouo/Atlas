@@ -1,21 +1,28 @@
 import {
   NormalizationError,
+  materializeProviderLineage,
   PermanentProviderError,
   ProjectionError,
+  PROVIDER_JSON_MEDIA_TYPE,
+  providerNormalizedSchemaId,
+  providerProtocolMetadata,
+  providerSourceSchemaId,
   RetryableProviderError
 } from "@nivalis/domain";
 import type {
-  BuiltWidgetProjection,
   JsonObject,
   NormalizedProviderData,
   ProjectionTarget,
+  ProviderCollection,
   ProviderConnector,
-  ProviderFetchResult,
+  ProviderNormalizationInput,
   ProviderNormalizer,
+  ProviderProjectionBatch,
+  ProviderProjectionInput,
   ProviderProjector,
   ProviderRuntimeModule,
-  RawSnapshot,
-  SyncRun
+  ProviderRuntimeManifest,
+  ProviderSyncRequest
 } from "@nivalis/domain";
 
 export type FixtureScenario =
@@ -25,10 +32,58 @@ export type FixtureScenario =
   | "normalization_failure"
   | "projection_failure";
 
+export const FIXTURE_PROVIDER_MANIFEST = {
+  data: {
+    capabilities: {
+      collectionModes: ["snapshot"],
+      continuation: false,
+      partialResults: false,
+      payloadKinds: ["json"]
+    },
+    displayName: "Fixture",
+    extensions: {},
+    limits: {
+      maxBatchBytes: 2_000_000,
+      maxBatchRecords: 1,
+      maxCacheRecords: 0,
+      maxCheckpointBytes: 1_024,
+      maxCollectionBytes: 2_000_000,
+      maxContinuationBatches: 1,
+      maxIssues: 10,
+      maxNormalizedBytes: 2_000_000,
+      maxProjectionBytes: 2_000_000,
+      maxRecordBytes: 1_000_000
+    },
+    normalizedSchema: {
+      acceptedVersions: [1],
+      id: providerNormalizedSchemaId("fixture"),
+      producedVersion: 1
+    },
+    sources: [
+      {
+        criticality: "required",
+        dataShape: "mixed",
+        extensions: {},
+        id: "fixture.dashboard",
+        mediaTypes: [PROVIDER_JSON_MEDIA_TYPE],
+        operations: ["replace"],
+        partitions: ["singleton"],
+        payloadKinds: ["json"],
+        schema: {
+          acceptedVersions: [1],
+          id: providerSourceSchemaId("fixture", "fixture.dashboard"),
+          producedVersion: 1
+        }
+      }
+    ]
+  },
+  meta: providerProtocolMetadata("manifest", "fixture")
+} as const satisfies ProviderRuntimeManifest;
+
 export class FixtureProviderRuntime implements ProviderRuntimeModule {
   readonly connector: FixtureConnector;
+  readonly manifest = FIXTURE_PROVIDER_MANIFEST;
   readonly normalizer = new FixtureNormalizer();
-  readonly provider = "fixture" as const;
   readonly projector = new FixtureProjector();
 
   constructor(
@@ -40,76 +95,104 @@ export class FixtureProviderRuntime implements ProviderRuntimeModule {
 }
 
 export class FixtureConnector implements ProviderConnector {
-  readonly provider = "fixture" as const;
-
   constructor(
     private readonly scenario: () => FixtureScenario = () => "success",
     private readonly now: () => Date = () => new Date()
   ) {}
 
-  async fetch(run: SyncRun): Promise<readonly ProviderFetchResult[]> {
+  async collect(request: ProviderSyncRequest): Promise<ProviderCollection> {
     const scenario = this.scenario();
-    if (scenario === "retry_then_success" && run.attemptCount < 3) {
+    if (scenario === "retry_then_success" && request.data.attempt < 3) {
       throw new RetryableProviderError(
-        run.attemptCount === 1 ? "Fixture timeout." : "Fixture returned HTTP 503."
+        request.data.attempt === 1 ? "Fixture timeout." : "Fixture returned HTTP 503."
       );
     }
     if (scenario === "permanent_failure") {
       throw new PermanentProviderError("Fixture returned HTTP 401.");
     }
     const payload = fixturePayload();
-    return [
-      {
-        fetchedAt: this.now(),
-        payload:
-          scenario === "normalization_failure"
-            ? { kind: "invalid-fixture-payload" }
-            : scenario === "projection_failure"
-              ? { ...payload, forceProjectionFailure: true }
-              : payload,
-        schemaVersion: 1,
-        sourceKind: "fixture.dashboard",
-        sourceTimestamp: this.now()
-      }
-    ];
+    return {
+      data: {
+        checkpoint: null,
+        continuation: null,
+        issues: [],
+        mode: "snapshot",
+        outcome: "complete",
+        records: [
+          {
+            data:
+              scenario === "normalization_failure"
+                ? { kind: "invalid-fixture-payload" }
+                : scenario === "projection_failure"
+                  ? { ...payload, forceProjectionFailure: true }
+                  : payload,
+            meta: {
+              ...providerProtocolMetadata("source.record", "fixture", request.data.runId),
+              collectedAt: this.now().toISOString(),
+              mediaType: PROVIDER_JSON_MEDIA_TYPE,
+              operation: "replace",
+              partition: { kind: "singleton" },
+              payloadKind: "json",
+              schemaId: providerSourceSchemaId("fixture", "fixture.dashboard"),
+              schemaVersion: 1,
+              source: "fixture.dashboard",
+              sourceUpdatedAt: this.now().toISOString()
+            }
+          }
+        ]
+      },
+      meta: providerProtocolMetadata("collection.result", "fixture", request.data.runId)
+    };
   }
 }
 
 export class FixtureNormalizer implements ProviderNormalizer {
-  readonly provider = "fixture" as const;
-
-  async normalize(snapshots: readonly RawSnapshot[]): Promise<NormalizedProviderData> {
-    const snapshot = snapshots.find((item) => item.sourceKind === "fixture.dashboard");
+  async normalize(input: ProviderNormalizationInput): Promise<NormalizedProviderData> {
+    const snapshots = input.data.records;
+    const snapshot = snapshots.find((item) => item.meta.source === "fixture.dashboard");
     if (!snapshot) throw new NormalizationError("Fixture Raw Snapshot is missing.");
-    if (!isObject(snapshot.payload) || snapshot.payload.kind !== "nivalis-fixture") {
+    if (!isObject(snapshot.data) || snapshot.data.kind !== "nivalis-fixture") {
       throw new NormalizationError("Fixture payload schema did not match version 1.");
     }
     return {
-      payload: snapshot.payload,
-      provider: "fixture",
-      schemaVersion: 1,
-      sourceSnapshotIds: { [snapshot.sourceKind]: snapshot.id }
+      data: snapshot.data,
+      meta: {
+        ...providerProtocolMetadata("normalization.result", "fixture", input.meta.correlationId),
+        checkpoint: input.data.checkpoint,
+        issues: input.data.issues,
+        outcome: input.data.collectionOutcome,
+        schemaId: providerNormalizedSchemaId("fixture"),
+        schemaVersion: 1,
+        sourceSnapshots: materializeProviderLineage(input)
+      }
     };
   }
 }
 
 export class FixtureProjector implements ProviderProjector {
-  readonly provider = "fixture" as const;
-
-  async project(
-    normalized: NormalizedProviderData,
-    targets: readonly ProjectionTarget[]
-  ): Promise<readonly BuiltWidgetProjection[]> {
-    if (normalized.payload.forceProjectionFailure === true) {
+  async project(input: ProviderProjectionInput): Promise<ProviderProjectionBatch> {
+    const { normalized, targets } = input.data;
+    if (normalized.data.forceProjectionFailure === true) {
       throw new ProjectionError("Fixture projector failed intentionally.");
     }
-    return targets.map((target) => ({
-      data: projectTarget(normalized.payload, target),
-      projectionKey: target.projectionKey,
-      projectionSchemaVersion: target.schemaVersion,
-      sourceSnapshotId: normalized.sourceSnapshotIds["fixture.dashboard"]!,
-      widgetId: target.id
-    }));
+    const sourceSnapshotId = normalized.meta.sourceSnapshots.find(
+      (source) => source.source === "fixture.dashboard"
+    )?.snapshotId;
+    if (!sourceSnapshotId) throw new ProjectionError("Fixture source snapshot is missing.");
+    return {
+      data: targets.map((target) => ({
+        data: projectTarget(normalized.data, target),
+        projectionKey: target.projectionKey,
+        projectionSchemaVersion: target.schemaVersion,
+        sourceSnapshotId,
+        widgetId: target.id
+      })),
+      meta: {
+        ...providerProtocolMetadata("projection.result", "fixture", input.meta.correlationId),
+        issues: normalized.meta.issues,
+        outcome: normalized.meta.outcome
+      }
+    };
   }
 }
 

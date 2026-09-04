@@ -1,14 +1,22 @@
 import {
+  encodeProviderSourceContext,
   NormalizationError,
   PermanentProviderError,
   ProjectionError,
+  providerProtocolMetadata,
   ProviderCredentialError,
   RawSnapshotSanitizationError,
-  RetryableProviderError,
   SyncPipelineError,
-  SyncRunNotFoundError
+  SyncRunNotFoundError,
+  toProviderSnapshotRecord
 } from "@nivalis/domain";
-import type { JsonValue, RawSnapshot, SyncRun } from "@nivalis/domain";
+import type {
+  JsonValue,
+  ProviderNormalizationInput,
+  ProviderProjectionInput,
+  RawSnapshot,
+  SyncRun
+} from "@nivalis/domain";
 
 import type { Clock } from "../ports/dashboard-repository";
 import type { ProjectionRepository } from "../ports/projection-repository";
@@ -17,6 +25,16 @@ import type {
   SyncIdentityFactory,
   SyncUnitOfWork
 } from "../ports/sync-runtime";
+import { collectProviderData } from "./provider-collection-service";
+import {
+  assertCompatibleNormalizedData,
+  assertNormalizedProviderData,
+  assertProviderNormalizationInput,
+  assertProviderProjectionBatch,
+  assertProviderProjectionInput,
+  assertProviderProjectionSet,
+  unwrapProviderResult
+} from "../validation/provider-protocol-validation";
 
 export class SyncWorkerService {
   constructor(
@@ -47,26 +65,40 @@ export class SyncWorkerService {
       }
       const runtime = this.providers.get(claimed.provider);
       if (!runtime) throw new PermanentProviderError("Provider runtime is unavailable.");
-
-      const fetched = await fetchProvider(runtime.connector.fetch(claimed));
-      if (fetched.length === 0) {
+      const previousNormalized = runtime.manifest.data.capabilities.collectionModes.includes(
+        "incremental"
+      )
+        ? await this.unitOfWork.run((repository) =>
+            repository.getPreviousNormalizedData(claimed.providerConnectionId, claimed.id)
+          )
+        : null;
+      if (previousNormalized) {
+        assertCompatibleNormalizedData(previousNormalized, runtime.manifest);
+      }
+      const collection = await collectProviderData(runtime, claimed, {
+        checkpoint: previousNormalized?.meta.checkpoint ?? null
+      });
+      const fetched = collection.records;
+      if (fetched.length === 0 && (collection.mode === "snapshot" || previousNormalized === null)) {
         throw new NormalizationError("Provider returned no Raw Snapshot payloads.");
       }
-      for (const item of fetched) assertSanitized(item.payload, item.sourceKind);
+      for (const item of fetched) assertSanitized(item.data, item.meta.source);
       const snapshots: RawSnapshot[] = [];
       for (const item of fetched) {
         const snapshot = await this.unitOfWork.run((repository) =>
           repository.insertRawSnapshot(
             {
-              fetchedAt: item.fetchedAt,
-              payload: item.payload,
-              payloadHash: this.identities.hashPayload(item.payload),
+              fetchedAt: new Date(item.meta.collectedAt),
+              payload: item.data,
+              payloadHash: this.identities.hashPayload(item.data),
               provider: claimed.provider,
               providerConnectionId: claimed.providerConnectionId,
-              schemaVersion: item.schemaVersion,
-              sourceKind: item.sourceKind,
-              ...(item.sourceCursor ? { sourceCursor: item.sourceCursor } : {}),
-              ...(item.sourceTimestamp ? { sourceTimestamp: item.sourceTimestamp } : {}),
+              schemaVersion: item.meta.schemaVersion,
+              sourceKind: item.meta.source,
+              sourceCursor: encodeProviderSourceContext(item, collection),
+              ...(item.meta.sourceUpdatedAt
+                ? { sourceTimestamp: new Date(item.meta.sourceUpdatedAt) }
+                : {}),
               syncRunId
             },
             this.clock.now()
@@ -74,10 +106,39 @@ export class SyncWorkerService {
         );
         snapshots.push(snapshot);
       }
-      const normalized = await normalizeProvider(runtime.normalizer.normalize(snapshots));
+      const normalizationRecords = snapshots.map(toProviderSnapshotRecord);
+      const normalizationInput = {
+        data: {
+          checkpoint: collection.checkpoint,
+          collectionMode: collection.mode,
+          collectionOutcome: collection.outcome,
+          issues: collection.issues,
+          previous: collection.mode === "incremental" ? previousNormalized : null,
+          records: normalizationRecords
+        },
+        meta: providerProtocolMetadata("normalization.request", claimed.provider, claimed.id)
+      } satisfies ProviderNormalizationInput;
+      assertProviderNormalizationInput(normalizationInput, runtime.manifest, claimed.id);
+      const normalizationResult = await normalizeProvider(
+        runtime.normalizer.normalize(normalizationInput)
+      );
+      const normalized = unwrapProviderResult(normalizationResult, runtime.manifest, claimed.id);
+      assertNormalizedProviderData(normalized, runtime.manifest, normalizationInput, claimed.id);
       const targets = await this.projections.listActiveTargets(connection);
-      const built = await projectProvider(runtime.projector.project(normalized, targets));
-      validateProjectionSet(targets, built);
+      const projectionInput = {
+        data: { normalized, targets },
+        meta: providerProtocolMetadata("projection.request", claimed.provider, claimed.id)
+      } satisfies ProviderProjectionInput;
+      assertProviderProjectionInput(projectionInput, runtime.manifest, claimed.id);
+      const projectionResult = await projectProvider(runtime.projector.project(projectionInput));
+      const projectionBatch = unwrapProviderResult(projectionResult, runtime.manifest, claimed.id);
+      assertProviderProjectionBatch(projectionBatch, runtime.manifest, claimed.id);
+      const built = projectionBatch.data;
+      assertProviderProjectionSet(targets, built, normalized);
+      const sourceSnapshotId = snapshots[0]?.id ?? normalized.meta.sourceSnapshots[0]?.snapshotId;
+      if (!sourceSnapshotId) {
+        throw new ProjectionError("Normalized data has no source snapshot lineage.");
+      }
       return await this.unitOfWork.run(async (repository, nativeStores) => {
         const currentConnection = await repository.getConnection(claimed.providerConnectionId);
         if (!currentConnection?.enabled) {
@@ -93,13 +154,20 @@ export class SyncWorkerService {
             providerConnectionId: claimed.providerConnectionId
           });
         }
+        await repository.insertNormalizedSnapshot({
+          generatedAt: this.clock.now(),
+          normalized,
+          provider: claimed.provider,
+          providerConnectionId: claimed.providerConnectionId,
+          syncRunId
+        });
         const completed = await repository.completeRun({
           generatedAt: this.clock.now(),
           projections: built,
           projectionVersionId: this.identities.create(),
           provider: claimed.provider,
           providerConnectionId: claimed.providerConnectionId,
-          sourceSnapshotId: snapshots[0]!.id,
+          sourceSnapshotId,
           syncRunId
         });
         await repository.markCredentialStatus(
@@ -148,6 +216,8 @@ function publicErrorMessage(error: SyncPipelineError) {
       return "The Provider request cannot succeed without configuration changes.";
     case "provider-credential-error":
       return "The Provider credential is invalid or expired and must be reconnected.";
+    case "provider-protocol-error":
+      return "The Provider adapter returned data that violates the integration protocol.";
     case "provider-schema-mismatch":
       return "The Provider response schema changed and could not be processed safely.";
     case "normalization-error":
@@ -158,15 +228,6 @@ function publicErrorMessage(error: SyncPipelineError) {
       return "The Provider payload was rejected by the Raw Snapshot safety policy.";
     default:
       return "The synchronization pipeline failed.";
-  }
-}
-
-async function fetchProvider<T>(operation: Promise<T>): Promise<T> {
-  try {
-    return await operation;
-  } catch (error) {
-    if (error instanceof SyncPipelineError) throw error;
-    throw new RetryableProviderError("Provider fetch failed transiently.");
   }
 }
 
@@ -221,21 +282,5 @@ function assertSanitized(value: JsonValue, path = "payload") {
       throw new RawSnapshotSanitizationError(`Unsafe credential-like key at ${path}.${key}.`);
     }
     assertSanitized(nested, `${path}.${key}`);
-  }
-}
-
-function validateProjectionSet(
-  targets: readonly { readonly projectionKey: string; readonly id: string }[],
-  projections: readonly { readonly projectionKey: string; readonly widgetId: string }[]
-) {
-  const expected = new Set(targets.map((target) => `${target.id}:${target.projectionKey}`));
-  const actual = new Set(
-    projections.map((projection) => `${projection.widgetId}:${projection.projectionKey}`)
-  );
-  if (actual.size !== projections.length || actual.size !== expected.size) {
-    throw new ProjectionError("Projection output did not match the active target set.");
-  }
-  for (const key of expected) {
-    if (!actual.has(key)) throw new ProjectionError("Projection output omitted an active target.");
   }
 }

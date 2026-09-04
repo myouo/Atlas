@@ -1,20 +1,39 @@
 import {
+  assertCompatibleNormalizedData,
+  assertNormalizedProviderData,
+  assertProviderNormalizationInput,
+  assertProviderProjectionBatch,
+  assertProviderProjectionInput,
+  assertProviderProjectionSet,
+  collectProviderData,
+  providerRecordIdentity,
+  unwrapProviderResult
+} from "@nivalis/application";
+import {
   NeteaseProviderRuntime,
   buildNeteaseOwnerDataCatalog,
   isNeteaseNormalizedPayload
 } from "@nivalis/connectors";
 import {
+  encodeProviderSourceContext,
   ProviderAuthenticationError,
   ProviderCredentialError,
   ProviderNotConfiguredError,
+  providerProtocolMetadata,
   ProviderSchemaMismatchError,
-  RetryableProviderError
+  providerSupportsCollectionMode,
+  RetryableProviderError,
+  toProviderSourceRecord,
+  toProviderSnapshotRecord
 } from "@nivalis/domain";
 import type {
   JsonObject,
   JsonValue,
+  NormalizedProviderData,
   ProjectionTarget,
-  ProviderFetchResult,
+  ProviderNormalizationInput,
+  ProviderProjectionInput,
+  ProviderSourceRecord,
   ProviderStatus,
   RawSnapshot,
   SyncRun,
@@ -92,15 +111,24 @@ interface ProviderDataCatalogRow {
   readonly schema_version: number;
 }
 
+interface NormalizedSnapshotRow {
+  readonly message_json: string;
+}
+
 interface CachedHistoryRow {
+  readonly created_at: string;
   readonly fetched_at: string;
+  readonly id: string;
+  readonly payload_hash: string;
   readonly payload_blob: ArrayBuffer | null;
   readonly payload_encoding: "gzip" | "json";
   readonly payload_json: string;
   readonly schema_version: number;
+  readonly provider_connection_id: string;
   readonly source_cursor: string | null;
   readonly source_kind: string;
   readonly source_timestamp: string | null;
+  readonly sync_run_id: string;
 }
 
 export class D1NeteaseSyncRuntime {
@@ -270,17 +298,33 @@ export class D1NeteaseSyncRuntime {
     try {
       const processStartedAt = performance.now();
       const fetchStartedAt = performance.now();
-      const cachedHistoryPromise = this.cachedHistory(run.providerConnectionId).catch(
-        (): readonly ProviderFetchResult[] => []
+      const cachedHistory = await this.cachedHistory(run.providerConnectionId).catch(
+        (): readonly ProviderSourceRecord[] => []
       );
-      const fetched = await this.runtime.connector.fetch(run, cachedHistoryPromise);
-      const cachedHistory = await cachedHistoryPromise;
-      const historyCacheHits = fetched.filter((item) => cachedHistory.includes(item)).length;
+      const previousNormalized = providerSupportsCollectionMode(
+        this.runtime.manifest,
+        "incremental"
+      )
+        ? await this.previousNormalized(run)
+        : null;
+      const collection = await collectProviderData(this.runtime, run, {
+        cachedRecords: cachedHistory,
+        checkpoint: previousNormalized?.meta.checkpoint ?? null
+      });
+      const fetched = collection.records;
+      const cachedIdentities = new Set(
+        cachedHistory.map((record) =>
+          providerRecordIdentity(record.meta.source, record.meta.partition)
+        )
+      );
+      const historyCacheHits = fetched.filter((item) =>
+        cachedIdentities.has(providerRecordIdentity(item.meta.source, item.meta.partition))
+      ).length;
       const providerFetchMs = performance.now() - fetchStartedAt;
       const rawPersistStartedAt = performance.now();
       const preparedSnapshots = await Promise.all(
         fetched.map(async (result) => {
-          const payloadJson = JSON.stringify(result.payload);
+          const payloadJson = JSON.stringify(result.data);
           const stored = await encodeRawPayload(payloadJson);
           return {
             createdAt: new Date(),
@@ -291,56 +335,84 @@ export class D1NeteaseSyncRuntime {
           };
         })
       );
-      await this.database.batch(
-        preparedSnapshots.map(
-          ({ createdAt, id, payloadBlob, payloadEncoding, payloadHash, payloadJson, result }) =>
-            this.database
-              .prepare(
-                `INSERT INTO provider_raw_snapshots
+      if (preparedSnapshots.length > 0) {
+        await this.database.batch(
+          preparedSnapshots.map(
+            ({ createdAt, id, payloadBlob, payloadEncoding, payloadHash, payloadJson, result }) =>
+              this.database
+                .prepare(
+                  `INSERT INTO provider_raw_snapshots
               (id, sync_run_id, provider_connection_id, provider, source_kind,
                schema_version, payload_json, payload_hash, fetched_at,
                source_cursor, source_timestamp, created_at, payload_encoding, payload_blob)
              VALUES (?, ?, ?, 'netease', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-              )
-              .bind(
-                id,
-                run.id,
-                run.providerConnectionId,
-                result.sourceKind,
-                result.schemaVersion,
-                payloadJson,
-                payloadHash,
-                result.fetchedAt.toISOString(),
-                result.sourceCursor ?? null,
-                result.sourceTimestamp?.toISOString() ?? null,
-                createdAt.toISOString(),
-                payloadEncoding,
-                payloadBlob
-              )
-        )
-      );
+                )
+                .bind(
+                  id,
+                  run.id,
+                  run.providerConnectionId,
+                  result.meta.source,
+                  result.meta.schemaVersion,
+                  payloadJson,
+                  payloadHash,
+                  result.meta.collectedAt,
+                  encodeProviderSourceContext(result, collection),
+                  result.meta.sourceUpdatedAt,
+                  createdAt.toISOString(),
+                  payloadEncoding,
+                  payloadBlob
+                )
+          )
+        );
+      }
       const rawPersistMs = performance.now() - rawPersistStartedAt;
       const snapshots: RawSnapshot[] = preparedSnapshots.map(
         ({ createdAt, id, payloadHash, result }) => ({
           createdAt,
-          fetchedAt: result.fetchedAt,
+          fetchedAt: new Date(result.meta.collectedAt),
           id,
-          payload: result.payload,
+          payload: result.data,
           payloadHash,
           provider: "netease",
           providerConnectionId: run.providerConnectionId,
-          schemaVersion: result.schemaVersion,
-          sourceCursor: result.sourceCursor ?? null,
-          sourceKind: result.sourceKind,
-          sourceTimestamp: result.sourceTimestamp ?? null,
+          schemaVersion: result.meta.schemaVersion,
+          sourceCursor: encodeProviderSourceContext(result, collection),
+          sourceKind: result.meta.source,
+          sourceTimestamp: result.meta.sourceUpdatedAt
+            ? new Date(result.meta.sourceUpdatedAt)
+            : null,
           syncRunId: run.id
         })
       );
 
       const projectionStartedAt = performance.now();
-      const normalized = await this.runtime.normalizer.normalize(snapshots);
+      const normalizationRecords = snapshots.map(toProviderSnapshotRecord);
+      const normalizationInput = {
+        data: {
+          checkpoint: collection.checkpoint,
+          collectionMode: collection.mode,
+          collectionOutcome: collection.outcome,
+          issues: collection.issues,
+          previous: collection.mode === "incremental" ? previousNormalized : null,
+          records: normalizationRecords
+        },
+        meta: providerProtocolMetadata("normalization.request", run.provider, run.id)
+      } satisfies ProviderNormalizationInput;
+      assertProviderNormalizationInput(normalizationInput, this.runtime.manifest, run.id);
+      const normalizationResult = await this.runtime.normalizer.normalize(normalizationInput);
+      const normalized = unwrapProviderResult(normalizationResult, this.runtime.manifest, run.id);
+      assertNormalizedProviderData(normalized, this.runtime.manifest, normalizationInput, run.id);
       const targets = await this.targets(run.ownerId);
-      const projections = await this.runtime.projector.project(normalized, targets);
+      const projectionInput = {
+        data: { normalized, targets },
+        meta: providerProtocolMetadata("projection.request", run.provider, run.id)
+      } satisfies ProviderProjectionInput;
+      assertProviderProjectionInput(projectionInput, this.runtime.manifest, run.id);
+      const projectionResult = await this.runtime.projector.project(projectionInput);
+      const projectionBatch = unwrapProviderResult(projectionResult, this.runtime.manifest, run.id);
+      assertProviderProjectionBatch(projectionBatch, this.runtime.manifest, run.id);
+      const projections = projectionBatch.data;
+      assertProviderProjectionSet(targets, projections, normalized);
       const projectionMs = performance.now() - projectionStartedAt;
       const completedAt = new Date();
       const projectionVersionId = crypto.randomUUID();
@@ -369,7 +441,7 @@ export class D1NeteaseSyncRuntime {
             completedAt.toISOString()
           )
       );
-      if (isNeteaseNormalizedPayload(normalized.payload)) {
+      if (isNeteaseNormalizedPayload(normalized.data)) {
         statements.push(
           this.database
             .prepare(
@@ -386,7 +458,7 @@ export class D1NeteaseSyncRuntime {
             .bind(
               run.providerConnectionId,
               projectionVersionId,
-              JSON.stringify(buildNeteaseOwnerDataCatalog(normalized.payload)),
+              JSON.stringify(buildNeteaseOwnerDataCatalog(normalized.data)),
               completedAt.toISOString()
             ),
           this.database
@@ -401,20 +473,38 @@ export class D1NeteaseSyncRuntime {
             )
             .bind(
               run.providerConnectionId,
-              normalized.payload.account.providerUserId,
-              normalized.payload.account.displayName,
+              normalized.data.account.providerUserId,
+              normalized.data.account.displayName,
               completedAt.toISOString()
             ),
           this.database
             .prepare("UPDATE provider_connections SET account_key = ?, updated_at = ? WHERE id = ?")
             .bind(
-              normalized.payload.account.providerUserId,
+              normalized.data.account.providerUserId,
               completedAt.toISOString(),
               run.providerConnectionId
             )
         );
       }
       statements.push(
+        this.database
+          .prepare(
+            `INSERT INTO provider_normalized_snapshots
+              (id, sync_run_id, provider_connection_id, provider, protocol_version,
+               schema_id, schema_version, message_json, created_at)
+             VALUES (?, ?, ?, 'netease', ?, ?, ?, ?, ?)
+             ON CONFLICT(sync_run_id) DO NOTHING`
+          )
+          .bind(
+            crypto.randomUUID(),
+            run.id,
+            run.providerConnectionId,
+            normalized.meta.protocolVersion,
+            normalized.meta.schemaId,
+            normalized.meta.schemaVersion,
+            JSON.stringify(normalized),
+            completedAt.toISOString()
+          ),
         this.database
           .prepare(
             `UPDATE provider_credentials
@@ -531,12 +621,14 @@ export class D1NeteaseSyncRuntime {
 
   private async cachedHistory(
     providerConnectionId: string
-  ): Promise<readonly ProviderFetchResult[]> {
+  ): Promise<readonly ProviderSourceRecord[]> {
     const result = await this.database
       .prepare(
-        `SELECT snapshot.source_kind, snapshot.schema_version, snapshot.payload_json,
+        `SELECT snapshot.id, snapshot.sync_run_id, snapshot.provider_connection_id,
+                snapshot.source_kind, snapshot.schema_version, snapshot.payload_json,
                 snapshot.payload_encoding, snapshot.payload_blob, snapshot.fetched_at,
-                snapshot.source_cursor, snapshot.source_timestamp
+                snapshot.source_cursor, snapshot.source_timestamp, snapshot.payload_hash,
+                snapshot.created_at
            FROM provider_raw_snapshots AS snapshot
            JOIN provider_sync_states AS state
              ON state.last_successful_run_id = snapshot.sync_run_id
@@ -551,21 +643,51 @@ export class D1NeteaseSyncRuntime {
       .bind(providerConnectionId)
       .all<CachedHistoryRow>();
     return Promise.all(
-      result.results.map(async (row) => ({
-        fetchedAt: new Date(row.fetched_at),
-        payload: JSON.parse(
-          await decodeRawPayload({
-            payloadBlob: row.payload_blob,
-            payloadEncoding: row.payload_encoding,
-            payloadJson: row.payload_json
-          })
-        ) as JsonValue,
-        schemaVersion: row.schema_version,
-        ...(row.source_cursor ? { sourceCursor: row.source_cursor } : {}),
-        sourceKind: row.source_kind,
-        ...(row.source_timestamp ? { sourceTimestamp: new Date(row.source_timestamp) } : {})
-      }))
+      result.results.map(async (row) => {
+        const snapshot: RawSnapshot = {
+          createdAt: new Date(row.created_at),
+          fetchedAt: new Date(row.fetched_at),
+          id: row.id,
+          payload: JSON.parse(
+            await decodeRawPayload({
+              payloadBlob: row.payload_blob,
+              payloadEncoding: row.payload_encoding,
+              payloadJson: row.payload_json
+            })
+          ) as JsonValue,
+          payloadHash: row.payload_hash,
+          provider: "netease",
+          providerConnectionId: row.provider_connection_id,
+          schemaVersion: row.schema_version,
+          sourceCursor: row.source_cursor,
+          sourceKind: row.source_kind,
+          sourceTimestamp: row.source_timestamp ? new Date(row.source_timestamp) : null,
+          syncRunId: row.sync_run_id
+        };
+        return toProviderSourceRecord(snapshot);
+      })
     );
+  }
+
+  private async previousNormalized(run: D1SyncRun): Promise<NormalizedProviderData | null> {
+    const row = await this.database
+      .prepare(
+        `SELECT normalized.message_json
+           FROM provider_normalized_snapshots AS normalized
+           JOIN provider_sync_runs AS previous_run
+             ON previous_run.id = normalized.sync_run_id
+          WHERE normalized.provider_connection_id = ?
+            AND previous_run.id != ?
+            AND previous_run.requested_at <= ?
+          ORDER BY previous_run.requested_at DESC, normalized.created_at DESC
+          LIMIT 1`
+      )
+      .bind(run.providerConnectionId, run.id, run.requestedAt.toISOString())
+      .first<NormalizedSnapshotRow>();
+    if (!row) return null;
+    const parsed: unknown = JSON.parse(row.message_json);
+    assertCompatibleNormalizedData(parsed, this.runtime.manifest);
+    return parsed;
   }
 
   private async markRetry(run: SyncRun, code: string) {

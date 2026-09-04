@@ -3,6 +3,7 @@ import type {
   CredentialStatus,
   JsonObject,
   JsonValue,
+  NormalizedProviderData,
   ProviderType,
   ProviderAuthAttemptOperation,
   ProviderAuthAttemptStatus,
@@ -124,6 +125,18 @@ export interface ProviderRawSnapshotsTable {
   source_cursor: string | null;
   source_kind: string;
   source_timestamp: Timestamp | null;
+  sync_run_id: string;
+}
+
+export interface ProviderNormalizedSnapshotsTable {
+  created_at: Timestamp;
+  id: string;
+  message: ColumnType<NormalizedProviderData, string, never>;
+  protocol_version: string;
+  provider: ProviderType;
+  provider_connection_id: string;
+  schema_id: string;
+  schema_version: number;
   sync_run_id: string;
 }
 
@@ -321,6 +334,7 @@ export interface Database {
   provider_auth_attempts: ProviderAuthAttemptsTable;
   provider_credentials: ProviderCredentialsTable;
   provider_data_catalogs: ProviderDataCatalogsTable;
+  provider_normalized_snapshots: ProviderNormalizedSnapshotsTable;
   provider_raw_snapshots: ProviderRawSnapshotsTable;
   provider_sync_runs: ProviderSyncRunsTable;
   provider_sync_states: ProviderSyncStatesTable;

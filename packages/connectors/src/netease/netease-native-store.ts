@@ -105,10 +105,13 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
     readonly normalized: import("@nivalis/domain").NormalizedProviderData;
     readonly providerConnectionId: string;
   }) {
-    const payload = input.normalized.payload;
+    const payload = input.normalized.data;
     if (!isNeteaseNormalizedPayload(payload)) {
       throw new ProjectionError("Cannot persist invalid normalized NetEase data.");
     }
+    const sourceSnapshotIds = Object.fromEntries(
+      input.normalized.meta.sourceSnapshots.map((source) => [source.source, source.snapshotId])
+    );
     const now = input.generatedAt;
     await this.database
       .insertInto("netease_accounts")
@@ -164,10 +167,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
       );
     }
 
-    const weeklySource = requiredSource(
-      input.normalized.sourceSnapshotIds,
-      NETEASE_SOURCE.weeklyRecord
-    );
+    const weeklySource = requiredSource(sourceSnapshotIds, NETEASE_SOURCE.weeklyRecord);
     for (const record of payload.weeklyRecords) {
       await this.database
         .insertInto("netease_track_play_snapshots")
@@ -187,10 +187,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
         .execute();
     }
 
-    const allTimeSource = requiredSource(
-      input.normalized.sourceSnapshotIds,
-      NETEASE_SOURCE.allTimeRecord
-    );
+    const allTimeSource = requiredSource(sourceSnapshotIds, NETEASE_SOURCE.allTimeRecord);
     for (const record of payload.allTimeRecords) {
       await this.database
         .insertInto("netease_track_play_snapshots")
@@ -214,7 +211,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
       ["week", payload.weeklyRecordWall, NETEASE_SOURCE.listenRankWeek],
       ["month", payload.monthlyRecordWall, NETEASE_SOURCE.listenRankMonth]
     ] as const) {
-      const source = input.normalized.sourceSnapshotIds[sourceKind];
+      const source = sourceSnapshotIds[sourceKind];
       if (!wall || !source) continue;
       for (const item of wall.items) {
         if (!item.providerTrackId || item.playCount === null) continue;
@@ -239,10 +236,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
       }
     }
 
-    const recentSource = requiredSource(
-      input.normalized.sourceSnapshotIds,
-      NETEASE_SOURCE.recentSongs
-    );
+    const recentSource = requiredSource(sourceSnapshotIds, NETEASE_SOURCE.recentSongs);
     for (const listen of payload.recentListens) {
       await this.database
         .insertInto("netease_recent_listens")
@@ -266,7 +260,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
       payload.totalListenCount,
       "plays",
       "all_time",
-      requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.userDetail),
+      requiredSource(sourceSnapshotIds, NETEASE_SOURCE.userDetail),
       now
     );
     if (payload.listeningDurationMinutes !== null) {
@@ -276,7 +270,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
         payload.listeningDurationMinutes,
         "minutes",
         "week",
-        requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.listenReportWeek),
+        requiredSource(sourceSnapshotIds, NETEASE_SOURCE.listenReportWeek),
         now
       );
     }
@@ -287,7 +281,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
         payload.monthlyListeningDurationMinutes,
         "minutes",
         "month",
-        requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.listenReportMonth),
+        requiredSource(sourceSnapshotIds, NETEASE_SOURCE.listenReportMonth),
         now
       );
     }
@@ -298,7 +292,7 @@ export class KyselyNeteaseNativeStore implements ProviderNativeStore {
         payload.listeningDurationTotalSeconds,
         "seconds",
         "all_time",
-        requiredSource(input.normalized.sourceSnapshotIds, NETEASE_SOURCE.listenTotal),
+        requiredSource(sourceSnapshotIds, NETEASE_SOURCE.listenTotal),
         now
       );
     }

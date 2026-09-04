@@ -1,11 +1,23 @@
 import { createDecipheriv } from "node:crypto";
 
+import { assertProviderCollection } from "@nivalis/application";
 import {
+  encodeProviderSourceContext,
+  providerProtocolMetadata,
   ProviderCredentialError,
   ProviderSchemaMismatchError,
-  RetryableProviderError
+  RetryableProviderError,
+  toProviderSyncRequest,
+  toProviderSnapshotRecord
 } from "@nivalis/domain";
-import type { JsonObject, ProjectionTarget, RawSnapshot, SyncRun } from "@nivalis/domain";
+import type {
+  JsonObject,
+  NormalizedProviderData,
+  ProjectionTarget,
+  ProviderSourceRecord,
+  RawSnapshot,
+  SyncRun
+} from "@nivalis/domain";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -26,6 +38,7 @@ import { NeteaseConnector, sanitizeNeteasePayload } from "./netease-connector";
 import { NeteaseNormalizer } from "./netease-normalizer";
 import { probeNeteaseMusicCards } from "./netease-music-cards-probe";
 import { NeteaseProjector, buildNeteaseOwnerDataCatalog } from "./netease-projector";
+import { NETEASE_PROVIDER_MANIFEST } from "./netease-provider-runtime";
 import {
   NETEASE_SOURCE,
   type NeteaseNormalizedPayload,
@@ -115,8 +128,8 @@ describe("NetEase Provider module", () => {
   });
 
   it("validates, normalizes, and projects honest Provider/Nivalis semantics", async () => {
-    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
-    const [projection] = await new NeteaseProjector().project(normalized, [target("7d")]);
+    const normalized = await normalize(snapshots(normalNeteaseFixture));
+    const [projection] = await project(normalized, [target("7d")]);
     expect(projection?.projectionSchemaVersion).toBe(2);
     expect(projection?.data).toMatchObject({
       account: {
@@ -152,7 +165,7 @@ describe("NetEase Provider module", () => {
   });
 
   it("builds semantic cards and enforces public dataConfig allowlists server-side", async () => {
-    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
+    const normalized = await normalize(snapshots(normalNeteaseFixture));
     const targets: ProjectionTarget[] = [
       targetFor("music.netease.identity", {
         medalLimit: 0,
@@ -202,7 +215,7 @@ describe("NetEase Provider module", () => {
       ),
       targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
     ];
-    const projections = await new NeteaseProjector().project(normalized, targets);
+    const projections = await project(normalized, targets);
     const identity = projections[0]!.data as JsonObject;
     expect(identity).toMatchObject({
       profile: {
@@ -306,7 +319,7 @@ describe("NetEase Provider module", () => {
       }
     });
 
-    const catalog = buildNeteaseOwnerDataCatalog(normalized.payload as NeteaseNormalizedPayload);
+    const catalog = buildNeteaseOwnerDataCatalog(normalized.data as NeteaseNormalizedPayload);
     expect(catalog.listening).toMatchObject({
       monthlyListenDays: 25,
       monthlyTrend: expect.arrayContaining([
@@ -351,17 +364,17 @@ describe("NetEase Provider module", () => {
   });
 
   it("distinguishes a valid empty account from partial availability", async () => {
-    const empty = await new NeteaseNormalizer().normalize(snapshots(emptyNeteaseFixture));
-    const [emptyProjection] = await new NeteaseProjector().project(empty, [target("7d")]);
+    const empty = await normalize(snapshots(emptyNeteaseFixture));
+    const [emptyProjection] = await project(empty, [target("7d")]);
     expect(emptyProjection?.data).toMatchObject({
       listeningDuration: { availability: "unavailable", reason: "provider_omitted" },
       totalListenCount: { availability: "available", value: 0 },
       weeklyListening: { availability: "available", rankedPlayCount: 0 }
     });
-    expect(empty.payload).toMatchObject({ musicCards: [], musicCardsAvailable: true });
+    expect(empty.data).toMatchObject({ musicCards: [], musicCardsAvailable: true });
 
-    const partial = await new NeteaseNormalizer().normalize(snapshots(partialNeteaseFixture));
-    const [partialProjection] = await new NeteaseProjector().project(partial, [target("30d")]);
+    const partial = await normalize(snapshots(partialNeteaseFixture));
+    const [partialProjection] = await project(partial, [target("30d")]);
     expect(partialProjection?.data).toMatchObject({
       listeningDuration: { availability: "unavailable", reason: "provider_omitted" },
       weeklyListening: { availability: "unavailable", reason: "insufficient_coverage" }
@@ -369,8 +382,8 @@ describe("NetEase Provider module", () => {
   });
 
   it("projects following and followers as independent Widget instances", async () => {
-    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
-    const projections = await new NeteaseProjector().project(normalized, [
+    const normalized = await normalize(snapshots(normalNeteaseFixture));
+    const projections = await project(normalized, [
       targetFor("music.netease.social", {
         publicLimit: 8,
         publicLists: ["following"],
@@ -404,8 +417,8 @@ describe("NetEase Provider module", () => {
         snapshot.sourceKind !== NETEASE_SOURCE.profileMusicCards &&
         snapshot.sourceKind !== NETEASE_SOURCE.musicCardTracks
     );
-    const normalized = await new NeteaseNormalizer().normalize(historical);
-    expect(normalized.payload).toMatchObject({
+    const normalized = await normalize(historical);
+    expect(normalized.data).toMatchObject({
       musicCards: [expect.objectContaining({ creativeType: "legacy" })],
       musicCardsAvailable: true
     });
@@ -450,8 +463,8 @@ describe("NetEase Provider module", () => {
       sourceKind: `${NETEASE_SOURCE.profileShowcase}.page.1`
     });
 
-    const normalized = await new NeteaseNormalizer().normalize(raw);
-    const cards = (normalized.payload as NeteaseNormalizedPayload).musicCards;
+    const normalized = await normalize(raw);
+    const cards = (normalized.data as NeteaseNormalizedPayload).musicCards;
     expect(cards).toHaveLength(10);
     expect(cards.map((card) => card.sourceBlockType)).toEqual([
       "MUSIC_TASTE_WITH_MORE",
@@ -465,10 +478,20 @@ describe("NetEase Provider module", () => {
       "PERSONAL_SHOWCASE",
       "PERSONAL_SHOWCASE"
     ]);
-    expect(normalized.sourceSnapshotIds).toMatchObject({
-      [NETEASE_SOURCE.profileShowcase]: profile.id,
-      [`${NETEASE_SOURCE.profileShowcase}.page.1`]: "00000000-0000-4000-8000-000000000698"
-    });
+    expect(normalized.meta.sourceSnapshots).toEqual(
+      expect.arrayContaining([
+        {
+          partition: { kind: "singleton" },
+          snapshotId: profile.id,
+          source: NETEASE_SOURCE.profileShowcase
+        },
+        {
+          partition: { index: 1, kind: "index" },
+          snapshotId: "00000000-0000-4000-8000-000000000698",
+          source: NETEASE_SOURCE.profileShowcase
+        }
+      ])
+    );
   });
 
   it("deduplicates repeated Provider list pages and never marks partial coverage complete", async () => {
@@ -486,8 +509,8 @@ describe("NetEase Provider module", () => {
       id: "00000000-0000-4000-8000-000000000699",
       sourceKind: `${NETEASE_SOURCE.followers}.page.1`
     });
-    const normalized = await new NeteaseNormalizer().normalize(raw);
-    const payload = normalized.payload as NeteaseNormalizedPayload;
+    const normalized = await normalize(raw);
+    const payload = normalized.data as NeteaseNormalizedPayload;
     expect(payload.followers.items).toHaveLength(1);
     expect(payload.followers.providerTotal).toBe(128);
     expect(payload.followers.complete).toBe(false);
@@ -499,15 +522,13 @@ describe("NetEase Provider module", () => {
     ["unknown enum", unknownEnumFixture],
     ["unknown showcase creative", showcaseSchemaDriftFixture]
   ])("surfaces %s as ProviderSchemaMismatch rather than fake zero data", async (_name, fixture) => {
-    await expect(new NeteaseNormalizer().normalize(snapshots(fixture))).rejects.toBeInstanceOf(
-      ProviderSchemaMismatchError
-    );
+    await expect(normalize(snapshots(fixture))).rejects.toBeInstanceOf(ProviderSchemaMismatchError);
   });
 
   it("rejects a monthly report mislabeled as a weekly period", async () => {
     const monthly = normalNeteaseFixture[NETEASE_SOURCE.listenReportMonth];
     await expect(
-      new NeteaseNormalizer().normalize(
+      normalize(
         snapshots({
           ...normalNeteaseFixture,
           [NETEASE_SOURCE.listenReportMonth]: {
@@ -523,16 +544,16 @@ describe("NetEase Provider module", () => {
   });
 
   it("handles the sanitized large fixture without changing its bounded projection", async () => {
-    const normalized = await new NeteaseNormalizer().normalize(snapshots(largeNeteaseFixture));
-    const [projection] = await new NeteaseProjector().project(normalized, [target("7d")]);
+    const normalized = await normalize(snapshots(largeNeteaseFixture));
+    const [projection] = await project(normalized, [target("7d")]);
     const weekly = (projection!.data as JsonObject).weeklyListening as JsonObject;
     expect(weekly.topTracks).toHaveLength(100);
     expect(weekly.topArtists).toHaveLength(5);
   });
 
   it("keeps all Top 100 rows when the Owner explicitly publishes the complete ranking", async () => {
-    const normalized = await new NeteaseNormalizer().normalize(snapshots(largeNeteaseFixture));
-    const [projection] = await new NeteaseProjector().project(normalized, [
+    const normalized = await normalize(snapshots(largeNeteaseFixture));
+    const [projection] = await project(normalized, [
       targetFor(
         "music.netease.ranking",
         { publicLimit: 100, publicRanges: ["week", "all_time"] },
@@ -545,8 +566,8 @@ describe("NetEase Provider module", () => {
   });
 
   it("keeps weekly and monthly calendar visibility behind explicit publicRanges", async () => {
-    const normalized = await new NeteaseNormalizer().normalize(snapshots(normalNeteaseFixture));
-    const [projection] = await new NeteaseProjector().project(normalized, [
+    const normalized = await normalize(snapshots(normalNeteaseFixture));
+    const [projection] = await project(normalized, [
       targetFor("music.netease.calendar", { publicRanges: ["month"] })
     ]);
     expect(projection!.data).toMatchObject({
@@ -557,14 +578,14 @@ describe("NetEase Provider module", () => {
   });
 
   it("projects Provider-ordered weekly and monthly record walls with previous-week fallback data", async () => {
-    const normalized = await new NeteaseNormalizer().normalize([
+    const normalized = await normalize([
       ...snapshots(normalNeteaseFixture),
       historySnapshot(NETEASE_SOURCE.listenReportPreviousWeek, "week", 1, 900),
       historySnapshot(NETEASE_SOURCE.listenReportPreviousWeek, "week", 2, 901),
       historySnapshot(NETEASE_SOURCE.listenReportPreviousMonth, "month", 1, 902),
       historySnapshot(NETEASE_SOURCE.listenReportPreviousMonth, "month", 2, 903)
     ]);
-    const payload = normalized.payload as NeteaseNormalizedPayload;
+    const payload = normalized.data as NeteaseNormalizedPayload;
     expect(payload.weeklyRecordWall?.items).toHaveLength(20);
     expect(payload.monthlyRecordWall?.items).toHaveLength(20);
     expect(payload.weeklyRecordWall?.items[0]).toMatchObject({
@@ -586,7 +607,7 @@ describe("NetEase Provider module", () => {
       providerTrackId: null
     });
 
-    const [projection] = await new NeteaseProjector().project(normalized, [
+    const [projection] = await project(normalized, [
       targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
     ]);
     expect(projection!.data).toMatchObject({
@@ -642,15 +663,15 @@ describe("NetEase Provider module", () => {
         snapshot.sourceKind !== NETEASE_SOURCE.listenReportPreviousWeek &&
         snapshot.sourceKind !== NETEASE_SOURCE.listenReportPreviousMonth
     );
-    const normalized = await new NeteaseNormalizer().normalize(legacy);
-    const payload = normalized.payload as NeteaseNormalizedPayload;
+    const normalized = await normalize(legacy);
+    const payload = normalized.data as NeteaseNormalizedPayload;
     expect(payload.weeklyRecordWall).toBeNull();
     expect(payload.monthlyRecordWall).toBeNull();
     expect(payload.previousWeeklyReport).toBeNull();
     expect(payload.previousMonthlyReport).toBeNull();
     expect(payload.weeklyHistory).toEqual([]);
     expect(payload.monthlyHistory).toEqual([]);
-    const [projection] = await new NeteaseProjector().project(normalized, [
+    const [projection] = await project(normalized, [
       targetFor("music.netease.calendar", { publicRanges: ["week", "month"] })
     ]);
     expect(projection!.data).toMatchObject({
@@ -674,9 +695,9 @@ describe("NetEase Provider module", () => {
       { resolve: async () => secret },
       () => fetchedAt
     );
-    const results = await connector.fetch(syncRun());
+    const results = await collect(connector);
 
-    expect(results.map((result) => result.sourceKind)).toEqual([
+    expect(results.map((result) => result.meta.source)).toEqual([
       NETEASE_SOURCE.account,
       NETEASE_SOURCE.userDetail,
       NETEASE_SOURCE.profileHome,
@@ -691,12 +712,12 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.recentSongs,
       NETEASE_SOURCE.listenReportWeek,
       NETEASE_SOURCE.listenReportPreviousWeek,
-      `${NETEASE_SOURCE.listenReportPreviousWeek}.period.1`,
-      `${NETEASE_SOURCE.listenReportPreviousWeek}.period.2`,
+      NETEASE_SOURCE.listenReportPreviousWeek,
+      NETEASE_SOURCE.listenReportPreviousWeek,
       NETEASE_SOURCE.listenReportMonth,
       NETEASE_SOURCE.listenReportPreviousMonth,
-      `${NETEASE_SOURCE.listenReportPreviousMonth}.period.1`,
-      `${NETEASE_SOURCE.listenReportPreviousMonth}.period.2`,
+      NETEASE_SOURCE.listenReportPreviousMonth,
+      NETEASE_SOURCE.listenReportPreviousMonth,
       NETEASE_SOURCE.listenRankWeek,
       NETEASE_SOURCE.listenRankMonth,
       NETEASE_SOURCE.following,
@@ -704,6 +725,15 @@ describe("NetEase Provider module", () => {
       NETEASE_SOURCE.createdPlaylists,
       NETEASE_SOURCE.medals,
       NETEASE_SOURCE.socialStatus
+    ]);
+    expect(
+      results
+        .filter((result) => result.meta.source === NETEASE_SOURCE.listenReportPreviousWeek)
+        .map((result) => result.meta.partition)
+    ).toEqual([
+      { index: 0, kind: "index" },
+      { index: 1, kind: "index" },
+      { index: 2, kind: "index" }
     ]);
     expect(JSON.stringify(results)).not.toContain(secret);
     expect(requests).toHaveLength(27);
@@ -806,11 +836,13 @@ describe("NetEase Provider module", () => {
       99
     );
 
-    const results = await connector.fetch(syncRun());
+    const results = await collect(connector);
 
     expect(maximumInFlight).toBe(4);
     expect(results).toHaveLength(27);
-    expect(results.filter((result) => result.sourceKind.includes("listen_report"))).toHaveLength(8);
+    expect(results.filter((result) => result.meta.source.includes("listen_report"))).toHaveLength(
+      8
+    );
   });
 
   it("reuses only a complete contiguous immutable history window", async () => {
@@ -820,11 +852,11 @@ describe("NetEase Provider module", () => {
       () => fetchedAt,
       3
     );
-    const first = await firstConnector.fetch(syncRun());
+    const first = await collect(firstConnector);
     const cachedHistory = first.filter(
       (result) =>
-        result.sourceKind.startsWith(NETEASE_SOURCE.listenReportPreviousWeek) ||
-        result.sourceKind.startsWith(NETEASE_SOURCE.listenReportPreviousMonth)
+        result.meta.source.startsWith(NETEASE_SOURCE.listenReportPreviousWeek) ||
+        result.meta.source.startsWith(NETEASE_SOURCE.listenReportPreviousMonth)
     );
     expect(cachedHistory).toHaveLength(6);
 
@@ -839,13 +871,15 @@ describe("NetEase Provider module", () => {
       () => fetchedAt,
       3
     );
-    const reused = await reusedConnector.fetch(syncRun(), cachedHistory);
+    const reused = await collect(reusedConnector, cachedHistory);
     expect(
       reusedRequests.filter((request) =>
         new URL(request.url).pathname.endsWith("listen/data/report")
       )
     ).toHaveLength(0);
-    expect(reused.filter((result) => cachedHistory.includes(result))).toHaveLength(6);
+    expect(
+      reused.filter((result) => cachedHistory.some((cached) => cached.data === result.data))
+    ).toHaveLength(6);
 
     const incompleteRequests: Request[] = [];
     const incompleteFixture = createNeteaseHttpFixtureFetcher("normal");
@@ -858,7 +892,7 @@ describe("NetEase Provider module", () => {
       () => fetchedAt,
       3
     );
-    await incompleteConnector.fetch(syncRun(), cachedHistory.slice(0, 5));
+    await collect(incompleteConnector, cachedHistory.slice(0, 5));
     expect(
       incompleteRequests.filter((request) =>
         new URL(request.url).pathname.endsWith("listen/data/report")
@@ -901,18 +935,24 @@ describe("NetEase Provider module", () => {
       () => fetchedAt
     );
 
-    const results = await connector.fetch(syncRun());
+    const results = await collect(connector);
     const profileSnapshots = results.filter((result) =>
-      result.sourceKind.startsWith(NETEASE_SOURCE.profileShowcase)
+      result.meta.source.startsWith(NETEASE_SOURCE.profileShowcase)
     );
-    expect(profileSnapshots.map((result) => result.sourceKind)).toEqual([
+    expect(profileSnapshots.map((result) => result.meta.source)).toEqual([
       NETEASE_SOURCE.profileShowcase,
-      `${NETEASE_SOURCE.profileShowcase}.page.1`
+      NETEASE_SOURCE.profileShowcase
     ]);
-    expect(profileSnapshots[0]?.sourceCursor).toBeUndefined();
-    expect(profileSnapshots[1]?.sourceCursor).toBe(
-      JSON.stringify({ PERSONAL_USER_SHOWCASE: "next-page" })
-    );
+    expect(profileSnapshots[0]?.meta.partition).toEqual({
+      cursor: null,
+      index: 0,
+      kind: "cursor"
+    });
+    expect(profileSnapshots[1]?.meta.partition).toEqual({
+      cursor: JSON.stringify({ PERSONAL_USER_SHOWCASE: "next-page" }),
+      index: 1,
+      kind: "cursor"
+    });
     expect(profileRequests).toHaveLength(2);
     const firstRequest = await decodeEapiRequest(profileRequests[0]!);
     const secondRequest = await decodeEapiRequest(profileRequests[1]!);
@@ -945,7 +985,7 @@ describe("NetEase Provider module", () => {
       () => fetchedAt
     );
 
-    await expect(connector.fetch(syncRun())).rejects.toBeInstanceOf(ProviderSchemaMismatchError);
+    await expect(collect(connector)).rejects.toBeInstanceOf(ProviderSchemaMismatchError);
   });
 
   it("exposes the read-only profile tab capability", async () => {
@@ -1049,24 +1089,29 @@ describe("NetEase Provider module", () => {
       const connector = new NeteaseConnector(new NeteaseClient({ timeoutMs: 10_000 }), {
         resolve: async () => process.env.NETEASE_INTEGRATION_MUSIC_U!
       });
-      const fetched = await connector.fetch(syncRun());
-      const normalized = await new NeteaseNormalizer().normalize(
+      const fetched = await collect(connector);
+      const normalized = await normalize(
         fetched.map((item, index) => ({
-          createdAt: item.fetchedAt,
-          fetchedAt: item.fetchedAt,
+          createdAt: new Date(item.meta.collectedAt),
+          fetchedAt: new Date(item.meta.collectedAt),
           id: `00000000-0000-4000-8000-${String(810 + index).padStart(12, "0")}`,
-          payload: item.payload,
+          payload: item.data,
           payloadHash: `${index}`.padStart(64, "0"),
           provider: "netease",
           providerConnectionId: connectionId,
-          schemaVersion: item.schemaVersion,
-          sourceCursor: item.sourceCursor ?? null,
-          sourceKind: item.sourceKind,
-          sourceTimestamp: item.sourceTimestamp ?? null,
+          schemaVersion: item.meta.schemaVersion,
+          sourceCursor: encodeProviderSourceContext(item, {
+            checkpoint: null,
+            issues: [],
+            mode: "snapshot",
+            outcome: "complete"
+          }),
+          sourceKind: item.meta.source,
+          sourceTimestamp: item.meta.sourceUpdatedAt ? new Date(item.meta.sourceUpdatedAt) : null,
           syncRunId: syncRun().id
         }))
       );
-      expect(normalized.provider).toBe("netease");
+      expect(normalized.meta.provider).toBe("netease");
     }
   );
 });
@@ -1156,6 +1201,39 @@ function syncRun(): SyncRun {
     startedAt: null,
     status: "queued"
   };
+}
+
+async function collect(
+  connector: NeteaseConnector,
+  cachedRecords: readonly ProviderSourceRecord[] = []
+) {
+  const run = syncRun();
+  const result = await connector.collect(toProviderSyncRequest(run, { cachedRecords }));
+  assertProviderCollection(result, NETEASE_PROVIDER_MANIFEST, run.id);
+  return result.data.records;
+}
+
+function normalize(raw: readonly RawSnapshot[]) {
+  const records = raw.map(toProviderSnapshotRecord);
+  return new NeteaseNormalizer().normalize({
+    data: {
+      checkpoint: records[0]?.meta.checkpoint ?? null,
+      collectionMode: records[0]?.meta.collectionMode ?? "snapshot",
+      collectionOutcome: records[0]?.meta.collectionOutcome ?? "complete",
+      issues: records[0]?.meta.issues ?? [],
+      previous: null,
+      records
+    },
+    meta: providerProtocolMetadata("normalization.request", "netease", syncRun().id)
+  });
+}
+
+async function project(normalized: NormalizedProviderData, targets: readonly ProjectionTarget[]) {
+  const result = await new NeteaseProjector().project({
+    data: { normalized, targets },
+    meta: providerProtocolMetadata("projection.request", "netease", syncRun().id)
+  });
+  return result.data;
 }
 
 function payloadForPath(pathname: string) {

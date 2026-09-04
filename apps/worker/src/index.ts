@@ -1,4 +1,5 @@
 import {
+  assertProviderManifest,
   ProviderAuthWorkerService,
   ProviderConnectionService,
   SyncService,
@@ -14,6 +15,7 @@ import {
   type NeteaseNativeDatabase
 } from "@nivalis/connectors";
 import type { ProviderNativeStore, ProviderNativeStoreRegistry } from "@nivalis/application";
+import { ProviderProtocolError } from "@nivalis/domain";
 import type {
   ProviderAuthRuntimeModule,
   ProviderRuntimeModule,
@@ -275,7 +277,17 @@ export class StaticProviderRuntimeRegistry implements ProviderRuntimeRegistry {
   private readonly runtimes: ReadonlyMap<ProviderType, ProviderRuntimeModule>;
 
   constructor(runtimes: readonly ProviderRuntimeModule[]) {
-    this.runtimes = new Map(runtimes.map((runtime) => [runtime.provider, runtime]));
+    const entries = runtimes.map((runtime) => {
+      const provider = runtime.manifest.meta.provider;
+      assertProviderManifest(runtime.manifest, provider);
+      return [provider, runtime] as const;
+    });
+    if (new Set(entries.map(([provider]) => provider)).size !== entries.length) {
+      throw new ProviderProtocolError(
+        "Provider runtime registry contains duplicate Provider manifests."
+      );
+    }
+    this.runtimes = new Map(entries);
   }
 
   get(provider: ProviderType) {
