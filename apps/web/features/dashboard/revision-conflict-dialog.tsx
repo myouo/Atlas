@@ -23,8 +23,8 @@ export function RevisionConflictDialog({
   return (
     <Dialog.Root open={Boolean(conflict)} onOpenChange={(open) => !open && onKeepLocal()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[80] bg-slate-950/30 backdrop-blur-sm" />
-        <Dialog.Content className="glass-surface-strong fixed top-1/2 left-1/2 z-[81] w-[min(92vw,520px)] -translate-x-1/2 -translate-y-1/2 rounded-[24px] p-6 text-ink shadow-2xl">
+        <Dialog.Overlay className="nivalis-modal-overlay fixed inset-0 z-[80]" />
+        <Dialog.Content className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-[81] w-[min(92vw,520px)] rounded-[24px] p-6 text-ink outline-none">
           <div className="flex items-start gap-3 pr-10">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
               <ShieldWarning aria-hidden size={24} weight="duotone" />
@@ -75,7 +75,7 @@ export function RevisionConflictDialog({
 
           <Dialog.Close
             aria-label="关闭并保留本地修改"
-            className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-700 transition hover:bg-blue-100"
+            className="nivalis-modal-close absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full text-blue-700"
           >
             <X aria-hidden size={16} weight="bold" />
           </Dialog.Close>

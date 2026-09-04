@@ -65,15 +65,22 @@ function useDashboardContainerWidth(initialWidth = 1200) {
       setMounted(true);
       return;
     }
+    let animationFrame = 0;
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
-      const nextWidth = entry.contentRect.width;
+      const nextWidth = Math.floor(entry.contentRect.width);
       if (nextWidth <= 0) return;
-      setWidth((current) => (Math.abs(current - nextWidth) < 0.5 ? current : nextWidth));
-      setMounted(true);
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        setWidth((current) => (current === nextWidth ? current : nextWidth));
+        setMounted(true);
+      });
     });
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+    };
   }, [initialWidth]);
 
   return { containerRef, mounted, width };
@@ -161,7 +168,7 @@ function DashboardCanvasComponent({
         </Responsive>
       ) : (
         <div
-          className="min-h-[520px] animate-pulse rounded-[24px] bg-white/30"
+          className="dashboard-grid-loading min-h-[520px] animate-pulse rounded-[24px] bg-white/30"
           aria-label="正在准备 Dashboard 布局"
         />
       )}

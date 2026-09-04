@@ -2,7 +2,9 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { applyAppearanceSettings, readAppearanceSettings } from "../design-system/appearance";
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
   const [queryClient] = useState(
@@ -16,6 +18,11 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
         }
       })
   );
+
+  useEffect(() => {
+    const settings = readAppearanceSettings();
+    if (settings) applyAppearanceSettings(settings);
+  }, []);
 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }

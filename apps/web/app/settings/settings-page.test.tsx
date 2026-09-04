@@ -4,7 +4,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import SettingsPage from "./page";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+  delete document.documentElement.dataset.accent;
+  delete document.documentElement.dataset.glass;
+});
 
 describe("Settings Mock Provider boundary", () => {
   it("does not simulate QR, SMS, or MUSIC_U authentication in Mock Mode", async () => {
@@ -19,7 +24,11 @@ describe("Settings Mock Provider boundary", () => {
 
   it("keeps browser-local appearance settings available", async () => {
     render(<SettingsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Accent lilac" }));
+    await userEvent.click(screen.getByRole("button", { name: "strong" }));
     await userEvent.click(await screen.findByRole("button", { name: "保存外观设置" }));
     expect(screen.getByRole("button", { name: "已保存到浏览器" })).toBeInTheDocument();
+    expect(document.documentElement).toHaveAttribute("data-accent", "lilac");
+    expect(document.documentElement).toHaveAttribute("data-glass", "strong");
   });
 });

@@ -27,12 +27,10 @@ interface AboutPageProps {
 
 function DashboardLoading() {
   return (
-    <main className="nivalis-page">
-      <div className="nivalis-content">
-        <header className="mt-9 px-1 sm:px-2">
-          <h1 className="text-[34px] leading-none font-black tracking-[-0.04em] text-ink sm:text-[38px]">
-            About Me
-          </h1>
+    <main className="nivalis-page dashboard-page">
+      <div className="nivalis-content dashboard-content">
+        <header className="dashboard-intro">
+          <h1 className="dashboard-title">About Me</h1>
           <div className="mt-3 h-4 w-64 animate-pulse rounded-full bg-white/50" />
         </header>
         <div className="mt-8 h-[720px] animate-pulse rounded-[24px] bg-white/35" />
@@ -309,7 +307,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
 
   if ((query.isError || !query.data) && !hasCachedDashboard) {
     return (
-      <main className="nivalis-page flex min-h-screen items-center justify-center p-6">
+      <main className="nivalis-page dashboard-page flex min-h-screen items-center justify-center p-6">
         <div className="glass-surface-strong max-w-md rounded-[24px] p-8 text-center">
           <h1 className="text-xl font-extrabold text-ink">Dashboard 暂时无法加载</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-muted">
@@ -357,8 +355,8 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   };
 
   return (
-    <main className="nivalis-page">
-      <div className="nivalis-content">
+    <main className="nivalis-page dashboard-page">
+      <div className="nivalis-content dashboard-content">
         {isOwner ? (
           <TopActionBar
             authenticated={session?.authenticated ?? source.kind === "mock"}
@@ -375,7 +373,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
 
         {isOwner && query.isError && hasCachedDashboard ? (
           <div
-            className="glass-surface mt-3 rounded-xl px-4 py-2 text-xs font-bold text-amber-800"
+            className="dashboard-alert glass-surface mt-3 rounded-xl px-4 py-2 text-xs font-bold text-amber-800"
             role="alert"
           >
             API 暂时不可用，正在显示上次保留的本地状态；编辑内容不会被清除。
@@ -383,7 +381,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         ) : null}
 
         {effectiveMode === "edit" && isOwner ? (
-          <div className="relative z-30 mt-3 sm:absolute sm:top-[61px] sm:right-0 sm:mt-0">
+          <div className="dashboard-edit-toolbar-wrap relative z-30 mt-3 sm:absolute sm:top-[58px] sm:right-0 sm:mt-0">
             <EditToolbar
               dirty={store.dirty}
               onAdd={() => setAddDialogOpen(true)}
@@ -400,20 +398,18 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           </div>
         ) : null}
 
-        <header className="mt-9 px-1 sm:px-2">
+        <header className="dashboard-intro">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-[34px] leading-none font-black tracking-[-0.04em] text-ink sm:text-[38px]">
-                About Me
-              </h1>
-              <p className="mt-2 text-sm font-extrabold text-ink sm:text-base">
+              <h1 className="dashboard-title text-ink">About Me</h1>
+              <p className="dashboard-subtitle">
                 {snapshot.profile.displayName}
                 <span className="mx-2 text-blue-400">/</span>
                 {snapshot.profile.headline}
               </p>
             </div>
             {isOwner ? (
-              <span className="glass-surface rounded-full px-3 py-1.5 text-[10px] font-bold text-blue-700">
+              <span className="dashboard-phase-badge glass-surface">
                 {source.kind === "api"
                   ? "Phase 5 · Netease Provider"
                   : "Phase 1 · Explicit Mock Data"}
@@ -422,7 +418,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           </div>
         </header>
 
-        <div className="mt-2">
+        <div className="dashboard-grid-wrap">
           <DashboardCanvas
             editable={isOwner && effectiveMode === "edit"}
             layout={visibleSnapshot.layout}
@@ -446,7 +442,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         ) : null}
 
         {isOwner ? (
-          <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 px-2 text-[10px] font-medium text-blue-900/55">
+          <footer className="dashboard-footer flex flex-wrap items-center justify-between gap-2">
             <span>
               Published version {store.published.revision} ·{" "}
               {source.kind === "api" ? "Nivalis API" : "Local Fixture"}

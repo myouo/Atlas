@@ -22,7 +22,7 @@ function MiniDonut({
   return (
     <div
       aria-label={`音乐类型占比：${data.map((item) => `${item.name} ${Math.round(item.share * 100)}%`).join("，")}`}
-      className="relative h-[72px] w-[72px] shrink-0 rounded-full"
+      className="mini-donut relative h-[72px] w-[72px] shrink-0 rounded-full"
       role="img"
       style={{ backgroundImage: `conic-gradient(${stops.join(",")})` }}
     >
@@ -48,7 +48,7 @@ function MiniLineChart({
     y: 38 - ((point.value - minimum) / range) * 31
   }));
   return (
-    <div aria-label={label} className="relative h-full w-full" role="img">
+    <div aria-label={label} className="mini-line-chart relative h-full w-full" role="img">
       <svg
         aria-hidden
         className="h-[calc(100%_-_14px)] w-full overflow-visible"
@@ -57,6 +57,7 @@ function MiniLineChart({
         <line stroke="rgba(85,118,173,0.18)" strokeWidth="0.7" x1="4" x2="96" y1="38" y2="38" />
         <polyline
           fill="none"
+          pathLength="1"
           points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")}
           stroke="#ff4661"
           strokeLinecap="round"

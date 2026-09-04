@@ -28,10 +28,13 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 
 import { dashboardSource } from "../../api/dashboard-source-factory";
+import {
+  readAppearanceSettings,
+  saveAppearanceSettings,
+  type AppearanceAccent,
+  type AppearanceGlass
+} from "../../design-system/appearance";
 import { AppProviders } from "../providers";
-
-type Accent = "blue" | "lilac" | "rose";
-type Glass = "balanced" | "strong" | "subtle";
 
 export default function SettingsPage() {
   return (
@@ -42,8 +45,8 @@ export default function SettingsPage() {
 }
 
 function SettingsContent() {
-  const [accent, setAccent] = useState<Accent>("blue");
-  const [glass, setGlass] = useState<Glass>("balanced");
+  const [accent, setAccent] = useState<AppearanceAccent>("blue");
+  const [glass, setGlass] = useState<AppearanceGlass>("balanced");
   const [rotation, setRotation] = useState(false);
   const [saved, setSaved] = useState(false);
   const [credential, setCredential] = useState("");
@@ -152,11 +155,19 @@ function SettingsContent() {
     []
   );
 
+  useEffect(() => {
+    const settings = readAppearanceSettings();
+    if (!settings) return;
+    const animationFrame = window.requestAnimationFrame(() => {
+      setAccent(settings.accent);
+      setGlass(settings.glass);
+      setRotation(settings.rotation);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, []);
+
   const save = () => {
-    localStorage.setItem(
-      "nivalis.appearance.phase1.v1",
-      JSON.stringify({ accent, glass, rotation })
-    );
+    saveAppearanceSettings({ accent, glass, rotation });
     setSaved(true);
     if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
     savedTimer.current = window.setTimeout(() => {
@@ -166,20 +177,17 @@ function SettingsContent() {
   };
 
   return (
-    <main className="nivalis-page">
-      <div className="nivalis-content max-w-[1120px]">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <Link
-            className="glass-surface-strong flex h-11 items-center gap-2 rounded-full px-4 text-xs font-extrabold text-ink transition hover:bg-white"
-            href="/"
-          >
+    <main className="nivalis-page settings-page" data-accent={accent} data-glass={glass}>
+      <div className="nivalis-content settings-content">
+        <header className="settings-topbar">
+          <Link className="settings-topbar-link glass-surface-strong text-ink" href="/">
             <ArrowLeft aria-hidden size={16} weight="bold" />
             返回 About Me
           </Link>
           <div className="flex items-center gap-2">
             {authenticated ? (
               <button
-                className="glass-surface-strong flex h-10 items-center gap-2 rounded-full px-4 text-[11px] font-extrabold text-ink"
+                className="settings-session-button glass-surface-strong text-ink"
                 disabled={logoutMutation.isPending}
                 onClick={() => logoutMutation.mutate()}
                 type="button"
@@ -188,38 +196,32 @@ function SettingsContent() {
                 退出登录
               </button>
             ) : null}
-            <span className="rounded-full bg-blue-500 px-4 py-2 text-xs font-extrabold text-white shadow-lg">
-              Settings
-            </span>
+            <span className="settings-label">Settings</span>
           </div>
         </header>
 
-        <div className="mt-16 sm:mt-20">
-          <p className="text-xs font-extrabold tracking-[0.18em] text-blue-600 uppercase">
-            Personalize your canvas
-          </p>
-          <h1 className="mt-2 text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">
-            外观与数据设置
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed font-medium text-ink-muted">
+        <div className="settings-hero">
+          <p className="settings-eyebrow">Personalize your canvas</p>
+          <h1 className="settings-title text-ink">外观与数据设置</h1>
+          <p className="settings-description">
             背景、字体、主题、玻璃强度、Provider 和隐私设置只存在于这里，不会占据 About Me 首页。
           </p>
         </div>
 
-        <div className="mt-8 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className="glass-surface rounded-[26px] p-5 sm:p-6">
+        <div className="settings-primary-grid">
+          <section className="settings-card glass-surface">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-600 text-white">
+              <span className="settings-card-icon">
                 <ImageSquare aria-hidden size={21} weight="duotone" />
               </span>
               <div>
-                <h2 className="text-base font-extrabold text-ink">Background</h2>
+                <h2 className="settings-card-title text-ink">Background</h2>
                 <p className="text-[11px] text-ink-muted">选择首页背景与轮换方式</p>
               </div>
             </div>
             <button
               aria-pressed="true"
-              className="relative mt-5 block w-full overflow-hidden rounded-[20px] border-2 border-blue-500 bg-white/50 p-2 text-left"
+              className="settings-background-choice jelly-control relative mt-5 block w-full overflow-hidden rounded-[20px] border border-blue-300/80 bg-white/48 p-2 text-left"
               type="button"
             >
               <Image
@@ -237,7 +239,7 @@ function SettingsContent() {
                 雪蓝晨光 · 默认
               </span>
             </button>
-            <label className="mt-4 flex cursor-pointer items-center justify-between rounded-2xl border border-white/80 bg-white/50 px-4 py-3">
+            <label className="settings-row mt-4 flex cursor-pointer items-center justify-between rounded-2xl border border-white/70 bg-white/42 px-4 py-3">
               <span>
                 <span className="block text-xs font-extrabold text-ink">Background rotation</span>
                 <span className="mt-0.5 block text-[10px] text-ink-muted">
@@ -246,47 +248,45 @@ function SettingsContent() {
               </span>
               <input
                 checked={rotation}
-                className="h-4 w-4 accent-blue-600"
+                className="settings-toggle-input"
                 onChange={(event) => setRotation(event.target.checked)}
                 type="checkbox"
               />
+              <span aria-hidden className="settings-toggle-track" />
             </label>
           </section>
 
-          <div className="space-y-5">
-            <section className="glass-surface rounded-[26px] p-5">
+          <div className="settings-stack">
+            <section className="settings-card glass-surface">
               <div className="flex items-center gap-3">
                 <Palette aria-hidden className="text-blue-600" size={22} weight="duotone" />
-                <h2 className="text-base font-extrabold text-ink">Theme & Accent</h2>
+                <h2 className="settings-card-title text-ink">Theme & Accent</h2>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {(["blue", "lilac", "rose"] as const).map((value) => (
                   <button
                     aria-label={`Accent ${value}`}
                     aria-pressed={accent === value}
-                    className={
-                      accent === value
-                        ? "h-10 rounded-xl border-2 border-blue-600 bg-white/80 text-[10px] font-bold text-ink"
-                        : "h-10 rounded-xl border border-white/80 bg-white/45 text-[10px] font-bold text-ink-muted"
-                    }
+                    className="settings-choice h-10"
                     key={value}
                     onClick={() => setAccent(value)}
                     type="button"
                   >
+                    <span className="settings-swatch" data-color={value} />
                     {value}
                   </button>
                 ))}
               </div>
             </section>
 
-            <section className="glass-surface rounded-[26px] p-5">
+            <section className="settings-card glass-surface">
               <div className="flex items-center gap-3">
                 <TextAa aria-hidden className="text-blue-600" size={22} weight="duotone" />
-                <h2 className="text-base font-extrabold text-ink">Font & Glass</h2>
+                <h2 className="settings-card-title text-ink">Font & Glass</h2>
               </div>
               <label className="mt-4 block text-[10px] font-bold text-ink-muted">
                 字体
-                <select className="mt-2 h-10 w-full rounded-xl border border-white/90 bg-white/70 px-3 text-xs font-semibold text-ink">
+                <select className="settings-select mt-2 h-10 w-full rounded-xl px-3 text-xs font-semibold">
                   <option>Noto Sans SC</option>
                   <option>System Sans</option>
                 </select>
@@ -295,11 +295,7 @@ function SettingsContent() {
                 {(["subtle", "balanced", "strong"] as const).map((value) => (
                   <button
                     aria-pressed={glass === value}
-                    className={
-                      glass === value
-                        ? "rounded-xl bg-blue-600 px-2 py-2 text-[10px] font-bold text-white"
-                        : "rounded-xl bg-white/55 px-2 py-2 text-[10px] font-bold text-ink-muted"
-                    }
+                    className="settings-choice px-2 py-2"
                     key={value}
                     onClick={() => setGlass(value)}
                     type="button"
@@ -312,7 +308,7 @@ function SettingsContent() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+        <div className="settings-secondary-grid">
           <ProviderSettings
             authenticated={authenticated}
             connection={connectionQuery.data}
@@ -345,11 +341,11 @@ function SettingsContent() {
             validationJob={validationJob}
           />
 
-          <section className="glass-surface rounded-[26px] p-5">
+          <section className="settings-card glass-surface">
             <div className="flex items-center gap-3">
               <ShieldCheck aria-hidden className="text-blue-600" size={22} weight="duotone" />
               <div>
-                <h2 className="text-base font-extrabold text-ink">Privacy</h2>
+                <h2 className="settings-card-title text-ink">Privacy</h2>
                 <p className="text-[10px] text-ink-muted">公共 Dashboard 使用显式字段白名单</p>
               </div>
             </div>
@@ -373,11 +369,7 @@ function SettingsContent() {
         ) : null}
 
         <div className="mt-6 flex justify-end">
-          <button
-            className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-xs font-extrabold text-white shadow-lg transition hover:bg-blue-700"
-            onClick={save}
-            type="button"
-          >
+          <button className="settings-save" onClick={save} type="button">
             <Check aria-hidden size={16} weight="bold" />
             {saved ? "已保存到浏览器" : "保存外观设置"}
           </button>
@@ -397,11 +389,11 @@ function NeteaseDataExplorer({
   readonly loading: boolean;
 }) {
   if (loading) {
-    return <div className="glass-surface mt-5 h-56 animate-pulse rounded-[26px]" />;
+    return <div className="settings-card glass-surface mt-5 h-56 animate-pulse" />;
   }
   if (error || !catalog) {
     return (
-      <section className="glass-surface mt-5 rounded-[26px] p-5">
+      <section className="settings-card glass-surface mt-5">
         <p className="text-sm font-extrabold text-ink">网易云完整数据</p>
         <p className="mt-2 text-[10px] text-amber-700">
           尚无完整数据目录。完成一次同步后，这里会显示已验证、已清洗的 Owner-only 数据。
@@ -427,7 +419,7 @@ function NeteaseDataExplorer({
   const musicCardItems = objectArray(musicCards?.items);
 
   return (
-    <section className="glass-surface mt-5 rounded-[26px] p-5 sm:p-6">
+    <section className="settings-card glass-surface mt-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ff4668] text-white">
@@ -892,7 +884,7 @@ function ProviderSettings(props: ProviderSettingsProps) {
   ]);
 
   return (
-    <section className="glass-surface rounded-[26px] p-5">
+    <section className="settings-card glass-surface">
       <div className="flex items-center gap-3">
         <CloudArrowUp aria-hidden className="text-blue-600" size={22} weight="duotone" />
         <div>

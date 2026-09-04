@@ -28,6 +28,7 @@ export function ProfileHeroWidget({ widget }: Readonly<{ widget: WidgetOf<"profi
           <span
             aria-label="在线"
             className="absolute right-1 bottom-1 h-4 w-4 rounded-full border-[3px] border-white bg-emerald-500 sm:h-5 sm:w-5"
+            role="img"
           />
         </div>
       ) : null}
@@ -39,7 +40,7 @@ export function ProfileHeroWidget({ widget }: Readonly<{ widget: WidgetOf<"profi
             </h2>
           ) : null}
           {showBadge ? (
-            <span className="rounded-full bg-sky-500 px-3 py-1 text-[11px] font-bold text-white shadow-sm">
+            <span className="profile-badge rounded-full bg-sky-500 px-3 py-1 text-[11px] font-bold text-white shadow-sm">
               开发者
             </span>
           ) : null}

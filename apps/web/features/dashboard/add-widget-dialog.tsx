@@ -17,8 +17,8 @@ export function AddWidgetDialog({ onAdd, onOpenChange, open, widgets }: AddWidge
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/25 backdrop-blur-sm" />
-        <Dialog.Content className="glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[84vh] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[26px] p-6">
+        <Dialog.Overlay className="nivalis-modal-overlay fixed inset-0 z-50" />
+        <Dialog.Content className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[84vh] w-[min(94vw,720px)] overflow-y-auto rounded-[26px] p-5 outline-none sm:p-6">
           <Dialog.Title className="text-xl font-extrabold tracking-[-0.02em] text-ink">
             添加模块
           </Dialog.Title>
@@ -27,7 +27,7 @@ export function AddWidgetDialog({ onAdd, onOpenChange, open, widgets }: AddWidge
           </Dialog.Description>
           <Dialog.Close
             aria-label="关闭"
-            className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-700"
+            className="nivalis-modal-close absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full text-blue-700"
           >
             <X aria-hidden size={16} weight="bold" />
           </Dialog.Close>
@@ -39,7 +39,7 @@ export function AddWidgetDialog({ onAdd, onOpenChange, open, widgets }: AddWidge
               const { Icon } = definition;
               return (
                 <button
-                  className="group flex min-h-24 items-center gap-4 rounded-2xl border border-white/85 bg-white/55 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/80 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+                  className="dialog-option group flex min-h-20 items-center gap-3.5 rounded-2xl p-3.5 text-left disabled:cursor-not-allowed disabled:opacity-45"
                   disabled={disabled}
                   key={definition.type}
                   onClick={() => {
@@ -48,7 +48,7 @@ export function AddWidgetDialog({ onAdd, onOpenChange, open, widgets }: AddWidge
                   }}
                   type="button"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-100">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-blue-50 text-blue-600 transition group-hover:bg-blue-100">
                     <Icon aria-hidden size={23} />
                   </span>
                   <span className="min-w-0 flex-1">

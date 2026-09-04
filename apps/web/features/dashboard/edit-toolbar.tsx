@@ -29,8 +29,8 @@ export function EditToolbar({
 }: EditToolbarProps) {
   const busy = publishing || saving;
   return (
-    <div className="glass-surface-strong flex flex-wrap items-center justify-between gap-2 rounded-2xl p-1.5">
-      <div className="hidden items-center gap-2 px-2 text-xs font-semibold text-ink-muted xl:flex">
+    <div className="edit-toolbar glass-surface-strong">
+      <div className="edit-toolbar-status">
         <span
           className={
             dirty ? "h-2 w-2 rounded-full bg-amber-500" : "h-2 w-2 rounded-full bg-emerald-500"
@@ -38,10 +38,10 @@ export function EditToolbar({
         />
         {dirty ? "草稿有未保存调整" : "草稿已保存"}
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="edit-toolbar-actions">
         <button
           aria-label="添加模块"
-          className="flex h-9 items-center gap-2 rounded-xl border border-blue-100 bg-white/65 px-2 text-xs font-bold text-ink transition hover:bg-white lg:px-3"
+          className="edit-toolbar-button"
           disabled={busy}
           onClick={onAdd}
           type="button"
@@ -51,7 +51,7 @@ export function EditToolbar({
         </button>
         <button
           aria-label="历史版本"
-          className="flex h-9 items-center gap-2 rounded-xl border border-blue-100 bg-white/65 px-2 text-xs font-bold text-ink transition hover:bg-white lg:px-3"
+          className="edit-toolbar-button"
           disabled={busy}
           onClick={onHistory}
           type="button"
@@ -61,7 +61,7 @@ export function EditToolbar({
         </button>
         <button
           aria-label="重置布局"
-          className="flex h-9 items-center gap-2 rounded-xl border border-blue-100 bg-white/65 px-2 text-xs font-bold text-ink transition hover:bg-white disabled:opacity-45 lg:px-3"
+          className="edit-toolbar-button"
           disabled={!dirty || busy}
           onClick={onReset}
           type="button"
@@ -70,22 +70,26 @@ export function EditToolbar({
           <span className="hidden lg:inline">重置布局</span>
         </button>
         <button
-          className="flex h-9 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
+          aria-label={saving ? "正在保存草稿" : "保存草稿"}
+          className="edit-toolbar-button"
+          data-variant="save"
           disabled={busy}
           onClick={onSave}
           type="button"
         >
           <Check aria-hidden size={15} weight="bold" />
-          {saving ? "保存中" : "保存草稿"}
+          {saving ? "保存中" : "保存"}
         </button>
         <button
-          className="flex h-9 items-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white shadow-[0_6px_16px_rgba(37,118,237,0.28)] transition hover:bg-blue-700"
+          aria-label={publishing ? "正在发布布局" : "发布布局"}
+          className="edit-toolbar-button"
+          data-variant="publish"
           disabled={busy}
           onClick={onPublish}
           type="button"
         >
           <CloudArrowUp aria-hidden size={16} weight="bold" />
-          {publishing ? "发布中" : "发布布局"}
+          {publishing ? "发布中" : "发布"}
         </button>
       </div>
     </div>

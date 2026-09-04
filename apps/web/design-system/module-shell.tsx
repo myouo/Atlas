@@ -88,13 +88,6 @@ function ExpandableModuleShell(props: ModuleShellProps) {
   const [expanded, setExpanded] = useState(false);
   const [transientState] = useState(() => new Map<string, unknown>());
   const styles = accentClasses[props.accent];
-  const expandPosition = props.editable
-    ? props.onRemove && props.onConfigure
-      ? "right-[72px]"
-      : props.onRemove || props.onConfigure
-        ? "right-10"
-        : "right-2"
-    : "right-3";
 
   return (
     <ModuleShellTransientStateContext.Provider value={transientState}>
@@ -105,10 +98,7 @@ function ExpandableModuleShell(props: ModuleShellProps) {
             <Dialog.Trigger asChild>
               <button
                 aria-label={`放大 ${props.title}`}
-                className={clsx(
-                  "absolute top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/88 text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white",
-                  expandPosition
-                )}
+                className="module-shell-action module-expand-control text-blue-600"
                 type="button"
               >
                 <ArrowsOutSimple aria-hidden size={14} weight="bold" />
@@ -119,7 +109,7 @@ function ExpandableModuleShell(props: ModuleShellProps) {
         />
 
         <Dialog.Portal>
-          <Dialog.Overlay className="module-expand-overlay fixed inset-0 z-[90] bg-[#071a3d]/38 backdrop-blur-sm" />
+          <Dialog.Overlay className="module-expand-overlay nivalis-modal-overlay fixed inset-0 z-[90]" />
           <Dialog.Content className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6">
             <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-lg font-black tracking-[-0.025em] text-ink">
               {props.icon ? (
@@ -146,7 +136,7 @@ function ExpandableModuleShell(props: ModuleShellProps) {
             </Dialog.Description>
             <Dialog.Close
               aria-label={`关闭 ${props.title} 全屏视图`}
-              className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/85 bg-white/85 text-ink shadow-sm transition hover:bg-white sm:top-6 sm:right-6"
+              className="nivalis-modal-close jelly-control absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full text-ink sm:top-6 sm:right-6"
             >
               <X aria-hidden size={17} weight="bold" />
             </Dialog.Close>
@@ -182,57 +172,56 @@ function ModuleShellFrame({
     <section
       aria-label={title}
       className={clsx(
-        "module-shell glass-surface group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[16px] select-none",
-        "transition-[box-shadow,border-color,transform] duration-200",
-        editable && "border-dashed !border-blue-400/80 shadow-[0_13px_40px_rgba(45,94,205,0.18)]"
+        "module-shell glass-surface group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] select-none"
       )}
+      data-accent={accent}
+      data-editable={editable}
       data-kind={kind}
       data-testid="module-shell"
     >
       {editable ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-8 items-start justify-center">
+        <div className="module-edit-rail">
           <button
             aria-label={`拖动 ${title}`}
-            className="module-drag-handle pointer-events-auto mt-1 flex h-7 w-10 cursor-grab items-center justify-center rounded-full border border-blue-200 bg-white/90 text-blue-600 shadow-sm active:cursor-grabbing"
+            className="module-shell-action module-drag-handle"
             type="button"
           >
             <DotsSixVertical aria-hidden size={18} weight="bold" />
           </button>
+          <div className="module-edit-actions">
+            {showHeader ? expandControl : null}
+            {onConfigure ? (
+              <button
+                aria-label={`设置 ${title} 展示字段`}
+                className="module-shell-action text-blue-600"
+                onClick={onConfigure}
+                type="button"
+              >
+                <SlidersHorizontal aria-hidden size={14} weight="bold" />
+              </button>
+            ) : null}
+            {onRemove ? (
+              <button
+                aria-label={`移除 ${title}`}
+                className="module-shell-action"
+                data-action="remove"
+                onClick={onRemove}
+                type="button"
+              >
+                <X aria-hidden size={14} weight="bold" />
+              </button>
+            ) : null}
+          </div>
         </div>
+      ) : showHeader && expandControl ? (
+        <div className="module-display-actions">{expandControl}</div>
       ) : null}
-
-      {editable && onRemove ? (
-        <button
-          aria-label={`移除 ${title}`}
-          className="absolute top-2 right-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/92 text-slate-500 shadow-sm transition hover:bg-rose-50 hover:text-rose-600"
-          onClick={onRemove}
-          type="button"
-        >
-          <X aria-hidden size={14} weight="bold" />
-        </button>
-      ) : null}
-
-      {editable && onConfigure ? (
-        <button
-          aria-label={`设置 ${title} 展示字段`}
-          className={clsx(
-            "absolute top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/92 text-blue-600 shadow-sm transition hover:bg-blue-50",
-            onRemove ? "right-10" : "right-2"
-          )}
-          onClick={onConfigure}
-          type="button"
-        >
-          <SlidersHorizontal aria-hidden size={14} weight="bold" />
-        </button>
-      ) : null}
-
-      {showHeader ? expandControl : null}
 
       {showHeader ? (
         <header
           className={clsx(
             "module-shell-header flex shrink-0 items-center gap-3 px-5 pt-4 pb-2.5",
-            editable && "pt-8",
+            editable && "pt-11",
             expandControl && !editable && "pr-12"
           )}
         >

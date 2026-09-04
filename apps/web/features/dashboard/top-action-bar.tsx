@@ -45,7 +45,7 @@ function DialogCloseButton() {
   return (
     <Dialog.Close
       aria-label="关闭"
-      className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-700 transition hover:bg-blue-100"
+      className="nivalis-modal-close absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full text-blue-700"
     >
       <X aria-hidden size={16} weight="bold" />
     </Dialog.Close>
@@ -59,8 +59,8 @@ function ModalFrame({
 }: Readonly<{ children: React.ReactNode; title: string; description: string }>) {
   return (
     <Dialog.Portal>
-      <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/25 backdrop-blur-sm" />
-      <Dialog.Content className="glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[82vh] w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[24px] p-6 text-ink">
+      <Dialog.Overlay className="nivalis-modal-overlay fixed inset-0 z-50" />
+      <Dialog.Content className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[82vh] w-[min(92vw,560px)] overflow-y-auto rounded-[24px] p-6 text-ink outline-none">
         <Dialog.Title className="pr-10 text-xl font-extrabold tracking-[-0.02em]">
           {title}
         </Dialog.Title>
@@ -88,28 +88,16 @@ export function TopActionBar({
   const syncing = syncState === "queued" || syncState === "running" || syncState === "retrying";
 
   return (
-    <nav
-      aria-label="About Me 页面操作"
-      className="flex flex-wrap items-center justify-between gap-3"
-    >
-      <span
-        className={clsx(
-          "rounded-full px-4 py-2 text-sm font-extrabold text-white shadow-[0_8px_22px_rgba(36,112,226,0.24)]",
-          mode === "edit" ? "bg-fuchsia-500" : "bg-blue-500"
-        )}
-      >
+    <nav aria-label="About Me 页面操作" className="top-action-bar">
+      <span className="view-status-chip" data-mode={mode}>
         {mode === "edit" ? "编辑视图" : "展示视图"}
       </span>
 
-      <div className="glass-surface-strong order-3 flex rounded-[14px] p-1 sm:order-none sm:ml-auto">
+      <div className="mode-switch glass-surface-strong">
         <button
           aria-pressed={mode === "display"}
-          className={clsx(
-            "min-w-24 rounded-[10px] px-4 py-2 text-xs font-bold transition",
-            mode === "display"
-              ? "bg-white text-blue-700 shadow-sm"
-              : "text-ink-muted hover:text-blue-700"
-          )}
+          className={clsx("mode-switch-button", mode !== "display" && "text-ink-muted")}
+          data-mode="display"
           onClick={() => onModeChange("display")}
           type="button"
         >
@@ -117,12 +105,8 @@ export function TopActionBar({
         </button>
         <button
           aria-pressed={mode === "edit"}
-          className={clsx(
-            "min-w-24 rounded-[10px] px-4 py-2 text-xs font-bold transition",
-            mode === "edit"
-              ? "bg-white text-fuchsia-600 shadow-sm"
-              : "text-ink-muted hover:text-fuchsia-600"
-          )}
+          className={clsx("mode-switch-button", mode !== "edit" && "text-ink-muted")}
+          data-mode="edit"
           onClick={() => onModeChange("edit")}
           type="button"
         >
@@ -130,14 +114,10 @@ export function TopActionBar({
         </button>
       </div>
 
-      <div className="glass-surface-strong flex items-center overflow-hidden rounded-[14px]">
+      <div className="top-action-tools glass-surface-strong">
         <Dialog.Root>
           <Dialog.Trigger asChild>
-            <button
-              aria-label="状态信息"
-              className="flex h-11 items-center gap-2 border-r border-blue-100/80 px-3 text-xs font-bold text-ink transition hover:bg-white/60"
-              type="button"
-            >
+            <button aria-label="状态信息" className="top-action-button" type="button">
               <Info aria-hidden size={16} weight="duotone" />
               <span className="hidden md:inline">状态信息</span>
             </button>
@@ -149,7 +129,7 @@ export function TopActionBar({
             <div className="mt-5 space-y-2">
               {providerStatuses.map((status) => (
                 <div
-                  className="flex items-center justify-between rounded-2xl border border-white/80 bg-white/55 px-4 py-3"
+                  className="dialog-option flex items-center justify-between rounded-2xl px-4 py-3"
                   key={status.provider}
                 >
                   <span>
@@ -172,7 +152,7 @@ export function TopActionBar({
 
         <button
           aria-label={syncState === "completed" ? "已同步" : "同步"}
-          className="flex h-11 items-center gap-2 border-r border-blue-100/80 px-3 text-xs font-bold text-ink transition hover:bg-white/60 disabled:cursor-wait disabled:opacity-60"
+          className="top-action-button"
           disabled={syncing || !isOwner}
           onClick={onSync}
           title="同步经由 Nivalis API、独立 Worker、Raw Snapshot 与 Projection；浏览器不会访问 Provider"
@@ -190,11 +170,7 @@ export function TopActionBar({
 
         <Dialog.Root>
           <Dialog.Trigger asChild>
-            <button
-              aria-label="API 文档"
-              className="flex h-11 items-center gap-2 border-r border-blue-100/80 px-3 text-xs font-bold text-ink transition hover:bg-white/60"
-              type="button"
-            >
+            <button aria-label="API 文档" className="top-action-button" type="button">
               <Code aria-hidden size={17} weight="bold" />
               <span className="hidden md:inline">API 文档</span>
             </button>
@@ -216,7 +192,7 @@ export function TopActionBar({
                 ["GET", "/v1/me/sync-jobs/{jobId}"]
               ].map(([method, path]) => (
                 <div
-                  className="flex gap-3 rounded-xl border border-white/80 bg-white/55 px-3 py-2.5"
+                  className="dialog-option flex gap-3 rounded-xl px-3 py-2.5"
                   key={`${method}-${path}`}
                 >
                   <span className="w-11 font-extrabold text-blue-600">{method}</span>
@@ -229,7 +205,7 @@ export function TopActionBar({
 
         <button
           aria-label={authenticated ? "退出登录" : "使用 GitHub 登录"}
-          className="flex h-11 items-center gap-2 border-r border-blue-100/80 px-3 text-xs font-bold text-ink transition hover:bg-white/60"
+          className="top-action-button"
           onClick={authenticated ? onLogout : onLogin}
           type="button"
         >
@@ -241,11 +217,7 @@ export function TopActionBar({
           <span className="hidden lg:inline">{authenticated ? "退出" : "登录"}</span>
         </button>
 
-        <Link
-          aria-label="打开设置"
-          className="flex h-11 w-11 items-center justify-center text-ink transition hover:bg-white/60"
-          href="/settings"
-        >
+        <Link aria-label="打开设置" className="top-action-button" href="/settings">
           <GearSix aria-hidden size={18} weight="duotone" />
         </Link>
       </div>

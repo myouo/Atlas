@@ -72,8 +72,8 @@ export function WidgetDisplaySettingsDialog({
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/25 backdrop-blur-sm" />
-        <Dialog.Content className="glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[84vh] w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[26px] p-6">
+        <Dialog.Overlay className="nivalis-modal-overlay fixed inset-0 z-50" />
+        <Dialog.Content className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[84vh] w-[min(92vw,560px)] overflow-y-auto rounded-[26px] p-6 outline-none">
           <Dialog.Title className="text-xl font-extrabold tracking-[-0.02em] text-ink">
             {name} · 卡片编排
           </Dialog.Title>
@@ -83,7 +83,7 @@ export function WidgetDisplaySettingsDialog({
           </Dialog.Description>
           <Dialog.Close
             aria-label="关闭展示字段设置"
-            className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-700"
+            className="nivalis-modal-close absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full text-blue-700"
           >
             <X aria-hidden size={16} weight="bold" />
           </Dialog.Close>

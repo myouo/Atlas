@@ -17,7 +17,7 @@ export function ModuleCatalog({ onAdd, onOpenCatalog, widgets }: ModuleCatalogPr
     );
 
   return (
-    <section className="glass-surface mt-5 rounded-[22px] p-4" aria-label="我的模块">
+    <section className="module-catalog glass-surface mt-5 rounded-[22px] p-4" aria-label="我的模块">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1">
         <h2 className="flex items-center gap-2 text-sm font-extrabold text-ink">
           <SquaresFour aria-hidden className="text-blue-600" size={18} weight="duotone" />
@@ -34,7 +34,7 @@ export function ModuleCatalog({ onAdd, onOpenCatalog, widgets }: ModuleCatalogPr
           const { Icon } = definition;
           return (
             <button
-              className="flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white/60 px-2 text-[10px] font-bold text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="module-catalog-option jelly-control flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white/55 px-2 text-[10px] font-bold text-ink disabled:cursor-not-allowed disabled:opacity-40"
               disabled={disabled}
               key={definition.type}
               onClick={() => onAdd(definition.type)}
@@ -46,7 +46,7 @@ export function ModuleCatalog({ onAdd, onOpenCatalog, widgets }: ModuleCatalogPr
           );
         })}
         <button
-          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-2 text-[10px] font-extrabold text-blue-600 transition hover:bg-blue-100"
+          className="module-catalog-option jelly-control flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-2 text-[10px] font-extrabold text-blue-600"
           onClick={onOpenCatalog}
           type="button"
         >

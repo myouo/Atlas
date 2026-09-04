@@ -64,8 +64,8 @@ export function RevisionHistoryDialog({
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[60] bg-slate-950/25 backdrop-blur-sm" />
-        <Dialog.Content className="glass-surface-strong fixed top-1/2 left-1/2 z-[61] max-h-[86vh] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[26px] p-6 text-ink shadow-2xl">
+        <Dialog.Overlay className="nivalis-modal-overlay fixed inset-0 z-[60]" />
+        <Dialog.Content className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-[61] max-h-[86vh] w-[min(94vw,720px)] overflow-y-auto rounded-[26px] p-6 text-ink outline-none">
           <div className="flex items-start gap-3 pr-10">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
               <ClockCounterClockwise aria-hidden size={24} weight="duotone" />
@@ -93,10 +93,7 @@ export function RevisionHistoryDialog({
             <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.72fr)]">
               <div className="space-y-2">
                 {history.data?.items.map((revision) => (
-                  <article
-                    className="rounded-2xl border border-white/80 bg-white/55 p-4 shadow-sm"
-                    key={revision.revisionId}
-                  >
+                  <article className="dialog-option rounded-2xl p-4" key={revision.revisionId}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -204,7 +201,7 @@ export function RevisionHistoryDialog({
 
           <Dialog.Close
             aria-label="关闭历史版本"
-            className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-700 transition hover:bg-blue-100"
+            className="nivalis-modal-close absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full text-blue-700"
           >
             <X aria-hidden size={16} weight="bold" />
           </Dialog.Close>
