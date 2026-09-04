@@ -65,11 +65,28 @@ function useDashboardContainerWidth(initialWidth = 1200) {
       setMounted(true);
       return;
     }
+    let active = true;
     let animationFrame = 0;
+    let initialized = false;
+    const measuredWidth = Math.floor(container.getBoundingClientRect().width);
+    if (measuredWidth > 0) {
+      queueMicrotask(() => {
+        if (!active || initialized) return;
+        initialized = true;
+        setWidth(measuredWidth);
+        setMounted(true);
+      });
+    }
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
       const nextWidth = Math.floor(entry.contentRect.width);
       if (nextWidth <= 0) return;
+      if (!initialized) {
+        initialized = true;
+        setWidth(nextWidth);
+        setMounted(true);
+        return;
+      }
       window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
         setWidth((current) => (current === nextWidth ? current : nextWidth));
@@ -78,6 +95,7 @@ function useDashboardContainerWidth(initialWidth = 1200) {
     });
     observer.observe(container);
     return () => {
+      active = false;
       window.cancelAnimationFrame(animationFrame);
       observer.disconnect();
     };

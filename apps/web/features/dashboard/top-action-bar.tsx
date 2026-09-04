@@ -93,7 +93,7 @@ export function TopActionBar({
         {mode === "edit" ? "编辑视图" : "展示视图"}
       </span>
 
-      <div className="mode-switch glass-surface-strong">
+      <div className="mode-switch glass-surface-strong" data-mode={mode}>
         <button
           aria-pressed={mode === "display"}
           className={clsx("mode-switch-button", mode !== "display" && "text-ink-muted")}

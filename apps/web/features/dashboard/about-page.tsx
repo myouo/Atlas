@@ -380,21 +380,28 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
           </div>
         ) : null}
 
-        {effectiveMode === "edit" && isOwner ? (
-          <div className="dashboard-edit-toolbar-wrap relative z-30 mt-3 sm:absolute sm:top-[58px] sm:right-0 sm:mt-0">
-            <EditToolbar
-              dirty={store.dirty}
-              onAdd={() => setAddDialogOpen(true)}
-              onHistory={() => setHistoryOpen(true)}
-              onPublish={() => publishMutation.mutate(store.draft!)}
-              onReset={() => {
-                store.resetDraft();
-                showNotice("草稿已恢复为已发布布局");
-              }}
-              onSave={() => saveMutation.mutate(store.draft!)}
-              publishing={publishMutation.isPending}
-              saving={saveMutation.isPending}
-            />
+        {isOwner ? (
+          <div
+            aria-hidden={effectiveMode !== "edit"}
+            className="dashboard-edit-toolbar-wrap"
+            data-state={effectiveMode === "edit" ? "open" : "closed"}
+            inert={effectiveMode !== "edit"}
+          >
+            <div className="dashboard-edit-toolbar-inner">
+              <EditToolbar
+                dirty={store.dirty}
+                onAdd={() => setAddDialogOpen(true)}
+                onHistory={() => setHistoryOpen(true)}
+                onPublish={() => publishMutation.mutate(store.draft!)}
+                onReset={() => {
+                  store.resetDraft();
+                  showNotice("草稿已恢复为已发布布局");
+                }}
+                onSave={() => saveMutation.mutate(store.draft!)}
+                publishing={publishMutation.isPending}
+                saving={saveMutation.isPending}
+              />
+            </div>
           </div>
         ) : null}
 
