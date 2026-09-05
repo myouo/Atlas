@@ -70,6 +70,15 @@ function historySource(): DashboardDataSource {
   };
   return {
     kind: "api",
+    async connectSteam() {
+      throw new Error("not needed");
+    },
+    async disconnectSteam() {
+      throw new Error("not needed");
+    },
+    async getSteamConnection() {
+      throw new Error("not needed");
+    },
     async cancelNeteaseAuthAttempt() {
       throw new Error("not needed");
     },

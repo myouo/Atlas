@@ -9,3 +9,5 @@ export * from "./netease/netease-normalizer";
 export * from "./netease/netease-projector";
 export * from "./netease/netease-provider-runtime";
 export * from "./netease/netease-types";
+export * from "./steam/steam-client";
+export * from "./steam/steam-provider-runtime";

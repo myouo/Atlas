@@ -18,9 +18,9 @@ import {
 import {
   BangumiCollectionWidget,
   BilibiliProfileWidget,
-  GithubProfileWidget,
-  SteamProfileWidget
+  GithubProfileWidget
 } from "./renderers/platform-profile-widgets";
+import { SteamProfileWidget } from "./renderers/steam-profile-widget";
 import { ProfileHeroWidget } from "./renderers/profile-hero-widget";
 import { SystemStatWidget } from "./renderers/system-stat-widget";
 import type { WidgetOf } from "./widget-types";
@@ -677,6 +677,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "steam.profile",
     schemaVersion: 1,
+    catalogVisible: false,
     name: "Steam",
     description: "游戏、时长与成就",
     Icon: SiSteam,
@@ -685,6 +686,43 @@ export const widgetRegistry = new WidgetRegistry()
     allowMultiple: true,
     sizes: platformSizes,
     presentationControls: metricControls.steam,
+    Renderer: adaptRenderer(SteamProfileWidget)
+  })
+  .register({
+    type: "steam.profile",
+    schemaVersion: 2,
+    name: "Steam",
+    description: "账号、游戏库与最近游玩",
+    Icon: SiSteam,
+    accent: "ink",
+    kind: "standard",
+    allowMultiple: true,
+    expandable: true,
+    sizes: {
+      lg: { w: 4, h: 6, minW: 3, minH: 4 },
+      md: { w: 4, h: 6, minW: 3, minH: 4 },
+      sm: { w: 4, h: 7, minW: 4, minH: 5 }
+    },
+    dataPresets: [
+      {
+        id: "summary",
+        label: "资料与统计",
+        description: "公开昵称、等级、游戏数量和累计时长，不公开最近游戏。",
+        dataConfig: { shareProfile: true, shareLibrary: true, shareRecentGames: false }
+      },
+      {
+        id: "recent",
+        label: "包含最近游玩",
+        description: "同时公开最近两周最多 6 款游戏及其游玩时长。",
+        dataConfig: { shareProfile: true, shareLibrary: true, shareRecentGames: true }
+      },
+      {
+        id: "private",
+        label: "暂停公开",
+        description: "不向公共页面提供 Steam 账号、统计和游戏列表。",
+        dataConfig: { shareProfile: false, shareLibrary: false, shareRecentGames: false }
+      }
+    ],
     Renderer: adaptRenderer(SteamProfileWidget)
   })
   .register({

@@ -1,4 +1,5 @@
 export { SystemClock } from "./bootstrap/system-clock";
+export { KyselySteamCatalogStore } from "./infrastructure/repositories/kysely-steam-catalog-store";
 export { loadRootEnvironment } from "./config/load-root-env";
 export { createDatabase, type NivalisDatabase } from "./infrastructure/database/database";
 export type { Database } from "./infrastructure/database/schema";

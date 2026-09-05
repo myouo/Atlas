@@ -210,6 +210,15 @@ function parseJson<T = JsonValue>(value: string): T {
 }
 
 function fallbackData(configuration: WidgetConfiguration, profile: Profile): JsonValue {
+  if (configuration.type === "steam.profile" && configuration.schemaVersion === 2) {
+    const unavailable = { availability: "unavailable", reason: "not_synced" };
+    return {
+      provider: "steam",
+      account: unavailable,
+      library: unavailable,
+      recentGames: unavailable
+    };
+  }
   if (configuration.type === "profile.hero") return profile;
   if (configuration.type === "system.stats") {
     return { metric: "uptime_days", unit: "days", value: 0 };

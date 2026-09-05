@@ -533,6 +533,69 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/providers/steam:
+    get:
+      operationId: getSteamProviderConnection
+      summary: Read secret-free Steam connection state
+      tags: [Provider]
+      responses:
+        "200":
+          description: Steam connection and credential status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConnection"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/steam/connect:
+    post:
+      operationId: connectSteamProvider
+      summary: Encrypt a Steam Web API key and queue validation
+      tags: [Provider]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SteamConnectInput"
+      responses:
+        "202":
+          description: Credential saved and synchronization queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConnectAccepted"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/providers/steam/connection:
+    delete:
+      operationId: disconnectSteamProvider
+      summary: Disable Steam and delete its encrypted credential
+      description: Previously published data is retained until explicitly changed and republished.
+      tags: [Provider]
+      responses:
+        "204":
+          description: Connection disabled and credential deleted
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/providers/netease:
     get:
       operationId: getNeteaseProviderConnection
@@ -1039,7 +1102,7 @@ components:
       properties:
         provider:
           type: string
-          const: netease
+          enum: [netease, steam]
         configured:
           type: boolean
         enabled:
@@ -1056,6 +1119,19 @@ components:
         lastValidatedAt:
           type: [string, "null"]
           format: date-time
+    SteamConnectInput:
+      type: object
+      additionalProperties: false
+      required: [steamId, apiKey]
+      properties:
+        steamId:
+          type: string
+          pattern: "^[0-9]{17}$"
+          description: SteamID64, always encoded as a string
+        apiKey:
+          type: string
+          pattern: "^[a-fA-F0-9]{32}$"
+          writeOnly: true
     NeteaseConnectInput:
       type: object
       additionalProperties: false
@@ -2799,6 +2875,77 @@ components:
         screenshots:
           type: integer
           minimum: 0
+    SteamUnavailable:
+      type: object
+      additionalProperties: false
+      required: [availability, reason]
+      properties:
+        availability: { const: unavailable }
+        reason: { type: string, enum: [not_synced, private, not_returned, not_shared] }
+    SteamAccount:
+      type: object
+      additionalProperties: false
+      required:
+        [availability, steamId, displayName, profileUrl, avatarUrl, personaState, visibility, level]
+      properties:
+        availability: { const: available }
+        steamId: { type: string, pattern: "^[0-9]{17}$" }
+        displayName: { type: string }
+        profileUrl: { type: string, format: uri }
+        avatarUrl: { type: [string, "null"], format: uri }
+        personaState: { type: [integer, "null"], minimum: 0 }
+        visibility: { type: integer, minimum: 0, maximum: 3 }
+        level: { type: [integer, "null"], minimum: 0 }
+    SteamGame:
+      type: object
+      additionalProperties: false
+      required: [appId, name, iconUrl, storeUrl, playtimeMinutes, recentPlaytimeMinutes]
+      properties:
+        appId: { type: integer, minimum: 1, maximum: 4294967295 }
+        name: { type: string }
+        iconUrl: { type: [string, "null"], format: uri }
+        storeUrl: { type: string, format: uri }
+        playtimeMinutes: { type: [integer, "null"], minimum: 0 }
+        recentPlaytimeMinutes: { type: [integer, "null"], minimum: 0 }
+    SteamLibrary:
+      type: object
+      additionalProperties: false
+      required: [availability, gameCount, playtimeMinutes, playedGameCount]
+      properties:
+        availability: { const: available }
+        gameCount: { type: integer, minimum: 0 }
+        playtimeMinutes: { type: [integer, "null"], minimum: 0 }
+        playedGameCount: { type: [integer, "null"], minimum: 0 }
+    SteamRecentGames:
+      type: object
+      additionalProperties: false
+      required: [availability, totalCount, items]
+      properties:
+        availability: { const: available }
+        totalCount: { type: integer, minimum: 0 }
+        items:
+          type: array
+          maxItems: 6
+          items:
+            $ref: "#/components/schemas/SteamGame"
+    SteamProfileDataV2:
+      type: object
+      additionalProperties: false
+      required: [provider, account, library, recentGames]
+      properties:
+        provider: { const: steam }
+        account:
+          oneOf:
+            - $ref: "#/components/schemas/SteamAccount"
+            - $ref: "#/components/schemas/SteamUnavailable"
+        library:
+          oneOf:
+            - $ref: "#/components/schemas/SteamLibrary"
+            - $ref: "#/components/schemas/SteamUnavailable"
+        recentGames:
+          oneOf:
+            - $ref: "#/components/schemas/SteamRecentGames"
+            - $ref: "#/components/schemas/SteamUnavailable"
     BangumiCollectionData:
       type: object
       additionalProperties: false
@@ -3047,6 +3194,18 @@ components:
               const: 1
             data:
               $ref: "#/components/schemas/SteamProfileData"
+    SteamProfileWidgetV2:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/WidgetEnvelope"
+        - type: object
+          required: [type, schemaVersion, data, provider]
+          properties:
+            type: { const: steam.profile }
+            schemaVersion: { const: 2 }
+            provider: { const: steam }
+            data:
+              $ref: "#/components/schemas/SteamProfileDataV2"
     BangumiCollectionWidget:
       unevaluatedProperties: false
       allOf:
@@ -3078,6 +3237,7 @@ components:
         - $ref: "#/components/schemas/GithubProfileWidget"
         - $ref: "#/components/schemas/BilibiliProfileWidget"
         - $ref: "#/components/schemas/SteamProfileWidget"
+        - $ref: "#/components/schemas/SteamProfileWidgetV2"
         - $ref: "#/components/schemas/BangumiCollectionWidget"
     CreateWidgetInput:
       type: object

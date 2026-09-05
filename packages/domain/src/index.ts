@@ -6,3 +6,4 @@ export * from "./provider-protocol";
 export * from "./errors";
 export * from "./json";
 export * from "./sync";
+export * from "./steam";

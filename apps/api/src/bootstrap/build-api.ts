@@ -93,6 +93,8 @@ export function buildApi(options: BuildApiOptions) {
                 "request.headers.authorization",
                 "request.headers.cookie",
                 "req.body.credential",
+                "req.body.apiKey",
+                "request.body.apiKey",
                 "request.body.credential",
                 "req.body.phone",
                 "request.body.phone",

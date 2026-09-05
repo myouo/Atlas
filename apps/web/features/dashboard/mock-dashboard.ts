@@ -236,6 +236,27 @@ export function createMockWidget(
   id: string,
   schemaVersion = 1
 ): WidgetProjection {
+  if (type === "steam.profile" && schemaVersion === 2) {
+    const unavailable = { availability: "unavailable" as const, reason: "not_synced" as const };
+    return {
+      data: {
+        provider: "steam",
+        account: unavailable,
+        library: unavailable,
+        recentGames: unavailable
+      },
+      dataConfig: { shareProfile: true, shareLibrary: true, shareRecentGames: false },
+      enabled: true,
+      id,
+      presentationConfig: {},
+      provider: "steam",
+      schemaVersion: 2,
+      stale: true,
+      title: "Steam",
+      type,
+      updatedAt
+    };
+  }
   if (type === "music.netease.overview" && schemaVersion === 2) {
     const unavailable = { availability: "unavailable" as const, reason: "not_synced" as const };
     return {

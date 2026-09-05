@@ -319,6 +319,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/providers/steam": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read secret-free Steam connection state */
+        get: operations["getSteamProviderConnection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/steam/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Encrypt a Steam Web API key and queue validation */
+        post: operations["connectSteamProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/providers/steam/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disable Steam and delete its encrypted credential
+         * @description Previously published data is retained until explicitly changed and republished.
+         */
+        delete: operations["disconnectSteamProvider"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/providers/netease": {
         parameters: {
             query?: never;
@@ -574,8 +628,8 @@ export interface components {
         /** @enum {string} */
         CredentialStatus: "not_configured" | "pending_validation" | "valid" | "expired" | "invalid" | "revoked";
         ProviderConnection: {
-            /** @constant */
-            provider: "netease";
+            /** @enum {string} */
+            provider: "netease" | "steam";
             configured: boolean;
             enabled: boolean;
             credentialStatus: components["schemas"]["CredentialStatus"];
@@ -585,6 +639,11 @@ export interface components {
             credentialUpdatedAt: string | null;
             /** Format: date-time */
             lastValidatedAt: string | null;
+        };
+        SteamConnectInput: {
+            /** @description SteamID64, always encoded as a string */
+            steamId: string;
+            apiKey: string;
         };
         NeteaseConnectInput: {
             /** @constant */
@@ -1274,6 +1333,55 @@ export interface components {
             achievements: number;
             screenshots: number;
         };
+        SteamUnavailable: {
+            /** @constant */
+            availability: "unavailable";
+            /** @enum {string} */
+            reason: "not_synced" | "private" | "not_returned" | "not_shared";
+        };
+        SteamAccount: {
+            /** @constant */
+            availability: "available";
+            steamId: string;
+            displayName: string;
+            /** Format: uri */
+            profileUrl: string;
+            /** Format: uri */
+            avatarUrl: string | null;
+            personaState: number | null;
+            visibility: number;
+            level: number | null;
+        };
+        SteamGame: {
+            appId: number;
+            name: string;
+            /** Format: uri */
+            iconUrl: string | null;
+            /** Format: uri */
+            storeUrl: string;
+            playtimeMinutes: number | null;
+            recentPlaytimeMinutes: number | null;
+        };
+        SteamLibrary: {
+            /** @constant */
+            availability: "available";
+            gameCount: number;
+            playtimeMinutes: number | null;
+            playedGameCount: number | null;
+        };
+        SteamRecentGames: {
+            /** @constant */
+            availability: "available";
+            totalCount: number;
+            items: components["schemas"]["SteamGame"][];
+        };
+        SteamProfileDataV2: {
+            /** @constant */
+            provider: "steam";
+            account: components["schemas"]["SteamAccount"] | components["schemas"]["SteamUnavailable"];
+            library: components["schemas"]["SteamLibrary"] | components["schemas"]["SteamUnavailable"];
+            recentGames: components["schemas"]["SteamRecentGames"] | components["schemas"]["SteamUnavailable"];
+        };
         BangumiCollectionData: {
             level: number;
             entries: number;
@@ -1413,6 +1521,15 @@ export interface components {
             schemaVersion: 1;
             data: components["schemas"]["SteamProfileData"];
         };
+        SteamProfileWidgetV2: components["schemas"]["WidgetEnvelope"] & {
+            /** @constant */
+            type: "steam.profile";
+            /** @constant */
+            schemaVersion: 2;
+            /** @constant */
+            provider: "steam";
+            data: components["schemas"]["SteamProfileDataV2"];
+        };
         BangumiCollectionWidget: components["schemas"]["WidgetEnvelope"] & {
             /** @constant */
             type: "bangumi.collection";
@@ -1420,7 +1537,7 @@ export interface components {
             schemaVersion: 1;
             data: components["schemas"]["BangumiCollectionData"];
         };
-        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["NeteaseIdentityWidgetV1"] | components["schemas"]["NeteaseListeningWidgetV1"] | components["schemas"]["NeteaseListeningCalendarWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV2"] | components["schemas"]["NeteaseSocialWidgetV1"] | components["schemas"]["NeteasePlaylistsWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV2"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["BangumiCollectionWidget"];
+        WidgetProjection: components["schemas"]["ProfileHeroWidget"] | components["schemas"]["SystemStatsWidget"] | components["schemas"]["NeteaseOverviewWidget"] | components["schemas"]["NeteaseOverviewWidgetV2"] | components["schemas"]["NeteaseIdentityWidgetV1"] | components["schemas"]["NeteaseListeningWidgetV1"] | components["schemas"]["NeteaseListeningCalendarWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV1"] | components["schemas"]["NeteaseRankingWidgetV2"] | components["schemas"]["NeteaseSocialWidgetV1"] | components["schemas"]["NeteasePlaylistsWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV1"] | components["schemas"]["NeteaseShowcaseWidgetV2"] | components["schemas"]["GithubProfileWidget"] | components["schemas"]["BilibiliProfileWidget"] | components["schemas"]["SteamProfileWidget"] | components["schemas"]["SteamProfileWidgetV2"] | components["schemas"]["BangumiCollectionWidget"];
         CreateWidgetInput: {
             widget: components["schemas"]["WidgetConfiguration"];
             placement: components["schemas"]["WidgetPlacement"];
@@ -2169,6 +2286,80 @@ export interface operations {
             };
             401: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getSteamProviderConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Steam connection and credential status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConnection"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    connectSteamProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SteamConnectInput"];
+            };
+        };
+        responses: {
+            /** @description Credential saved and synchronization queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConnectAccepted"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    disconnectSteamProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connection disabled and credential deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };

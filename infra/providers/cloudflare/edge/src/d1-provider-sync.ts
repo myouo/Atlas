@@ -11,6 +11,7 @@ import {
 } from "@nivalis/application";
 import {
   NeteaseProviderRuntime,
+  SteamProviderRuntime,
   buildNeteaseOwnerDataCatalog,
   isNeteaseNormalizedPayload
 } from "@nivalis/connectors";
@@ -28,6 +29,8 @@ import {
 } from "@nivalis/domain";
 import type {
   JsonObject,
+  ConnectedProvider,
+  ProviderRuntimeModule,
   JsonValue,
   NormalizedProviderData,
   ProjectionTarget,
@@ -57,7 +60,7 @@ interface SyncRunRow {
   readonly last_error_code: string | null;
   readonly last_error_message: string | null;
   readonly owner_id: string;
-  readonly provider: "netease";
+  readonly provider: ConnectedProvider;
   readonly provider_connection_id: string;
   readonly queue_job_id: string | null;
   readonly requested_at: string;
@@ -78,7 +81,7 @@ interface TargetRow {
   readonly data_config_json: string;
   readonly enabled: number;
   readonly presentation_config_json: string;
-  readonly provider: "netease";
+  readonly provider: ConnectedProvider;
   readonly schema_version: number;
   readonly title: string;
   readonly widget_id: string;
@@ -86,6 +89,7 @@ interface TargetRow {
 }
 
 interface ProviderStatusRow {
+  readonly provider: ConnectedProvider;
   readonly attempt_count: number | null;
   readonly credential_status: ProviderStatus["credentialStatus"] | null;
   readonly enabled: number;
@@ -131,9 +135,10 @@ interface CachedHistoryRow {
   readonly sync_run_id: string;
 }
 
-export class D1NeteaseSyncRuntime {
+export class D1ProviderSyncRuntime {
   private readonly credentials: D1ProviderCredentialRepository;
   private readonly runtime: NeteaseProviderRuntime;
+  private readonly steam: SteamProviderRuntime;
 
   constructor(
     private readonly database: D1Database,
@@ -144,6 +149,11 @@ export class D1NeteaseSyncRuntime {
     fetcher: typeof fetch = fetch
   ) {
     this.credentials = new D1ProviderCredentialRepository(database);
+    this.steam = new SteamProviderRuntime(
+      new D1ProviderCredentialResolver(this.credentials, protector),
+      { timeoutMs },
+      fetcher
+    );
     this.runtime = new NeteaseProviderRuntime(
       new D1ProviderCredentialResolver(this.credentials, protector),
       { requestConcurrency, timeoutMs },
@@ -151,7 +161,7 @@ export class D1NeteaseSyncRuntime {
     );
   }
 
-  async enqueue(ownerId: string) {
+  async enqueue(ownerId: string, provider: ConnectedProvider = "netease") {
     const id = crypto.randomUUID();
     const queueJobId = crypto.randomUUID();
     const now = new Date();
@@ -161,10 +171,10 @@ export class D1NeteaseSyncRuntime {
         `INSERT INTO provider_sync_runs
           (id, owner_id, provider, provider_connection_id, status, attempt_count,
            requested_at, started_at, finished_at, last_error_code, last_error_message, queue_job_id)
-         SELECT ?, ?, 'netease', connection.id, 'queued', 0, ?, NULL, NULL, NULL, NULL, ?
+         SELECT ?, ?, ?, connection.id, 'queued', 0, ?, NULL, NULL, NULL, NULL, ?
            FROM provider_connections AS connection
           WHERE connection.owner_id = ?
-            AND connection.provider = 'netease'
+            AND connection.provider = ?
             AND connection.enabled = 1
             AND NOT EXISTS (
               SELECT 1 FROM provider_sync_runs AS active
@@ -174,13 +184,19 @@ export class D1NeteaseSyncRuntime {
          ON CONFLICT DO NOTHING
          RETURNING *`
       )
-      .bind(id, ownerId, now.toISOString(), queueJobId, ownerId)
+      .bind(id, ownerId, provider, now.toISOString(), queueJobId, ownerId, provider)
       .first<SyncRunRow>();
     const persistenceMs = performance.now() - persistenceStartedAt;
     if (created) {
       const queueStartedAt = performance.now();
       await new CloudflareSyncJobQueue(this.queue).enqueue(created.id, queueJobId);
-      logEnqueueStages(persistenceMs, performance.now() - queueStartedAt, false, created.id);
+      logEnqueueStages(
+        persistenceMs,
+        performance.now() - queueStartedAt,
+        false,
+        created.id,
+        provider
+      );
       return mapRun(created);
     }
 
@@ -188,21 +204,21 @@ export class D1NeteaseSyncRuntime {
       .prepare(
         `SELECT run.* FROM provider_sync_runs AS run
            JOIN provider_connections AS connection ON connection.id = run.provider_connection_id
-          WHERE connection.owner_id = ? AND connection.provider = 'netease'
+          WHERE connection.owner_id = ? AND connection.provider = ?
             AND connection.enabled = 1
             AND run.status IN ('queued', 'running', 'retry_wait')
           ORDER BY run.requested_at DESC LIMIT 1`
       )
-      .bind(ownerId)
+      .bind(ownerId, provider)
       .first<SyncRunRow>();
-    if (!active) throw new ProviderNotConfiguredError("netease");
+    if (!active) throw new ProviderNotConfiguredError(provider);
     let queueMs = 0;
     if (active.status === "queued" && active.queue_job_id) {
       const queueStartedAt = performance.now();
       await new CloudflareSyncJobQueue(this.queue).enqueue(active.id, active.queue_job_id);
       queueMs = performance.now() - queueStartedAt;
     }
-    logEnqueueStages(persistenceMs, queueMs, true, active.id);
+    logEnqueueStages(persistenceMs, queueMs, true, active.id, provider);
     return mapRun(active);
   }
 
@@ -215,9 +231,9 @@ export class D1NeteaseSyncRuntime {
   }
 
   async listProviderStatuses(ownerId: string): Promise<readonly ProviderStatus[]> {
-    const row = await this.database
+    const rows = await this.database
       .prepare(
-        `SELECT connection.enabled,
+        `SELECT connection.enabled, connection.provider,
                 credential.status AS credential_status,
                 state.status AS sync_status,
                 state.attempt_count,
@@ -228,17 +244,17 @@ export class D1NeteaseSyncRuntime {
            FROM provider_connections AS connection
            LEFT JOIN provider_credentials AS credential
              ON credential.provider_connection_id = connection.id
-            AND credential.credential_type = 'music_u'
            LEFT JOIN provider_sync_states AS state
              ON state.provider_connection_id = connection.id
-          WHERE connection.owner_id = ? AND connection.provider = 'netease'`
+          WHERE connection.owner_id = ? AND connection.provider IN ('netease', 'steam')`
       )
       .bind(ownerId)
-      .first<ProviderStatusRow>();
-    const netease = mapNeteaseStatus(row ?? null);
+      .all<ProviderStatusRow>();
     return [
-      netease,
-      ...(["github", "bangumi", "steam", "bilibili"] as const).map(disconnectedStatus)
+      ...(["netease", "steam"] as const).map((provider) =>
+        mapNeteaseStatus(rows.results.find((row) => row.provider === provider) ?? null, provider)
+      ),
+      ...(["github", "bangumi", "bilibili"] as const).map(disconnectedStatus)
     ];
   }
 
@@ -294,20 +310,21 @@ export class D1NeteaseSyncRuntime {
     }
     if (!claimedRow.provider_connection_id) throw new Error("SyncRun has no Provider connection.");
     const run = mapRun(claimedRow);
+    const runtime: ProviderRuntimeModule = run.provider === "steam" ? this.steam : this.runtime;
 
     try {
       const processStartedAt = performance.now();
       const fetchStartedAt = performance.now();
-      const cachedHistory = await this.cachedHistory(run.providerConnectionId).catch(
-        (): readonly ProviderSourceRecord[] => []
-      );
-      const previousNormalized = providerSupportsCollectionMode(
-        this.runtime.manifest,
-        "incremental"
-      )
-        ? await this.previousNormalized(run)
+      const cachedHistory =
+        run.provider === "steam"
+          ? []
+          : await this.cachedHistory(run.providerConnectionId).catch(
+              (): readonly ProviderSourceRecord[] => []
+            );
+      const previousNormalized = providerSupportsCollectionMode(runtime.manifest, "incremental")
+        ? await this.previousNormalized(run, runtime)
         : null;
-      const collection = await collectProviderData(this.runtime, run, {
+      const collection = await collectProviderData(runtime, run, {
         cachedRecords: cachedHistory,
         checkpoint: previousNormalized?.meta.checkpoint ?? null
       });
@@ -345,12 +362,13 @@ export class D1NeteaseSyncRuntime {
               (id, sync_run_id, provider_connection_id, provider, source_kind,
                schema_version, payload_json, payload_hash, fetched_at,
                source_cursor, source_timestamp, created_at, payload_encoding, payload_blob)
-             VALUES (?, ?, ?, 'netease', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 )
                 .bind(
                   id,
                   run.id,
                   run.providerConnectionId,
+                  run.provider,
                   result.meta.source,
                   result.meta.schemaVersion,
                   payloadJson,
@@ -373,7 +391,7 @@ export class D1NeteaseSyncRuntime {
           id,
           payload: result.data,
           payloadHash,
-          provider: "netease",
+          provider: run.provider,
           providerConnectionId: run.providerConnectionId,
           schemaVersion: result.meta.schemaVersion,
           sourceCursor: encodeProviderSourceContext(result, collection),
@@ -398,19 +416,22 @@ export class D1NeteaseSyncRuntime {
         },
         meta: providerProtocolMetadata("normalization.request", run.provider, run.id)
       } satisfies ProviderNormalizationInput;
-      assertProviderNormalizationInput(normalizationInput, this.runtime.manifest, run.id);
-      const normalizationResult = await this.runtime.normalizer.normalize(normalizationInput);
-      const normalized = unwrapProviderResult(normalizationResult, this.runtime.manifest, run.id);
-      assertNormalizedProviderData(normalized, this.runtime.manifest, normalizationInput, run.id);
-      const targets = await this.targets(run.ownerId);
+      assertProviderNormalizationInput(normalizationInput, runtime.manifest, run.id);
+      const normalizationResult = await runtime.normalizer.normalize(normalizationInput);
+      const normalized = unwrapProviderResult(normalizationResult, runtime.manifest, run.id);
+      assertNormalizedProviderData(normalized, runtime.manifest, normalizationInput, run.id);
+      const targets = await this.targets(
+        run.ownerId,
+        run.provider === "steam" ? "steam" : "netease"
+      );
       const projectionInput = {
         data: { normalized, targets },
         meta: providerProtocolMetadata("projection.request", run.provider, run.id)
       } satisfies ProviderProjectionInput;
-      assertProviderProjectionInput(projectionInput, this.runtime.manifest, run.id);
-      const projectionResult = await this.runtime.projector.project(projectionInput);
-      const projectionBatch = unwrapProviderResult(projectionResult, this.runtime.manifest, run.id);
-      assertProviderProjectionBatch(projectionBatch, this.runtime.manifest, run.id);
+      assertProviderProjectionInput(projectionInput, runtime.manifest, run.id);
+      const projectionResult = await runtime.projector.project(projectionInput);
+      const projectionBatch = unwrapProviderResult(projectionResult, runtime.manifest, run.id);
+      assertProviderProjectionBatch(projectionBatch, runtime.manifest, run.id);
       const projections = projectionBatch.data;
       assertProviderProjectionSet(targets, projections, normalized);
       const projectionMs = performance.now() - projectionStartedAt;
@@ -422,7 +443,7 @@ export class D1NeteaseSyncRuntime {
             `INSERT INTO widget_projections
               (widget_id, projection_key, projection_version_id, provider,
                projection_schema_version, data_json, stale, generated_at, last_success_at)
-             VALUES (?, ?, ?, 'netease', ?, ?, 0, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
              ON CONFLICT(widget_id, projection_key) DO UPDATE SET
                projection_version_id = excluded.projection_version_id,
                projection_schema_version = excluded.projection_schema_version,
@@ -435,6 +456,7 @@ export class D1NeteaseSyncRuntime {
             projection.widgetId,
             projection.projectionKey,
             projectionVersionId,
+            run.provider,
             projection.projectionSchemaVersion,
             JSON.stringify(projection.data),
             completedAt.toISOString(),
@@ -486,19 +508,50 @@ export class D1NeteaseSyncRuntime {
             )
         );
       }
+      if (run.provider === "steam") {
+        const account = normalized.data.account;
+        if (
+          !account ||
+          typeof account !== "object" ||
+          Array.isArray(account) ||
+          !("steamId" in account) ||
+          typeof account.steamId !== "string"
+        )
+          throw new ProviderSchemaMismatchError("steam.profile");
+        statements.push(
+          this.database
+            .prepare(
+              `INSERT INTO provider_data_catalogs
+            (provider_connection_id, provider, schema_version, data_version_id, data_json, generated_at)
+            VALUES (?, 'steam', 1, ?, ?, ?)
+            ON CONFLICT(provider_connection_id) DO UPDATE SET data_version_id=excluded.data_version_id,
+            data_json=excluded.data_json, generated_at=excluded.generated_at`
+            )
+            .bind(
+              run.providerConnectionId,
+              projectionVersionId,
+              JSON.stringify(normalized.data),
+              completedAt.toISOString()
+            ),
+          this.database
+            .prepare("UPDATE provider_connections SET account_key = ?, updated_at = ? WHERE id = ?")
+            .bind(account.steamId, completedAt.toISOString(), run.providerConnectionId)
+        );
+      }
       statements.push(
         this.database
           .prepare(
             `INSERT INTO provider_normalized_snapshots
               (id, sync_run_id, provider_connection_id, provider, protocol_version,
                schema_id, schema_version, message_json, created_at)
-             VALUES (?, ?, ?, 'netease', ?, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(sync_run_id) DO NOTHING`
           )
           .bind(
             crypto.randomUUID(),
             run.id,
             run.providerConnectionId,
+            run.provider,
             normalized.meta.protocolVersion,
             normalized.meta.schemaId,
             normalized.meta.schemaVersion,
@@ -509,9 +562,14 @@ export class D1NeteaseSyncRuntime {
           .prepare(
             `UPDATE provider_credentials
                 SET status = 'valid', validated_at = ?, updated_at = ?
-              WHERE provider_connection_id = ? AND credential_type = 'music_u'`
+              WHERE provider_connection_id = ? AND credential_type = ?`
           )
-          .bind(completedAt.toISOString(), completedAt.toISOString(), run.providerConnectionId),
+          .bind(
+            completedAt.toISOString(),
+            completedAt.toISOString(),
+            run.providerConnectionId,
+            run.provider === "steam" ? "steam_web_api" : "music_u"
+          ),
         this.database
           .prepare(
             `UPDATE provider_sync_states
@@ -551,7 +609,8 @@ export class D1NeteaseSyncRuntime {
       console.info(
         JSON.stringify({
           commitMs: Math.round(commitMs),
-          event: "netease_sync_completed",
+          event: `${run.provider}_sync_completed`,
+          provider: run.provider,
           historyCacheHits,
           projectionMs: Math.round(projectionMs),
           providerFetchMs: Math.round(providerFetchMs),
@@ -579,7 +638,10 @@ export class D1NeteaseSyncRuntime {
     }
   }
 
-  private async targets(ownerId: string): Promise<readonly ProjectionTarget[]> {
+  private async targets(
+    ownerId: string,
+    provider: ConnectedProvider
+  ): Promise<readonly ProjectionTarget[]> {
     const result = await this.database
       .prepare(
         `SELECT snapshot.widget_id, snapshot.widget_type, snapshot.provider,
@@ -588,13 +650,13 @@ export class D1NeteaseSyncRuntime {
            FROM dashboard_revision_widgets AS snapshot
            JOIN dashboard_revisions AS revision ON revision.id = snapshot.revision_id
            JOIN dashboards AS dashboard ON dashboard.id = revision.dashboard_id
-          WHERE dashboard.owner_id = ? AND snapshot.provider = 'netease'
+          WHERE dashboard.owner_id = ? AND snapshot.provider = ? AND snapshot.enabled = 1
             AND snapshot.revision_id IN (
               dashboard.current_draft_revision_id,
               dashboard.current_published_revision_id
             )`
       )
-      .bind(ownerId)
+      .bind(ownerId, provider)
       .all<TargetRow>();
     const targets = new Map<string, ProjectionTarget>();
     for (const row of result.results) {
@@ -669,7 +731,10 @@ export class D1NeteaseSyncRuntime {
     );
   }
 
-  private async previousNormalized(run: D1SyncRun): Promise<NormalizedProviderData | null> {
+  private async previousNormalized(
+    run: D1SyncRun,
+    runtime: ProviderRuntimeModule
+  ): Promise<NormalizedProviderData | null> {
     const row = await this.database
       .prepare(
         `SELECT normalized.message_json
@@ -686,7 +751,7 @@ export class D1NeteaseSyncRuntime {
       .first<NormalizedSnapshotRow>();
     if (!row) return null;
     const parsed: unknown = JSON.parse(row.message_json);
-    assertCompatibleNormalizedData(parsed, this.runtime.manifest);
+    assertCompatibleNormalizedData(parsed, runtime.manifest);
     return parsed;
   }
 
@@ -749,9 +814,13 @@ export class D1NeteaseSyncRuntime {
           .prepare(
             `UPDATE provider_credentials
                 SET status = 'invalid', updated_at = ?
-              WHERE provider_connection_id = ? AND credential_type = 'music_u'`
+              WHERE provider_connection_id = ? AND credential_type = ?`
           )
-          .bind(now, run.providerConnectionId)
+          .bind(
+            now,
+            run.providerConnectionId,
+            run.provider === "steam" ? "steam_web_api" : "music_u"
+          )
       );
     }
     await this.database.batch(statements);
@@ -773,11 +842,12 @@ function logEnqueueStages(
   persistenceMs: number,
   queueMs: number,
   reused: boolean,
-  syncRunId: string
+  syncRunId: string,
+  provider: ConnectedProvider
 ) {
   console.info(
     JSON.stringify({
-      event: "netease_sync_enqueue_stages",
+      event: `${provider}_sync_enqueue_stages`,
       persistenceMs: Math.round(persistenceMs),
       queueMs: Math.round(queueMs),
       reused,
@@ -823,8 +893,11 @@ function safeErrorCode(error: unknown) {
   return "provider-sync-failed";
 }
 
-function mapNeteaseStatus(row: ProviderStatusRow | null): ProviderStatus {
-  if (!row) return disconnectedStatus("netease");
+function mapNeteaseStatus(
+  row: ProviderStatusRow | null,
+  provider: ConnectedProvider
+): ProviderStatus {
+  if (!row) return disconnectedStatus(provider);
   const credentialStatus = row.credential_status ?? "not_configured";
   const syncStatus = row.sync_status === "retry_wait" ? "retrying" : (row.sync_status ?? "idle");
   return {
@@ -842,7 +915,7 @@ function mapNeteaseStatus(row: ProviderStatusRow | null): ProviderStatus {
     lastErrorCode: row.last_error_code,
     lastErrorMessage: row.last_error_message,
     lastSuccessAt: row.last_success_at ? new Date(row.last_success_at) : null,
-    provider: "netease",
+    provider,
     syncStatus
   };
 }

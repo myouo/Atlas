@@ -1,4 +1,5 @@
 import { Type } from "@fastify/type-provider-typebox";
+import { SteamProfileDataV2Schema } from "./steam-schemas";
 
 const JsonObjectSchema = Type.Object({}, { additionalProperties: true });
 export const RedirectResponseSchema = Type.Any();
@@ -46,7 +47,7 @@ export const ProviderConnectionSchema = Type.Object(
     displayName: Type.Union([Type.String(), Type.Null()]),
     enabled: Type.Boolean(),
     lastValidatedAt: Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
-    provider: Type.Literal("netease"),
+    provider: Type.Union([Type.Literal("netease"), Type.Literal("steam")]),
     providerAccountId: Type.Union([Type.String(), Type.Null()])
   },
   { additionalProperties: false }
@@ -515,6 +516,17 @@ export const SteamProfileWidgetSchema = Type.Object(
   { additionalProperties: false }
 );
 
+export const SteamProfileWidgetV2Schema = Type.Object(
+  {
+    ...widgetEnvelopeProperties,
+    provider: Type.Literal("steam"),
+    type: Type.Literal("steam.profile"),
+    schemaVersion: Type.Literal(2),
+    data: SteamProfileDataV2Schema
+  },
+  { additionalProperties: false }
+);
+
 export const BangumiCollectionWidgetSchema = Type.Object(
   {
     ...widgetEnvelopeProperties,
@@ -542,6 +554,7 @@ export const WidgetProjectionSchema = Type.Union([
   GithubProfileWidgetSchema,
   BilibiliProfileWidgetSchema,
   SteamProfileWidgetSchema,
+  SteamProfileWidgetV2Schema,
   BangumiCollectionWidgetSchema
 ]);
 

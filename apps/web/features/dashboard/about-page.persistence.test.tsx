@@ -71,6 +71,63 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("API persistence failure UX", () => {
+  it("queues both connected providers and refreshes their completed projections", async () => {
+    const statuses = (["netease", "steam"] as const).map((provider) => ({
+      provider,
+      connection: "connected" as const,
+      credentialStatus: "valid" as const,
+      attemptCount: 0,
+      lastAttemptAt: null,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      lastSuccessAt: null,
+      syncStatus: "idle" as const
+    }));
+    const job = (provider: "netease" | "steam") => ({
+      provider,
+      jobId: provider,
+      attemptCount: 1,
+      finishedAt: null,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      requestedAt: "2026-09-06T00:00:00.000Z",
+      startedAt: null,
+      status: "completed" as const
+    });
+    const enqueueProviderSync = vi.fn(async (provider) => job(provider));
+    const refreshProjections = vi.fn(async () => ({
+      published: mockDashboard,
+      draftWidgets: mockDashboard.widgets,
+      providerStatuses: statuses
+    }));
+    const source: DashboardDataSource = {
+      ...mockDashboardSource,
+      kind: "api",
+      enqueueProviderSync,
+      refreshProjections,
+      getSyncJob: async (id) => job(id === "steam" ? "steam" : "netease"),
+      load: async () => ({
+        draft: { concurrencyToken: '"rev:one"', dashboard: draft },
+        published: mockDashboard,
+        session: ownerSession,
+        providerStatuses: statuses
+      })
+    };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AboutPage source={source} />
+      </QueryClientProvider>
+    );
+    await screen.findByTestId("dashboard-canvas");
+    await userEvent.click(screen.getByRole("button", { name: "同步", exact: true }));
+    await waitFor(() => expect(enqueueProviderSync).toHaveBeenCalledTimes(2));
+    expect(enqueueProviderSync).toHaveBeenCalledWith("netease");
+    expect(enqueueProviderSync).toHaveBeenCalledWith("steam");
+    await waitFor(() => expect(refreshProjections).toHaveBeenCalledOnce());
+    expect(useDashboardStore.getState().concurrencyToken).toBe('"rev:one"');
+  });
+
   it("retires NetEase following and follower cards from rendering and the next saved Draft", async () => {
     const social = createMockWidget("music.netease.social", "00000000-0000-4000-8000-000000009205");
     const dashboardWithSocial = {
@@ -133,6 +190,9 @@ describe("API persistence failure UX", () => {
       throw new Error("Owner capability is unavailable.");
     };
     const publicSource: DashboardDataSource = {
+      connectSteam: unsupported,
+      disconnectSteam: unsupported,
+      getSteamConnection: unsupported,
       cancelNeteaseAuthAttempt: unsupported,
       connectNetease: unsupported,
       disconnectNetease: unsupported,
@@ -183,6 +243,9 @@ describe("API persistence failure UX", () => {
 
   it("keeps the edited local Draft when an API save fails", async () => {
     const failingSource: DashboardDataSource = {
+      connectSteam: mockDashboardSource.connectSteam,
+      disconnectSteam: mockDashboardSource.disconnectSteam,
+      getSteamConnection: mockDashboardSource.getSteamConnection,
       kind: "api",
       async cancelNeteaseAuthAttempt() {
         throw new Error("offline");
@@ -289,6 +352,9 @@ describe("API persistence failure UX", () => {
     };
     let loads = 0;
     const conflictingSource: DashboardDataSource = {
+      connectSteam: mockDashboardSource.connectSteam,
+      disconnectSteam: mockDashboardSource.disconnectSteam,
+      getSteamConnection: mockDashboardSource.getSteamConnection,
       kind: "api",
       async cancelNeteaseAuthAttempt() {
         throw new Error("not needed");

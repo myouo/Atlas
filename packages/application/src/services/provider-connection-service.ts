@@ -1,6 +1,7 @@
 import { InvalidProviderCredentialError, ProviderConnectionNotFoundError } from "@nivalis/domain";
 import type {
   OwnerContext,
+  ConnectedProvider,
   ProviderConnectionView,
   ProviderCredentialType,
   SyncRun
@@ -19,7 +20,10 @@ export class ProviderConnectionService {
     private readonly unitOfWork: ProviderConnectionUnitOfWork,
     private readonly secrets: SecretProtector,
     private readonly clock: Clock,
-    private readonly enqueueSync: (context: OwnerContext, provider: "netease") => Promise<SyncRun>
+    private readonly enqueueSync: (
+      context: OwnerContext,
+      provider: ConnectedProvider
+    ) => Promise<SyncRun>
   ) {}
 
   list(context: OwnerContext): Promise<readonly ProviderConnectionView[]> {
@@ -28,6 +32,35 @@ export class ProviderConnectionService {
 
   getNetease(context: OwnerContext): Promise<ProviderConnectionView> {
     return this.connections.getForOwner(context.actorId, "netease");
+  }
+
+  getSteam(context: OwnerContext): Promise<ProviderConnectionView> {
+    return this.connections.getForOwner(context.actorId, "steam");
+  }
+
+  async connectSteam(context: OwnerContext, steamId: string, apiKey: string) {
+    if (typeof steamId !== "string" || typeof apiKey !== "string")
+      throw new InvalidProviderCredentialError();
+    const id = steamId.trim();
+    const key = apiKey.trim();
+    if (
+      !/^\d{17}$/.test(id) ||
+      BigInt(id) <= 76561197960265728n ||
+      BigInt(id) > 76561202255233023n ||
+      !/^[a-fA-F0-9]{32}$/.test(key)
+    ) {
+      throw new InvalidProviderCredentialError();
+    }
+    return this.saveCredential(
+      context,
+      "steam",
+      "steam_web_api",
+      JSON.stringify({ steamId: id, apiKey: key })
+    );
+  }
+
+  async disconnectSteam(context: OwnerContext) {
+    return this.disconnect(context, "steam", "steam_web_api");
   }
 
   async connectNetease(
@@ -56,15 +89,25 @@ export class ProviderConnectionService {
     if (credentialType !== "music_u" || trimmed.length < 16 || trimmed.length > 4_096) {
       throw new InvalidProviderCredentialError();
     }
+    return this.saveCredential(context, "netease", credentialType, trimmed, acquiredFromAttemptAt);
+  }
+
+  private async saveCredential(
+    context: OwnerContext,
+    provider: ConnectedProvider,
+    credentialType: ProviderCredentialType,
+    credential: string,
+    acquiredFromAttemptAt?: Date
+  ) {
     const now = this.clock.now();
     const connection = await this.unitOfWork.run(async (connections, credentials) => {
       const current = await connections.upsertForOwner({
         ...(acquiredFromAttemptAt ? { acquiredFromAttemptAt } : {}),
         now,
         ownerId: context.actorId,
-        provider: "netease"
+        provider
       });
-      const protectedSecret = await this.secrets.protect(trimmed, {
+      const protectedSecret = await this.secrets.protect(credential, {
         credentialType,
         ownerId: context.actorId,
         purpose: "provider_credential",
@@ -79,26 +122,34 @@ export class ProviderConnectionService {
       });
       return current;
     });
-    const validationJob = await this.enqueueSync(context, "netease");
+    const validationJob = await this.enqueueSync(context, provider);
     return {
-      connection: await this.connections.getForOwner(context.actorId, "netease"),
+      connection: await this.connections.getForOwner(context.actorId, provider),
       providerConnectionId: connection.id,
       validationJob
     };
   }
 
   async disconnectNetease(context: OwnerContext) {
+    return this.disconnect(context, "netease", "music_u");
+  }
+
+  private async disconnect(
+    context: OwnerContext,
+    provider: ConnectedProvider,
+    credentialType: ProviderCredentialType
+  ) {
     const disabled = await this.unitOfWork.run(async (connections, credentials) => {
-      const view = await connections.getForOwner(context.actorId, "netease");
+      const view = await connections.getForOwner(context.actorId, provider);
       if (!view.configured && !view.enabled) return false;
       const connection = await connections.upsertForOwner({
         now: this.clock.now(),
         ownerId: context.actorId,
-        provider: "netease"
+        provider
       });
-      await credentials.delete(connection.id, "music_u");
-      return connections.disableForOwner(context.actorId, "netease", this.clock.now());
+      await credentials.delete(connection.id, credentialType);
+      return connections.disableForOwner(context.actorId, provider, this.clock.now());
     });
-    if (!disabled) throw new ProviderConnectionNotFoundError("netease");
+    if (!disabled) throw new ProviderConnectionNotFoundError(provider);
   }
 }

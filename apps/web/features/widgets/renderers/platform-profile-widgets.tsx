@@ -76,7 +76,9 @@ export function BilibiliProfileWidget({
   );
 }
 
-export function SteamProfileWidget({ widget }: Readonly<{ widget: WidgetOf<"steam.profile"> }>) {
+export function SteamProfileWidget({
+  widget
+}: Readonly<{ widget: Extract<WidgetOf<"steam.profile">, { schemaVersion: 1 }> }>) {
   return (
     <PlatformMetrics
       items={[

@@ -337,6 +337,44 @@ const worker = {
             );
           }
 
+          if (requestUrl.pathname === "/v1/me/providers/steam" && request.method === "GET") {
+            return json(
+              serializeProviderConnection(await providers.connections.getSteam(context)),
+              200,
+              corsHeaders
+            );
+          }
+          if (
+            requestUrl.pathname === "/v1/me/providers/steam/connect" &&
+            request.method === "POST"
+          ) {
+            const body = await readObjectBody(request);
+            if (Object.keys(body).some((key) => key !== "steamId" && key !== "apiKey"))
+              throw new InvalidRequestError();
+            const accepted = await providers.connections.connectSteam(
+              context,
+              requiredString(body, "steamId"),
+              requiredString(body, "apiKey")
+            );
+            executionContext.waitUntil(progressProviderSync(providers, accepted.validationJob.id));
+            return json(
+              {
+                connection: serializeProviderConnection(accepted.connection),
+                validationJob: serializeSyncJob(accepted.validationJob)
+              },
+              202,
+              corsHeaders,
+              { Location: `/v1/me/sync-jobs/${accepted.validationJob.id}` }
+            );
+          }
+          if (
+            requestUrl.pathname === "/v1/me/providers/steam/connection" &&
+            request.method === "DELETE"
+          ) {
+            await providers.connections.disconnectSteam(context);
+            return empty(204, corsHeaders);
+          }
+
           if (requestUrl.pathname === "/v1/me/providers/netease" && request.method === "GET") {
             return json(
               serializeProviderConnection(await providers.connections.getNetease(context)),
@@ -442,7 +480,7 @@ const worker = {
             /^\/v1\/me\/providers\/([^/]+)\/sync$/
           );
           if (syncProvider && request.method === "POST") {
-            if (syncProvider !== "netease") {
+            if (syncProvider !== "netease" && syncProvider !== "steam") {
               return problem(
                 503,
                 "provider-not-configured",
@@ -453,13 +491,14 @@ const worker = {
               );
             }
             const enqueueStartedAt = performance.now();
-            const run = await providers.sync.enqueue(session.actor.id);
+            const run = await providers.sync.enqueue(session.actor.id, syncProvider);
             const enqueueMs = Math.round(performance.now() - enqueueStartedAt);
             executionContext.waitUntil(progressProviderSync(providers, run.id));
             console.info(
               JSON.stringify({
                 enqueueMs,
-                event: "netease_sync_accepted",
+                event: `${syncProvider}_sync_accepted`,
+                provider: syncProvider,
                 reused: run.attemptCount > 0,
                 syncRunId: run.id
               })

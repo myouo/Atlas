@@ -10,6 +10,7 @@ import type {
 import { ProviderAuthAttemptStateError, ProviderCredentialError } from "@nivalis/domain";
 import type {
   CredentialStatus,
+  ConnectedProvider,
   ProtectedSecret,
   ProviderConnectionView,
   ProviderCredentialRecord,
@@ -30,12 +31,13 @@ export class KyselyProviderCredentialRepository
     readonly acquiredFromAttemptAt?: Date;
     readonly now: Date;
     readonly ownerId: string;
+    readonly provider: ConnectedProvider;
   }) {
     const existing = await this.database
       .selectFrom("provider_connections")
       .select(["id", "enabled", "updated_at"])
       .where("owner_id", "=", input.ownerId)
-      .where("provider", "=", "netease")
+      .where("provider", "=", input.provider)
       .orderBy("created_at", "asc")
       .forUpdate()
       .executeTakeFirst();
@@ -65,7 +67,7 @@ export class KyselyProviderCredentialRepository
         enabled: true,
         id,
         owner_id: input.ownerId,
-        provider: "netease",
+        provider: input.provider,
         updated_at: input.now
       })
       .execute();
@@ -79,7 +81,7 @@ export class KyselyProviderCredentialRepository
         last_error_message: null,
         last_success_at: null,
         last_successful_run_id: null,
-        provider: "netease",
+        provider: input.provider,
         provider_connection_id: id,
         status: "idle",
         updated_at: input.now
@@ -88,7 +90,7 @@ export class KyselyProviderCredentialRepository
     return { id };
   }
 
-  async disableForOwner(ownerId: string, provider: "netease", now: Date) {
+  async disableForOwner(ownerId: string, provider: ConnectedProvider, now: Date) {
     const result = await this.database
       .updateTable("provider_connections")
       .set({ enabled: false, updated_at: now })
@@ -99,7 +101,7 @@ export class KyselyProviderCredentialRepository
     return Number(result.numUpdatedRows) > 0;
   }
 
-  async getForOwner(ownerId: string, provider: "netease"): Promise<ProviderConnectionView> {
+  async getForOwner(ownerId: string, provider: ConnectedProvider): Promise<ProviderConnectionView> {
     const row = await this.database
       .selectFrom("provider_connections as connection")
       .leftJoin(
@@ -108,8 +110,15 @@ export class KyselyProviderCredentialRepository
         "connection.id"
       )
       .leftJoin("netease_accounts as account", "account.provider_connection_id", "connection.id")
+      .leftJoin(
+        "provider_data_catalogs as catalog",
+        "catalog.provider_connection_id",
+        "connection.id"
+      )
       .select([
         "connection.enabled",
+        "connection.account_key",
+        "catalog.data as catalog_data",
         "credential.status as credential_status",
         "credential.updated_at as credential_updated_at",
         "credential.validated_at",
@@ -126,17 +135,29 @@ export class KyselyProviderCredentialRepository
           configured,
           credentialStatus: row.credential_status ?? "not_configured",
           credentialUpdatedAt: row.credential_updated_at,
-          displayName: configured && row.enabled ? row.display_name : null,
+          displayName:
+            configured && row.enabled
+              ? provider === "steam"
+                ? steamDisplayName(row.catalog_data)
+                : row.display_name
+              : null,
           enabled: row.enabled,
           lastValidatedAt: row.validated_at,
-          provider: "netease",
-          providerAccountId: configured && row.enabled ? row.provider_user_id : null
+          provider,
+          providerAccountId:
+            configured && row.enabled
+              ? provider === "steam"
+                ? /^\d{17}$/.test(row.account_key)
+                  ? row.account_key
+                  : null
+                : row.provider_user_id
+              : null
         }
-      : emptyConnection();
+      : emptyConnection(provider);
   }
 
   async listForOwner(ownerId: string) {
-    return [await this.getForOwner(ownerId, "netease")];
+    return Promise.all([this.getForOwner(ownerId, "netease"), this.getForOwner(ownerId, "steam")]);
   }
 
   async save(input: {
@@ -259,7 +280,7 @@ export class KyselyProviderCredentialResolver implements ProviderCredentialResol
   }
 }
 
-function emptyConnection(): ProviderConnectionView {
+function emptyConnection(provider: ConnectedProvider): ProviderConnectionView {
   return {
     configured: false,
     credentialStatus: "not_configured",
@@ -267,7 +288,7 @@ function emptyConnection(): ProviderConnectionView {
     displayName: null,
     enabled: false,
     lastValidatedAt: null,
-    provider: "netease",
+    provider,
     providerAccountId: null
   };
 }
@@ -276,7 +297,7 @@ function mapCredential(row: {
   readonly auth_tag: Uint8Array;
   readonly ciphertext: Uint8Array;
   readonly created_at: Date;
-  readonly credential_type: "music_u";
+  readonly credential_type: ProviderCredentialType;
   readonly encryption_version: number;
   readonly key_id: string;
   readonly nonce: Uint8Array;
@@ -296,4 +317,15 @@ function mapCredential(row: {
     status: row.status,
     updatedAt: row.updated_at
   };
+}
+
+function steamDisplayName(data: import("@nivalis/domain").JsonObject | null): string | null {
+  const account = data?.account;
+  return account &&
+    typeof account === "object" &&
+    !Array.isArray(account) &&
+    "displayName" in account &&
+    typeof account.displayName === "string"
+    ? account.displayName
+    : null;
 }

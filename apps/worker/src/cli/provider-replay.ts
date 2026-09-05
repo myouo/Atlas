@@ -4,6 +4,7 @@ import { ProviderReplayService } from "@nivalis/application";
 import {
   KyselyNeteaseNativeStore,
   NeteaseProviderRuntime,
+  SteamProviderRuntime,
   type NeteaseNativeDatabase
 } from "@nivalis/connectors";
 import {
@@ -14,6 +15,7 @@ import {
   KyselyProjectionRepository,
   KyselyProviderCredentialResolver,
   KyselySyncUnitOfWork,
+  KyselySteamCatalogStore,
   loadRootEnvironment,
   SystemClock
 } from "@nivalis/api/sync-runtime";
@@ -39,15 +41,18 @@ async function main() {
       decodeCredentialMasterKey(config.credentialMasterKey),
       config.credentialKeyId
     );
-    const runtime = new NeteaseProviderRuntime(
-      new KyselyProviderCredentialResolver(database, protector),
-      { timeoutMs: config.neteaseRequestTimeoutMs }
-    );
+    const runtime =
+      options.provider === "steam"
+        ? new SteamProviderRuntime(new KyselyProviderCredentialResolver(database, protector))
+        : new NeteaseProviderRuntime(new KyselyProviderCredentialResolver(database, protector), {
+            timeoutMs: config.neteaseRequestTimeoutMs
+          });
     const service = new ProviderReplayService(
       new KyselySyncUnitOfWork(
         database,
         (transaction) =>
           new StaticProviderNativeStoreRegistry([
+            new KyselySteamCatalogStore(transaction),
             new KyselyNeteaseNativeStore(
               transaction as unknown as Transaction<NeteaseNativeDatabase>
             )
@@ -96,11 +101,12 @@ function parseArguments(values: readonly string[]) {
     }
     throw new Error("Unknown provider replay argument.");
   }
-  if (provider !== "netease") throw new Error("Replay currently supports --provider netease.");
+  if (provider !== "netease" && provider !== "steam")
+    throw new Error("Replay supports --provider netease or steam.");
   if (!snapshotId || !/^[0-9a-fA-F-]{36}$/.test(snapshotId)) {
     throw new Error("Replay requires --snapshot <uuid>.");
   }
-  return { commit, snapshotId };
+  return { commit, snapshotId, provider };
 }
 
 function write(value: unknown, stderr = false) {

@@ -25,7 +25,11 @@ Read [the implementation specification](docs/NIVALIS_ABOUTME_IMPLEMENTATION_SPEC
 - A 32-byte credential master key
 - NetEase App QR scan, SMS OTP, or an existing `MUSIC_U` value configured through Settings
 
-No real Provider credential is required for normal development or CI. Sanitized NetEase fixtures cover the complete Connector/Raw/Native/Projection pipeline.
+No real Provider credential is required for normal development or CI. Sanitized NetEase and Steam fixtures cover the Connector/Raw/Native/Projection pipeline.
+
+Steam is available on both deployment architectures through Provider Protocol v2. See the
+[Steam setup and privacy guide](docs/STEAM_PROVIDER.md) for credentials, migrations, card configuration,
+and verification limits. Connect your SteamID64 and Web API key through Settings in API mode.
 
 ## Install
 
@@ -57,7 +61,8 @@ Open `http://127.0.0.1:3000`. The launcher starts Next.js plus a loopback-only, 
 Preview API. The Preview API reads `NETEASE_INTEGRATION_MUSIC_U` only on the server, runs the real
 Connector → Normalizer → Projector pipeline, and combines those projections with a repository-owned
 local Dashboard fixture/layout. The browser never receives the Cookie. GitHub, Bilibili, Steam, and
-Bangumi remain explicitly marked Fixture data until their real Connectors exist. It does not call any
+Bangumi remain Fixture data in this NetEase-only preview; real Steam requires the full API/Worker.
+It does not call any
 Nivalis deployment, Pages site, API Worker, D1, Queue, or database.
 
 Configure the ignored root `.env.local`:

@@ -34,6 +34,23 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
 
   return {
     kind: "api",
+    async getSteamConnection() {
+      return requireData(
+        await client.GET("/v1/me/providers/steam"),
+        "Steam connection could not be loaded."
+      );
+    },
+    async connectSteam(steamId, apiKey) {
+      return requireData(
+        await client.POST("/v1/me/providers/steam/connect", { body: { steamId, apiKey } }),
+        "Steam connection could not be saved."
+      );
+    },
+    async disconnectSteam() {
+      const response = await client.DELETE("/v1/me/providers/steam/connection");
+      if (response.error || response.response.status !== 204)
+        throwMappedError(response, "Steam could not be disconnected.");
+    },
     async getAuthSession() {
       return requireData(await client.GET("/v1/auth/session"), "Authentication state failed.");
     },

@@ -184,7 +184,7 @@ export interface ProviderCredentialsTable {
   auth_tag: Binary;
   ciphertext: Binary;
   created_at: Timestamp;
-  credential_type: "music_u";
+  credential_type: "music_u" | "steam_web_api";
   encryption_version: number;
   id: string;
   key_id: string;
@@ -310,7 +310,7 @@ export interface ProviderDataCatalogsTable {
   data: JSONColumnType<JsonObject>;
   data_version_id: string;
   generated_at: Timestamp;
-  provider: "netease";
+  provider: "netease" | "steam";
   provider_connection_id: string;
   schema_version: number;
 }

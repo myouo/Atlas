@@ -7,6 +7,7 @@ import type {
   SyncService
 } from "@nivalis/application";
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import { InvalidProviderCredentialError } from "@nivalis/domain";
 
 import {
   deserializeDraftUpdate,
@@ -60,6 +61,7 @@ import {
   WidgetConfigurationSchema
 } from "./schemas";
 import { requireOwnerContext } from "./auth-boundary";
+import { SteamConnectInputSchema } from "./steam-schemas";
 import {
   encodeRevisionCursor,
   formatCatalogEtag,
@@ -516,6 +518,64 @@ export const deferredRoutes: FastifyPluginAsyncTypebox<RouteOptions> = async (ap
         serializeProviderConnection
       )
     })
+  );
+
+  app.get(
+    "/v1/me/providers/steam",
+    {
+      schema: { response: { 200: ProviderConnectionSchema, default: ProblemDetailsSchema } }
+    },
+    async (request) =>
+      serializeProviderConnection(
+        await options.providerConnectionService.getSteam(requireOwnerContext(request))
+      )
+  );
+
+  app.post(
+    "/v1/me/providers/steam/connect",
+    {
+      // Fastify normally coerces numbers into strings. A SteamID64 has already
+      // lost precision by then, so reject it before schema coercion can run.
+      preValidation: async (request) => {
+        const body = request.body;
+        if (
+          !body ||
+          typeof body.steamId !== "string" ||
+          typeof body.apiKey !== "string" ||
+          Object.keys(body).some((key) => key !== "steamId" && key !== "apiKey")
+        )
+          throw new InvalidProviderCredentialError();
+      },
+      schema: {
+        body: SteamConnectInputSchema,
+        response: { 202: ProviderConnectAcceptedSchema, default: ProblemDetailsSchema }
+      }
+    },
+    async (request, reply) => {
+      const accepted = await options.providerConnectionService.connectSteam(
+        requireOwnerContext(request),
+        request.body.steamId,
+        request.body.apiKey
+      );
+      return reply
+        .code(202)
+        .header("location", `/v1/me/sync-jobs/${accepted.validationJob.id}`)
+        .send({
+          connection: serializeProviderConnection(accepted.connection),
+          validationJob: serializeSyncJob(accepted.validationJob)
+        });
+    }
+  );
+
+  app.delete(
+    "/v1/me/providers/steam/connection",
+    {
+      schema: { response: { default: ProblemDetailsSchema } }
+    },
+    async (request, reply) => {
+      await options.providerConnectionService.disconnectSteam(requireOwnerContext(request));
+      reply.code(204);
+    }
   );
 
   app.get(

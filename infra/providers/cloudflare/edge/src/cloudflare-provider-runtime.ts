@@ -19,7 +19,7 @@ import {
   CloudflareProviderAuthJobQueue,
   type CloudflareQueueMessage
 } from "./cloudflare-sync-queue";
-import { D1NeteaseSyncRuntime } from "./d1-netease-sync";
+import { D1ProviderSyncRuntime } from "./d1-provider-sync";
 import { D1ProviderAuthAttemptRepository } from "./d1-provider-auth-repository";
 import {
   D1ProviderConnectionUnitOfWork,
@@ -49,7 +49,7 @@ export function createCloudflareProviderRuntime(
   );
   const fetcher = providerFetcher(environment);
   const repository = new D1ProviderCredentialRepository(database);
-  const sync = new D1NeteaseSyncRuntime(
+  const sync = new D1ProviderSyncRuntime(
     database,
     queue,
     protector,
@@ -62,7 +62,7 @@ export function createCloudflareProviderRuntime(
     new D1ProviderConnectionUnitOfWork(database),
     protector,
     { now: () => new Date() },
-    (context) => sync.enqueue(context.actorId)
+    (context, provider) => sync.enqueue(context.actorId, provider)
   );
   const attemptRepository = new D1ProviderAuthAttemptRepository(database);
   const authQueue = new CloudflareProviderAuthJobQueue(queue);

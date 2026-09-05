@@ -19,7 +19,7 @@ const supportedSchemaVersions: Record<WidgetType, readonly number[]> = {
   "music.netease.showcase": [1, 2],
   "github.profile": [1],
   "bilibili.profile": [1],
-  "steam.profile": [1],
+  "steam.profile": [1, 2],
   "bangumi.collection": [1]
 };
 
@@ -55,6 +55,17 @@ export function validateDashboardDraft(input: DashboardDraftInput): void {
     }
     if (!widget.id || !widget.title) {
       issues.push("Every Widget requires a stable ID and title.");
+    }
+    if (widget.type === "steam.profile" && widget.schemaVersion === 2) {
+      if (widget.provider !== "steam") issues.push("steam.profile@2 requires the steam Provider.");
+      if (
+        Object.entries(widget.dataConfig).some(
+          ([key, value]) =>
+            !["shareProfile", "shareLibrary", "shareRecentGames"].includes(key) ||
+            typeof value !== "boolean"
+        )
+      )
+        issues.push("Steam disclosure settings must use supported boolean fields.");
     }
     if (
       widget.type.startsWith("music.netease.") &&

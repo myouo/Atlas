@@ -317,6 +317,13 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
     case "bilibili.profile":
       return { followers: 0, following: 0, level: 0, likes: 0, views: 0 };
     case "steam.profile":
+      if (configuration.schemaVersion === 2)
+        return {
+          provider: "steam",
+          account: { availability: "unavailable", reason: "not_synced" },
+          library: { availability: "unavailable", reason: "not_synced" },
+          recentGames: { availability: "unavailable", reason: "not_synced" }
+        };
       return { achievements: 0, games: 0, level: 0, playtimeHours: 0, screenshots: 0 };
     case "bangumi.collection":
       return { entries: 0, level: 0, reviews: 0, watched: 0, watching: 0 };

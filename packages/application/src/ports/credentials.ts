@@ -1,5 +1,6 @@
 import type {
   CredentialStatus,
+  ConnectedProvider,
   ProtectedSecret,
   ProviderConnectionView,
   ProviderCredentialRecord,
@@ -40,14 +41,14 @@ export interface ProviderCredentialStore {
 }
 
 export interface ProviderConnectionRepository {
-  disableForOwner(ownerId: string, provider: "netease", now: Date): Promise<boolean>;
-  getForOwner(ownerId: string, provider: "netease"): Promise<ProviderConnectionView>;
+  disableForOwner(ownerId: string, provider: ConnectedProvider, now: Date): Promise<boolean>;
+  getForOwner(ownerId: string, provider: ConnectedProvider): Promise<ProviderConnectionView>;
   listForOwner(ownerId: string): Promise<readonly ProviderConnectionView[]>;
   upsertForOwner(input: {
     readonly acquiredFromAttemptAt?: Date;
     readonly now: Date;
     readonly ownerId: string;
-    readonly provider: "netease";
+    readonly provider: ConnectedProvider;
   }): Promise<{ readonly id: string }>;
 }
 

@@ -49,6 +49,9 @@ export interface DashboardDataSource {
   readonly kind: DashboardSourceKind;
   getAuthSession(): Promise<AuthSession>;
   connectNetease(credential: string): Promise<ProviderConnectAccepted>;
+  connectSteam(steamId: string, apiKey: string): Promise<ProviderConnectAccepted>;
+  disconnectSteam(): Promise<void>;
+  getSteamConnection(): Promise<ProviderConnection>;
   cancelNeteaseAuthAttempt(attemptId: string): Promise<void>;
   disconnectNetease(): Promise<void>;
   getNeteaseConnection(): Promise<ProviderConnection>;

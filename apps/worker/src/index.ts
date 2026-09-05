@@ -12,6 +12,7 @@ import {
   KyselyNeteaseNativeStore,
   NeteaseAuthClient,
   NeteaseProviderRuntime,
+  SteamProviderRuntime,
   type NeteaseNativeDatabase
 } from "@nivalis/connectors";
 import type { ProviderNativeStore, ProviderNativeStoreRegistry } from "@nivalis/application";
@@ -34,6 +35,7 @@ import {
   KyselySyncEnqueueUnitOfWork,
   KyselySyncRepository,
   KyselyProviderCredentialResolver,
+  KyselySteamCatalogStore,
   PgBossProviderAuthJobQueue,
   PgBossRuntime,
   PROVIDER_AUTH_QUEUE_NAME,
@@ -105,15 +107,16 @@ export function buildWorker(options: BuildWorkerOptions): WorkerRuntime {
     new KyselySyncUnitOfWork(
       database,
       (transaction) =>
-        new StaticProviderNativeStoreRegistry(
-          options.config.neteaseProviderEnabled
+        new StaticProviderNativeStoreRegistry([
+          new KyselySteamCatalogStore(transaction),
+          ...(options.config.neteaseProviderEnabled
             ? [
                 new KyselyNeteaseNativeStore(
                   transaction as unknown as Transaction<NeteaseNativeDatabase>
                 )
               ]
-            : []
-        )
+            : [])
+        ])
     ),
     new KyselyProjectionRepository(database),
     registry,
@@ -247,7 +250,9 @@ function createProviderComposition(
   database: NivalisDatabase,
   protector: AesGcmSecretProtector
 ) {
-  const runtimes: ProviderRuntimeModule[] = [];
+  const runtimes: ProviderRuntimeModule[] = [
+    new SteamProviderRuntime(new KyselyProviderCredentialResolver(database, protector))
+  ];
   const authRuntimes: ProviderAuthRuntimeModule[] = [];
   if (config.fixtureProviderEnabled) {
     runtimes.push(new FixtureProviderRuntime(() => config.fixtureScenario));

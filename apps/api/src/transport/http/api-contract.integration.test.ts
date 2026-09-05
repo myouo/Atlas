@@ -88,6 +88,40 @@ afterAll(async () => {
 });
 
 describe("Fastify immutable revision and OpenAPI contract", () => {
+  it("supports the Steam connection contract without returning the Web API key", async () => {
+    const apiKey = "a".repeat(32);
+    const connected = await inject({
+      method: "POST",
+      url: "/v1/me/providers/steam/connect",
+      payload: { steamId: "76561198000000001", apiKey }
+    });
+    expect(connected.statusCode).toBe(202);
+    assertContract("/v1/me/providers/steam/connect", "post", 202, connected);
+    expect(connected.body).not.toContain(apiKey);
+    expect(connected.json()).toMatchObject({
+      connection: { provider: "steam", credentialStatus: "pending_validation" },
+      validationJob: { provider: "steam", status: "queued" }
+    });
+    const read = await inject({ method: "GET", url: "/v1/me/providers/steam" });
+    assertContract("/v1/me/providers/steam", "get", 200, read);
+    expect(
+      (
+        await inject({
+          method: "POST",
+          url: "/v1/me/providers/steam/connect",
+          payload: { steamId: 76561198000000001, apiKey }
+        })
+      ).statusCode
+    ).toBe(400);
+    expect(
+      (await inject({ method: "DELETE", url: "/v1/me/providers/steam/connection" })).statusCode
+    ).toBe(204);
+    expect((await inject({ method: "GET", url: "/v1/me/providers/steam" })).json()).toMatchObject({
+      configured: false,
+      enabled: false
+    });
+  });
+
   it("enforces one Owner authorization boundary with 401, 403, session, and logout", async () => {
     const unauthenticated = await app.inject({ method: "GET", url: "/v1/me/providers" });
     expect(unauthenticated.statusCode).toBe(401);

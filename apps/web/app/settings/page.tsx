@@ -35,6 +35,7 @@ import {
   type AppearanceGlass
 } from "../../design-system/appearance";
 import { AppProviders } from "../providers";
+import { SteamSettings } from "../../features/settings/steam-settings";
 
 export default function SettingsPage() {
   return (
@@ -354,11 +355,13 @@ function SettingsContent() {
               <p className="mt-3 text-xs font-extrabold text-ink">Published data only</p>
               <p className="mt-1 text-[10px] leading-relaxed text-ink-muted">
                 Draft、凭据、Raw Snapshot 与 Provider 错误详情永远不会进入公共 Read Model。MUSIC_U
-                只写入 Nivalis API，并以 AEAD 密文保存。
+                和 Steam API Key 只写入 Nivalis API，并以 AEAD 密文保存。
               </p>
             </div>
           </section>
         </div>
+
+        <SteamSettings owner={Boolean(owner)} />
 
         {owner && connectionQuery.data?.configured ? (
           <NeteaseDataExplorer
@@ -1245,7 +1248,7 @@ function ProviderSettings(props: ProviderSettingsProps) {
       ) : null}
 
       <div className="mt-4 space-y-2">
-        {["GitHub", "Bangumi", "Steam", "Bilibili"].map((provider) => (
+        {["GitHub", "Bangumi", "Bilibili"].map((provider) => (
           <div
             className="flex items-center justify-between rounded-xl bg-white/35 px-3 py-2.5"
             key={provider}

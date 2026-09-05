@@ -56,18 +56,20 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [mockSyncState, setMockSyncState] = useState<SyncUiState>("idle");
-  const [syncJobId, setSyncJobId] = useState<string | null>(null);
-  const completedSyncJob = useRef<string | null>(null);
+  const [syncJobIds, setSyncJobIds] = useState<readonly string[]>([]);
+  const completedSyncJobs = useRef(new Set<string>());
   const noticeTimer = useRef<number | null>(null);
   const syncTimers = useRef<number[]>([]);
 
   const syncJobQuery = useQuery({
-    enabled: source.kind === "api" && syncJobId !== null,
-    queryFn: () => source.getSyncJob(syncJobId!),
-    queryKey: ["sync-job", syncJobId, source.kind],
+    enabled: source.kind === "api" && syncJobIds.length > 0,
+    queryFn: () => Promise.all(syncJobIds.map((id) => source.getSyncJob(id))),
+    queryKey: ["sync-jobs", syncJobIds, source.kind],
     refetchInterval: (activeQuery) => {
-      const status = activeQuery.state.data?.status;
-      return status === "queued" || status === "running" || status === "retrying" ? 500 : false;
+      const jobs = activeQuery.state.data;
+      return !jobs || jobs.some((job) => ["queued", "running", "retrying"].includes(job.status))
+        ? 1000
+        : false;
     }
   });
 
@@ -215,26 +217,37 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   });
 
   const enqueueSyncMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const statuses = query.data?.providerStatuses ?? [];
-      const provider = statuses.some(
-        (status) =>
-          status.provider === "netease" &&
-          (status.connection === "connected" || status.connection === "requires_attention")
-      )
-        ? "netease"
-        : "fixture";
-      return source.enqueueProviderSync(provider);
+      const connected = statuses
+        .filter(
+          (status) =>
+            (status.provider === "netease" || status.provider === "steam") &&
+            (status.connection === "connected" || status.connection === "requires_attention")
+        )
+        .map((status) => status.provider);
+      const providers = [...new Set(connected.length ? connected : ["fixture" as const])];
+      const results = await Promise.allSettled(
+        providers.map((provider) => source.enqueueProviderSync(provider))
+      );
+      const jobs = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
+      );
+      const failed = providers.filter((_, index) => results[index]?.status === "rejected");
+      if (!jobs.length) throw new Error("No Provider synchronization could be queued.");
+      return { jobs, failed };
     },
     onError: () => {
       showNotice("Provider 同步任务未能入队；当前 Projection 保持不变");
     },
-    onSuccess: (job) => {
-      completedSyncJob.current = null;
-      setSyncJobId(job.jobId);
-      void queryClient.invalidateQueries({ queryKey: ["sync-job", job.jobId, source.kind] });
+    onSuccess: ({ jobs, failed }) => {
+      completedSyncJobs.current.clear();
+      setSyncJobIds(jobs.map((job) => job.jobId));
+      void queryClient.invalidateQueries({ queryKey: ["sync-jobs"] });
       showNotice(
-        job.attemptCount > 0 ? "复用正在执行的 Provider SyncRun" : "Provider SyncRun 已入队"
+        failed.length
+          ? `${jobs.length} 个同步任务已提交；${failed.join("、")} 暂时无法同步`
+          : `${jobs.length} 个 Provider 同步任务已提交`
       );
     }
   });
@@ -268,17 +281,15 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   }, [initializeLocal, query.data, replaceFromRemote, replacePublic, source.kind]);
 
   useEffect(() => {
-    const job = syncJobQuery.data;
-    if (!job) return;
-    if (job.status === "completed" && completedSyncJob.current !== job.jobId) {
-      completedSyncJob.current = job.jobId;
-      refreshProjectionMutation.mutate();
+    let refresh = false;
+    for (const job of syncJobQuery.data ?? []) {
+      if (completedSyncJobs.current.has(job.jobId)) continue;
+      if (job.status === "completed" || job.status === "failed")
+        completedSyncJobs.current.add(job.jobId);
+      if (job.status === "completed") refresh = true;
     }
-    if (job.status === "failed" && completedSyncJob.current !== job.jobId) {
-      completedSyncJob.current = job.jobId;
-      showNotice("Provider 同步失败；Last Known Good Projection 已保留");
-    }
-  }, [refreshProjectionMutation, showNotice, syncJobQuery.data]);
+    if (refresh) refreshProjectionMutation.mutate();
+  }, [refreshProjectionMutation, syncJobQuery.data]);
 
   const syncState: SyncUiState =
     source.kind === "mock"
@@ -287,13 +298,17 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         ? "failed"
         : enqueueSyncMutation.isPending
           ? "queued"
-          : syncJobQuery.isError
-            ? "failed"
-            : syncJobQuery.data
-              ? toSyncUiState(syncJobQuery.data.status)
-              : syncJobId
-                ? "queued"
-                : "idle";
+          : syncJobQuery.data?.some((job) => ["queued", "running", "retrying"].includes(job.status))
+            ? "running"
+            : syncJobQuery.isError ||
+                syncJobQuery.data?.some((job) => job.status === "failed") ||
+                enqueueSyncMutation.data?.failed.length
+              ? "failed"
+              : syncJobQuery.data?.length
+                ? "completed"
+                : syncJobIds.length
+                  ? "queued"
+                  : "idle";
 
   useEffect(
     () => () => {
@@ -345,6 +360,9 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
   if (!store.draft || !store.published || !snapshot || !visibleSnapshot)
     return <DashboardLoading />;
   const providerStatuses = query.data?.providerStatuses ?? [];
+  const failedJob = syncJobQuery.data?.find((job) => job.status === "failed");
+  const displayNotice =
+    notice ?? (failedJob ? `${failedJob.provider} 同步失败；上次成功的数据已保留` : null);
 
   const addWidget = (type: WidgetType) => {
     const definition = widgetRegistry.preferred(type);
@@ -512,13 +530,13 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         <div
           aria-live="polite"
           className={
-            notice
+            displayNotice
               ? "glass-surface-strong fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 rounded-full px-5 py-3 text-xs font-bold text-ink opacity-100 shadow-xl transition"
               : "pointer-events-none fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 rounded-full px-5 py-3 text-xs font-bold opacity-0 transition"
           }
           role="status"
         >
-          {notice}
+          {displayNotice}
         </div>
       ) : null}
     </main>
@@ -549,8 +567,4 @@ function retireDeprecatedWidgetsFromDraft() {
       .filter((widget) => widget.type === "music.netease.social")
       .map((widget) => widget.id) ?? [];
   retiredIds.forEach(state.removeWidget);
-}
-
-function toSyncUiState(status: "queued" | "running" | "retrying" | "completed" | "failed") {
-  return status;
 }

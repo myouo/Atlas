@@ -3,7 +3,9 @@ import type { ProviderType } from "./dashboard";
 export type CredentialStatus =
   "not_configured" | "pending_validation" | "valid" | "expired" | "invalid" | "revoked";
 
-export type ProviderCredentialType = "music_u";
+export type ProviderCredentialType = "music_u" | "steam_web_api";
+
+export type ConnectedProvider = Extract<ProviderType, "netease" | "steam">;
 
 export interface ProtectedSecret {
   readonly authTag: Uint8Array;
@@ -28,6 +30,6 @@ export interface ProviderConnectionView {
   readonly displayName: string | null;
   readonly enabled: boolean;
   readonly lastValidatedAt: Date | null;
-  readonly provider: Extract<ProviderType, "netease">;
+  readonly provider: ConnectedProvider;
   readonly providerAccountId: string | null;
 }

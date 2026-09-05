@@ -8,6 +8,7 @@ import type {
 import { ProviderAuthAttemptStateError, ProviderCredentialError } from "@nivalis/domain";
 import type {
   CredentialStatus,
+  ConnectedProvider,
   ProtectedSecret,
   ProviderConnection,
   ProviderConnectionView,
@@ -36,7 +37,7 @@ interface CredentialRow {
   readonly auth_tag: ArrayBuffer;
   readonly ciphertext: ArrayBuffer;
   readonly created_at: string;
-  readonly credential_type: "music_u";
+  readonly credential_type: ProviderCredentialType;
   readonly encryption_version: number;
   readonly key_id: string;
   readonly nonce: ArrayBuffer;
@@ -54,8 +55,9 @@ export class D1ProviderCredentialRepository
     readonly acquiredFromAttemptAt?: Date;
     readonly now: Date;
     readonly ownerId: string;
+    readonly provider: ConnectedProvider;
   }) {
-    const existing = await this.connectionForOwner(input.ownerId);
+    const existing = await this.connectionForOwner(input.ownerId, input.provider);
     const now = input.now.toISOString();
     if (existing) {
       if (
@@ -80,54 +82,53 @@ export class D1ProviderCredentialRepository
         .prepare(
           `INSERT INTO provider_connections
             (id, owner_id, provider, account_key, enabled, created_at, updated_at)
-           VALUES (?, ?, 'netease', 'pending-validation', 1, ?, ?)`
+           VALUES (?, ?, ?, 'pending-validation', 1, ?, ?)`
         )
-        .bind(id, input.ownerId, now, now),
+        .bind(id, input.ownerId, input.provider, now, now),
       this.database
         .prepare(
           `INSERT INTO provider_sync_states
             (provider_connection_id, provider, status, attempt_count, updated_at)
-           VALUES (?, 'netease', 'idle', 0, ?)`
+           VALUES (?, ?, 'idle', 0, ?)`
         )
-        .bind(id, now)
+        .bind(id, input.provider, now)
     ]);
     return { id };
   }
 
-  async disableForOwner(ownerId: string, provider: "netease", now: Date) {
-    void provider;
+  async disableForOwner(ownerId: string, provider: ConnectedProvider, now: Date) {
     const result = await this.database
       .prepare(
         `UPDATE provider_connections
             SET enabled = 0, updated_at = ?
-          WHERE owner_id = ? AND provider = 'netease' AND enabled = 1`
+          WHERE owner_id = ? AND provider = ? AND enabled = 1`
       )
-      .bind(now.toISOString(), ownerId)
+      .bind(now.toISOString(), ownerId, provider)
       .run();
     return result.meta.changes > 0;
   }
 
-  async getForOwner(ownerId: string, provider: "netease"): Promise<ProviderConnectionView> {
-    void provider;
+  async getForOwner(ownerId: string, provider: ConnectedProvider): Promise<ProviderConnectionView> {
     const row = await this.database
       .prepare(
         `SELECT connection.enabled,
                 credential.status AS credential_status,
                 credential.updated_at AS credential_updated_at,
                 credential.validated_at,
-                account.provider_user_id,
-                account.display_name
+                CASE WHEN connection.provider = 'steam' THEN NULLIF(connection.account_key, 'pending-validation') ELSE account.provider_user_id END AS provider_user_id,
+                CASE WHEN connection.provider = 'steam' THEN json_extract(catalog.data_json, '$.account.displayName') ELSE account.display_name END AS display_name
            FROM provider_connections AS connection
            LEFT JOIN provider_credentials AS credential
              ON credential.provider_connection_id = connection.id
-            AND credential.credential_type = 'music_u'
+            AND credential.credential_type = CASE WHEN connection.provider = 'steam' THEN 'steam_web_api' ELSE 'music_u' END
            LEFT JOIN netease_accounts AS account
              ON account.provider_connection_id = connection.id
-          WHERE connection.owner_id = ? AND connection.provider = 'netease'`
+           LEFT JOIN provider_data_catalogs AS catalog ON catalog.provider_connection_id = connection.id
+          WHERE connection.owner_id = ? AND connection.provider = ?`
       )
-      .bind(ownerId)
+      .bind(ownerId, provider)
       .first<ConnectionViewRow>();
-    if (!row) return emptyConnection();
+    if (!row) return emptyConnection(provider);
     const configured = row.credential_status !== null;
     const enabled = row.enabled === 1;
     return {
@@ -137,13 +138,13 @@ export class D1ProviderCredentialRepository
       displayName: configured && enabled ? row.display_name : null,
       enabled,
       lastValidatedAt: row.validated_at ? new Date(row.validated_at) : null,
-      provider: "netease",
+      provider,
       providerAccountId: configured && enabled ? row.provider_user_id : null
     };
   }
 
   async listForOwner(ownerId: string) {
-    return [await this.getForOwner(ownerId, "netease")];
+    return Promise.all([this.getForOwner(ownerId, "netease"), this.getForOwner(ownerId, "steam")]);
   }
 
   async save(input: {
@@ -267,12 +268,12 @@ export class D1ProviderCredentialRepository
       : null;
   }
 
-  private connectionForOwner(ownerId: string) {
+  private connectionForOwner(ownerId: string, provider: ConnectedProvider) {
     return this.database
       .prepare(
-        "SELECT id, owner_id, enabled, created_at, updated_at FROM provider_connections WHERE owner_id = ? AND provider = 'netease'"
+        "SELECT id, owner_id, enabled, created_at, updated_at FROM provider_connections WHERE owner_id = ? AND provider = ?"
       )
-      .bind(ownerId)
+      .bind(ownerId, provider)
       .first<ConnectionRow>();
   }
 }
@@ -315,7 +316,7 @@ export class D1ProviderCredentialResolver implements ProviderCredentialResolver 
   }
 }
 
-function emptyConnection(): ProviderConnectionView {
+function emptyConnection(provider: ConnectedProvider): ProviderConnectionView {
   return {
     configured: false,
     credentialStatus: "not_configured",
@@ -323,7 +324,7 @@ function emptyConnection(): ProviderConnectionView {
     displayName: null,
     enabled: false,
     lastValidatedAt: null,
-    provider: "netease",
+    provider,
     providerAccountId: null
   };
 }

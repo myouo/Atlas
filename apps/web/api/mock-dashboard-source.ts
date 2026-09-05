@@ -92,6 +92,24 @@ const initialDetail: DashboardRevisionDetail = {
 
 export const mockDashboardSource: DashboardDataSource = {
   kind: "mock",
+  async getSteamConnection() {
+    return {
+      configured: false,
+      credentialStatus: "not_configured",
+      credentialUpdatedAt: null,
+      displayName: null,
+      enabled: false,
+      lastValidatedAt: null,
+      provider: "steam",
+      providerAccountId: null
+    };
+  },
+  async connectSteam() {
+    throw new Error("Steam connections require API mode; no Steam request was sent.");
+  },
+  async disconnectSteam() {
+    throw new Error("Steam connections require API mode.");
+  },
   async getAuthSession() {
     await Promise.resolve();
     return {
@@ -110,7 +128,7 @@ export const mockDashboardSource: DashboardDataSource = {
   },
   async getProviderConnections() {
     await Promise.resolve();
-    return [structuredClone(mockNeteaseConnection)];
+    return [structuredClone(mockNeteaseConnection), await this.getSteamConnection()];
   },
   async getNeteaseConnection() {
     await Promise.resolve();
