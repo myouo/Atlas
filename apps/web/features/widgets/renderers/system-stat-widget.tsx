@@ -26,7 +26,7 @@ export function SystemStatWidget({ widget }: Readonly<{ widget: WidgetOf<"system
     <div className="system-stat flex h-full items-center justify-between gap-3 px-5 py-4">
       <div className="min-w-0">
         {showLabel ? (
-          <p className="truncate text-[11px] font-semibold tracking-wide text-ink-muted">
+          <p className="system-stat-label truncate text-[11px] font-semibold tracking-wide text-ink-muted">
             {presentation.label}
           </p>
         ) : null}

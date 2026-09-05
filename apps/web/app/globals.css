@@ -36,11 +36,18 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-button,
-a,
-input,
-select {
-  font: inherit;
+@layer base {
+  button,
+  a,
+  input,
+  select {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  select {
+    cursor: pointer;
+  }
 }
 
 button,
@@ -246,7 +253,8 @@ select:focus-visible {
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.79), rgba(244, 249, 255, 0.67)),
     var(--color-surface);
-  animation: module-shell-enter var(--duration-spring) var(--ease-jelly-soft) both;
+  /* Release the transform after arrival so hover and drag can take over. */
+  animation: module-shell-enter var(--duration-spring) var(--ease-jelly-soft) backwards;
   transition:
     transform var(--duration-spring) var(--ease-jelly-soft),
     border-color var(--duration-ui) ease;
@@ -295,12 +303,11 @@ select:focus-visible {
 
 .module-shell[data-kind="standard"] .module-shell-content {
   overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
 
 .module-shell[data-kind="standard"] .module-shell-content::-webkit-scrollbar {
-  display: none;
+  width: 4px;
 }
 
 .module-shell-expanded {
@@ -424,7 +431,7 @@ select:focus-visible {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .module-shell:hover .module-shell-icon {
+  .module-shell:not([data-editable="true"]):hover .module-shell-icon {
     transform: translate3d(0, -1px, 0) rotate(-4deg) scale(1.07, 1.04);
   }
 }
@@ -453,7 +460,8 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   pointer-events: none;
-  animation: edit-rail-in 280ms var(--ease-jelly) both;
+  z-index: 5;
+  animation: edit-rail-in 280ms var(--ease-jelly) backwards;
 }
 
 @keyframes edit-rail-in {
@@ -502,6 +510,7 @@ select:focus-visible {
   width: 2.3rem;
   cursor: grab;
   color: var(--color-primary);
+  touch-action: none;
 }
 
 .module-drag-handle:active {
@@ -522,9 +531,8 @@ select:focus-visible {
     0 12px 30px rgba(30, 72, 139, 0.11);
 }
 
-.module-shell[data-editable="true"][data-kind="hero"] .module-shell-content,
-.module-shell[data-editable="true"][data-kind="stat"] .module-shell-content {
-  padding-top: 1.7rem;
+.module-shell[data-editable="true"][data-kind="hero"] .module-shell-content {
+  padding-top: 2rem;
 }
 
 .module-shell[data-editable="true"][data-kind="stat"] .module-shell-content {
@@ -533,7 +541,7 @@ select:focus-visible {
 
 .module-shell[data-editable="true"][data-kind="stat"] .system-stat {
   align-items: flex-end;
-  padding: 1.75rem 0.7rem 0.35rem;
+  padding: 2.25rem 0.8rem 0.4rem;
 }
 
 .module-shell[data-editable="true"][data-kind="stat"] .system-stat-icon {
@@ -543,21 +551,13 @@ select:focus-visible {
 .module-shell[data-editable="true"][data-kind="stat"] .system-stat-value {
   margin-top: 0.05rem;
   font-size: 1.16rem;
+  line-height: 1.1;
 }
 
-.module-shell[data-editable="true"][data-kind="stat"] .system-stat p:first-child {
-  max-width: 7rem;
-  font-size: 0.58rem;
-}
-
-.module-shell[data-editable="true"][data-kind="stat"] .module-drag-handle {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.module-shell[data-editable="true"][data-kind="stat"] .module-drag-handle:active {
-  transform: translateX(-50%) scaleX(0.95) scaleY(0.91);
+.module-shell[data-editable="true"][data-kind="stat"] .system-stat-label {
+  font-size: 0.625rem;
+  padding-right: 0;
+  line-height: 1.2;
 }
 
 .dashboard-grid .react-grid-item:nth-child(3n + 2) .module-shell {
@@ -571,10 +571,10 @@ select:focus-visible {
 .dashboard-grid.is-interacting .module-shell,
 .react-grid-item.react-draggable-dragging .module-shell,
 .react-grid-item.resizing .module-shell {
-  animation: none;
+  animation-play-state: paused;
 }
 
-.dashboard-grid.is-interacting .module-shell:hover {
+.dashboard-grid.is-interacting .module-shell:not([data-editable="true"]):hover {
   transform: none;
 }
 
@@ -771,7 +771,7 @@ select:focus-visible {
     padding-left: 0.8rem;
   }
 
-  .module-shell-content {
+  .module-shell[data-kind="standard"] .module-shell-content {
     padding-right: 0.8rem;
     padding-bottom: 0.8rem;
     padding-left: 0.8rem;
@@ -822,7 +822,7 @@ select:focus-visible {
     padding-bottom: 0.45rem;
   }
 
-  .module-shell-content {
+  .module-shell[data-kind="standard"] .module-shell-content {
     padding-bottom: 0.65rem;
   }
 
@@ -838,7 +838,7 @@ select:focus-visible {
 
   .platform-metric-value {
     margin-top: 0.1rem;
-    font-size: 0.76rem;
+    font-size: 0.9rem;
   }
 
   .profile-hero {
@@ -868,6 +868,56 @@ select:focus-visible {
   .system-stat-icon {
     width: 2.35rem;
     height: 2.35rem;
+  }
+}
+
+/* The edit rail gets its own space even in the compact height variant. */
+.module-shell[data-editable="true"][data-kind="standard"] .module-shell-header {
+  padding-top: 2.25rem;
+}
+
+.system-stat {
+  position: relative;
+}
+
+.system-stat-value,
+.platform-metric-value,
+.netease-stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+@container module-shell (max-width: 220px) {
+  .system-stat {
+    padding: 0.65rem 0.8rem;
+  }
+
+  .system-stat-label {
+    padding-right: 1.4rem;
+    font-size: 0.625rem;
+    letter-spacing: 0;
+  }
+
+  .system-stat-value {
+    font-size: clamp(1rem, 12cqw, 1.35rem);
+    line-height: 1.2;
+    margin-top: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .system-stat-icon {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.65rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .system-stat-icon svg {
+    width: 100%;
+    height: 100%;
   }
 }
 
@@ -1005,6 +1055,11 @@ select:focus-visible {
     opacity 180ms ease;
 }
 
+/* Only a completed gesture can animate a layout move; resizing the viewport cannot. */
+.dashboard-grid.is-settling .react-grid-item:not(.react-draggable-dragging, .resizing) {
+  transition: transform 300ms var(--ease-jelly-soft);
+}
+
 .dashboard-grid .react-grid-item.react-draggable-dragging,
 .dashboard-grid .react-grid-item.resizing {
   z-index: 30;
@@ -1024,10 +1079,7 @@ select:focus-visible {
   border-radius: var(--radius-md);
   background: rgba(81, 138, 246, 0.16);
   opacity: 0.82;
-  transition:
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    width 140ms ease,
-    height 140ms ease;
+  transition: transform 140ms var(--ease-smooth);
 }
 
 .react-grid-item > .react-resizable-handle::after {
@@ -1048,6 +1100,7 @@ select:focus-visible {
   border-radius: 50%;
   background-color: rgba(255, 255, 255, 0.92);
   box-shadow: 0 3px 12px rgba(29, 91, 177, 0.18);
+  touch-action: none;
 }
 
 /* Dashboard chrome */
@@ -1328,8 +1381,10 @@ select:focus-visible {
   transition: transform var(--duration-spring) var(--ease-jelly);
 }
 
-.module-shell:hover .system-stat-icon {
-  transform: rotate(5deg) scale(1.08, 1.04);
+@media (hover: hover) and (pointer: fine) {
+  .module-shell:not([data-editable="true"]):hover .system-stat-icon {
+    transform: rotate(5deg) scale(1.08, 1.04);
+  }
 }
 
 .platform-metrics {
@@ -1365,15 +1420,12 @@ select:focus-visible {
 }
 
 .mini-line-chart polyline {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: chart-draw 620ms var(--ease-smooth) 80ms forwards;
+  stroke-dasharray: none;
 }
 
-.mini-line-chart circle {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: chart-point-in 300ms var(--ease-jelly) 420ms both;
+.mini-line-chart svg {
+  transform-origin: center bottom;
+  animation: chart-reveal 420ms var(--ease-smooth) 80ms backwards;
 }
 
 /* Settings */
@@ -1474,11 +1526,9 @@ select:focus-visible {
 }
 
 .settings-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
   border-radius: 1.45rem;
   padding: 1.15rem;
-  animation: settings-card-in 360ms var(--ease-jelly-soft) both;
+  animation: settings-card-in 360ms var(--ease-jelly-soft) backwards;
   transition:
     transform var(--duration-spring) var(--ease-jelly-soft),
     border-color var(--duration-ui) ease;
@@ -1765,21 +1815,39 @@ select:focus-visible {
   }
 }
 
-@keyframes chart-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes chart-point-in {
+@keyframes chart-reveal {
   from {
-    opacity: 0;
-    transform: scale(0);
+    opacity: 0.45;
+    transform: scaleY(0.92);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: scaleY(1);
   }
+}
+
+.catalog-dialog {
+  height: min(84dvh, 740px);
+}
+
+.catalog-dialog-header {
+  border-bottom: 1px solid rgba(79, 118, 174, 0.1);
+}
+
+.catalog-dialog-list {
+  padding-top: 1rem;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(92, 119, 176, 0.3) transparent;
+}
+
+.catalog-search:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.catalog-search input:focus-visible {
+  outline: none;
 }
 
 @keyframes badge-jelly-in {
@@ -1813,13 +1881,13 @@ select:focus-visible {
   }
 
   .glass-surface {
-    background: rgba(249, 252, 255, 0.8);
+    background: var(--color-surface-mobile);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
 
   .glass-surface-strong {
-    background: rgba(252, 254, 255, 0.91);
+    background: var(--color-surface-strong-mobile);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -1911,8 +1979,8 @@ select:focus-visible {
   }
 
   .module-shell-action {
-    width: 1.72rem;
-    height: 1.72rem;
+    width: 1.8rem;
+    height: 1.8rem;
   }
 
   .settings-hero {
@@ -1937,6 +2005,7 @@ select:focus-visible {
     max-height: calc(100dvh - 1.5rem) !important;
     transform: none;
     border-radius: 1.65rem !important;
+    background: rgba(250, 253, 255, 0.98);
   }
 
   .nivalis-modal[data-state="open"] {
@@ -1951,9 +2020,24 @@ select:focus-visible {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+
+  .nivalis-modal-close {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+  }
 }
 
 @media (min-width: 640px) {
+  .settings-primary-grid {
+    grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr);
+  }
+
+  .settings-secondary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
   .dashboard-edit-toolbar-wrap {
     position: absolute;
     top: 3.625rem;
@@ -1968,14 +2052,6 @@ select:focus-visible {
 
   .dashboard-edit-toolbar-inner {
     overflow: visible;
-  }
-
-  .settings-primary-grid {
-    grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr);
-  }
-
-  .settings-secondary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2052,5 +2128,19 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-delay: 0ms !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .module-shell:not([data-editable="true"]):hover,
+  .module-shell:hover .module-shell-icon,
+  .module-shell:hover .system-stat-icon,
+  .settings-card:hover,
+  .jelly-control:active,
+  .top-action-bar button:hover,
+  .top-action-bar button:active,
+  .settings-page button:hover,
+  .settings-page button:active,
+  .module-shell button:active,
+  .module-shell a:active {
+    transform: none;
   }
 }

@@ -28,6 +28,7 @@ function WidgetCardComponent({
   widget
 }: WidgetCardProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsMounted, setSettingsMounted] = useState(false);
   const definition = widgetRegistry.resolve(widget.type, widget.schemaVersion);
 
   if (!definition) {
@@ -60,15 +61,23 @@ function WidgetCardComponent({
         icon={<Icon aria-hidden size={19} />}
         kind={definition.kind}
         {...(definition.expandable ? { expandable: true } : {})}
-        {...(editable && configurable ? { onConfigure: () => setSettingsOpen(true) } : {})}
+        {...(editable && configurable
+          ? {
+              onConfigure: () => {
+                setSettingsMounted(true);
+                setSettingsOpen(true);
+              }
+            }
+          : {})}
         onRemove={onRemove}
         stale={widget.stale}
         title={widget.title}
       >
         <Renderer widget={widget as never} />
       </ModuleShell>
-      {settingsOpen && configurable && "presentationConfig" in widget ? (
+      {settingsMounted && configurable && "presentationConfig" in widget ? (
         <WidgetSettingsDialog
+          open={settingsOpen}
           controls={controls}
           dataConfig={widget.dataConfig}
           dataPresets={dataPresets}
@@ -84,16 +93,14 @@ function WidgetCardComponent({
   );
 }
 
-export const WidgetCard = memo(
-  WidgetCardComponent,
-  (previous, next) => previous.editable === next.editable && previous.widget === next.widget
-);
+export const WidgetCard = memo(WidgetCardComponent);
 
 function WidgetSettingsDialog({
   controls,
   dataConfig,
   dataPresets,
   name,
+  open,
   onClose,
   onDataConfigChange,
   onPresentationConfigChange,
@@ -104,6 +111,7 @@ function WidgetSettingsDialog({
   readonly dataConfig: WidgetProjection["dataConfig"];
   readonly dataPresets: readonly WidgetDataPreset[];
   readonly name: string;
+  readonly open: boolean;
   readonly onClose: () => void;
   readonly onDataConfigChange?: (config: WidgetProjection["dataConfig"]) => void;
   readonly onPresentationConfigChange?: (config: WidgetProjection["presentationConfig"]) => void;
@@ -111,7 +119,7 @@ function WidgetSettingsDialog({
   readonly resourcePicker?: "netease-showcase" | "netease-showcase-gallery";
 }) {
   const catalogQuery = useQuery({
-    enabled: Boolean(resourcePicker),
+    enabled: open && Boolean(resourcePicker),
     queryFn: () => dashboardSource.getNeteaseDataCatalog(),
     queryKey: ["provider-data", "netease", dashboardSource.kind],
     retry: false
@@ -127,7 +135,7 @@ function WidgetSettingsDialog({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      open
+      open={open}
       presentationConfig={presentationConfig}
       resourceMaxItems={resourcePicker === "netease-showcase-gallery" ? 6 : 1}
       resourceOptions={neteaseResourceOptions(catalogQuery.data)}

@@ -12,6 +12,7 @@ import {
   X
 } from "@phosphor-icons/react";
 import { useState } from "react";
+import { useDialogFocusReturn } from "../../design-system/use-dialog-focus-return";
 
 import type { WidgetDataPreset } from "./widget-registry";
 import type { WidgetPresentationControl } from "./widget-presentation";
@@ -63,6 +64,7 @@ export function WidgetDisplaySettingsDialog({
   resourceSelectionMode = "single"
 }: WidgetDisplaySettingsDialogProps) {
   const [resourceQuery, setResourceQuery] = useState("");
+  const focusReturn = useDialogFocusReturn();
   const visibleResources = filterResourceOptions(resourceOptions, resourceQuery);
   const resourceGroups = groupResourceOptions(visibleResources);
   const customGallery =
@@ -73,7 +75,10 @@ export function WidgetDisplaySettingsDialog({
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="nivalis-modal-overlay fixed inset-0 z-50" />
-        <Dialog.Content className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[84vh] w-[min(92vw,560px)] overflow-y-auto rounded-[26px] p-6 outline-none">
+        <Dialog.Content
+          {...focusReturn}
+          className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-50 max-h-[84vh] w-[min(92vw,560px)] overflow-y-auto rounded-[26px] p-6 outline-none"
+        >
           <Dialog.Title className="text-xl font-extrabold tracking-[-0.02em] text-ink">
             {name} · 卡片编排
           </Dialog.Title>

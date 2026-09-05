@@ -2,7 +2,7 @@
 
 import type { WidgetType } from "@nivalis/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { dashboardSource } from "../../api/dashboard-source-factory";
 import type { DashboardDataSource, DashboardEditableDraft } from "../../api/dashboard-source";
@@ -71,14 +71,23 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
     }
   });
 
-  const showNotice = (message: string) => {
+  const showNotice = useCallback((message: string) => {
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
     setNotice(message);
     noticeTimer.current = window.setTimeout(() => {
       noticeTimer.current = null;
       setNotice(null);
     }, 2_300);
-  };
+  }, []);
+
+  const removeWidget = store.removeWidget;
+  const onRemoveWidget = useCallback(
+    (widgetId: string) => {
+      removeWidget(widgetId);
+      showNotice("模块已从本地草稿移除，可通过重置恢复");
+    },
+    [removeWidget, showNotice]
+  );
 
   const handleMutationError = (error: Error, fallback: string) => {
     if (error instanceof RevisionConflictError) {
@@ -269,7 +278,7 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
       completedSyncJob.current = job.jobId;
       showNotice("Provider 同步失败；Last Known Good Projection 已保留");
     }
-  }, [refreshProjectionMutation, syncJobQuery.data]);
+  }, [refreshProjectionMutation, showNotice, syncJobQuery.data]);
 
   const syncState: SyncUiState =
     source.kind === "mock"
@@ -300,6 +309,19 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
     }
   }, [query.data?.session.role, source.kind, store]);
 
+  const session = query.data?.session;
+  const isOwner = source.kind === "mock" || session?.role === "owner";
+  const effectiveMode = isOwner ? store.mode : "display";
+  const snapshot = effectiveMode === "edit" ? store.draft : store.published;
+  const visibleSnapshot = useMemo(
+    () => (snapshot ? withoutRetiredWidgets(snapshot) : null),
+    [snapshot]
+  );
+  const visibleWidgets = useMemo(
+    () => visibleSnapshot?.widgets.filter((widget) => widget.enabled) ?? [],
+    [visibleSnapshot]
+  );
+
   const hasCachedDashboard = store.initialized && store.draft && store.published;
   if (query.isPending && !hasCachedDashboard) {
     return <DashboardLoading />;
@@ -320,12 +342,8 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
     );
   }
 
-  if (!store.draft || !store.published) return <DashboardLoading />;
-  const session = query.data?.session;
-  const isOwner = source.kind === "mock" || session?.role === "owner";
-  const effectiveMode = isOwner ? store.mode : "display";
-  const snapshot = effectiveMode === "edit" ? store.draft : store.published;
-  const visibleSnapshot = withoutRetiredWidgets(snapshot);
+  if (!store.draft || !store.published || !snapshot || !visibleSnapshot)
+    return <DashboardLoading />;
   const providerStatuses = query.data?.providerStatuses ?? [];
 
   const addWidget = (type: WidgetType) => {
@@ -432,11 +450,8 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
             onLayoutChange={store.updateBreakpointLayout}
             onDataConfigChange={store.updateWidgetDataConfig}
             onPresentationConfigChange={store.updateWidgetPresentationConfig}
-            onRemoveWidget={(widgetId) => {
-              store.removeWidget(widgetId);
-              showNotice("模块已从本地草稿移除，可通过重置恢复");
-            }}
-            widgets={visibleSnapshot.widgets.filter((widget) => widget.enabled)}
+            onRemoveWidget={onRemoveWidget}
+            widgets={visibleWidgets}
           />
         </div>
 
@@ -470,11 +485,11 @@ export function AboutPage({ source = dashboardSource }: AboutPageProps = {}) {
         />
       ) : null}
 
-      {isOwner && historyOpen ? (
+      {isOwner ? (
         <RevisionHistoryDialog
           onOpenChange={setHistoryOpen}
           onRestore={(revisionId) => restoreMutation.mutate(revisionId)}
-          open
+          open={historyOpen}
           restoring={restoreMutation.isPending}
           source={source}
         />

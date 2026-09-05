@@ -11,6 +11,7 @@ import {
   X
 } from "@phosphor-icons/react";
 import { useState } from "react";
+import { useDialogFocusReturn } from "../../design-system/use-dialog-focus-return";
 
 import type { DashboardDataSource } from "../../api/dashboard-source";
 
@@ -41,6 +42,7 @@ export function RevisionHistoryDialog({
   source
 }: RevisionHistoryDialogProps) {
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null);
+  const focusReturn = useDialogFocusReturn();
   const [restoreCandidate, setRestoreCandidate] = useState<DashboardRevisionMetadata | null>(null);
   const history = useQuery({
     enabled: open,
@@ -65,7 +67,10 @@ export function RevisionHistoryDialog({
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="nivalis-modal-overlay fixed inset-0 z-[60]" />
-        <Dialog.Content className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-[61] max-h-[86vh] w-[min(94vw,720px)] overflow-y-auto rounded-[26px] p-6 text-ink outline-none">
+        <Dialog.Content
+          {...focusReturn}
+          className="nivalis-modal glass-surface-strong fixed top-1/2 left-1/2 z-[61] max-h-[86vh] w-[min(94vw,720px)] overflow-y-auto rounded-[26px] p-6 text-ink outline-none"
+        >
           <div className="flex items-start gap-3 pr-10">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
               <ClockCounterClockwise aria-hidden size={24} weight="duotone" />

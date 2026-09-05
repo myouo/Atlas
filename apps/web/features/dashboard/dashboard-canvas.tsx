@@ -116,7 +116,36 @@ function DashboardCanvasComponent({
   const { containerRef, mounted, width } = useDashboardContainerWidth();
   const [breakpoint, setBreakpoint] = useState<DashboardBreakpoint>("lg");
   const [interacting, setInteracting] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    },
+    []
+  );
+
+  const beginInteraction = () => {
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    setSettling(false);
+    setInteracting(true);
+  };
   const gridLayouts = useMemo(() => buildGridLayouts(layout, widgets), [layout, widgets]);
+  const children = useMemo(
+    () =>
+      widgets.map((widget) => (
+        <div key={widget.id}>
+          <WidgetCard
+            editable={editable}
+            onDataConfigChange={(config) => onDataConfigChange(widget.id, config)}
+            onPresentationConfigChange={(config) => onPresentationConfigChange(widget.id, config)}
+            onRemove={() => onRemoveWidget(widget.id)}
+            widget={widget}
+          />
+        </div>
+      )),
+    [editable, onDataConfigChange, onPresentationConfigChange, onRemoveWidget, widgets]
+  );
 
   const commitLayout = (
     nextLayout: Layout,
@@ -125,6 +154,12 @@ function DashboardCanvasComponent({
   ) => {
     setInteracting(false);
     if (!editable) return;
+    setSettling(true);
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null;
+      setSettling(false);
+    }, 340);
     const stripped = stripLayout(nextLayout);
     onLayoutChange(
       breakpoint,
@@ -141,7 +176,12 @@ function DashboardCanvasComponent({
 
   return (
     <div
-      className={clsx("dashboard-grid", editable && "is-editing", interacting && "is-interacting")}
+      className={clsx(
+        "dashboard-grid",
+        editable && "is-editing",
+        interacting && "is-interacting",
+        settling && "is-settling"
+      )}
       data-testid="dashboard-canvas"
       ref={containerRef}
     >
@@ -162,27 +202,15 @@ function DashboardCanvasComponent({
           layouts={gridLayouts}
           margin={{ lg: [10, 10], md: [10, 10], sm: [8, 8] }}
           onBreakpointChange={(nextBreakpoint) => setBreakpoint(nextBreakpoint)}
-          onDragStart={() => setInteracting(true)}
+          onDragStart={beginInteraction}
           onDragStop={commitLayout}
-          onResizeStart={() => setInteracting(true)}
+          onResizeStart={beginInteraction}
           onResizeStop={commitLayout}
           resizeConfig={{ enabled: editable, handles: editable ? ["se"] : [] }}
           rowHeight={35}
           width={width}
         >
-          {widgets.map((widget) => (
-            <div key={widget.id}>
-              <WidgetCard
-                editable={editable}
-                onDataConfigChange={(config) => onDataConfigChange(widget.id, config)}
-                onPresentationConfigChange={(config) =>
-                  onPresentationConfigChange(widget.id, config)
-                }
-                onRemove={() => onRemoveWidget(widget.id)}
-                widget={widget}
-              />
-            </div>
-          ))}
+          {children}
         </Responsive>
       ) : (
         <div
@@ -194,10 +222,4 @@ function DashboardCanvasComponent({
   );
 }
 
-export const DashboardCanvas = memo(
-  DashboardCanvasComponent,
-  (previous, next) =>
-    previous.editable === next.editable &&
-    previous.layout === next.layout &&
-    previous.widgets === next.widgets
-);
+export const DashboardCanvas = memo(DashboardCanvasComponent);

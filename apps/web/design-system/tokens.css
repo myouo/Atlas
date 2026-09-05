@@ -11,6 +11,8 @@
   --color-surface: rgba(249, 252, 255, 0.72);
   --color-surface-strong: rgba(252, 254, 255, 0.88);
   --color-surface-subtle: rgba(241, 248, 255, 0.46);
+  --color-surface-mobile: rgba(249, 252, 255, 0.8);
+  --color-surface-strong-mobile: rgba(252, 254, 255, 0.91);
   --color-border: rgba(255, 255, 255, 0.64);
   --color-grid: rgba(66, 116, 235, 0.2);
   --shadow-glass:
@@ -39,6 +41,13 @@
     "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
 }
 
+:root[data-accent="blue"],
+.settings-page[data-accent="blue"] {
+  --color-primary: #3274f2;
+  --color-primary-strong: #195bd5;
+  --color-primary-soft: #edf5ff;
+}
+
 :root[data-accent="lilac"],
 .settings-page[data-accent="lilac"] {
   --color-primary: #8c63df;
@@ -58,6 +67,17 @@
   --color-surface: rgba(249, 252, 255, 0.59);
   --color-surface-strong: rgba(252, 254, 255, 0.76);
   --glass-blur: 10px;
+  --color-surface-mobile: rgba(249, 252, 255, 0.72);
+  --color-surface-strong-mobile: rgba(252, 254, 255, 0.86);
+}
+
+:root[data-glass="balanced"],
+.settings-page[data-glass="balanced"] {
+  --color-surface: rgba(249, 252, 255, 0.72);
+  --color-surface-strong: rgba(252, 254, 255, 0.88);
+  --color-surface-mobile: rgba(249, 252, 255, 0.8);
+  --color-surface-strong-mobile: rgba(252, 254, 255, 0.91);
+  --glass-blur: 14px;
 }
 
 :root[data-glass="strong"],
@@ -65,4 +85,6 @@
   --color-surface: rgba(249, 252, 255, 0.82);
   --color-surface-strong: rgba(252, 254, 255, 0.94);
   --glass-blur: 18px;
+  --color-surface-mobile: rgba(249, 252, 255, 0.92);
+  --color-surface-strong-mobile: rgba(252, 254, 255, 0.97);
 }

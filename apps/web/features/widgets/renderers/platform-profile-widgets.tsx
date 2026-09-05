@@ -20,7 +20,7 @@ function PlatformMetrics({ items }: Readonly<{ items: readonly MetricItem[] }>) 
     <div className="platform-metrics grid h-full grid-cols-2 content-center gap-x-5 gap-y-3 border-t border-blue-100/60 pt-3">
       {items.map((item) => (
         <div className="platform-metric min-w-0" key={item.label}>
-          <p className="platform-metric-label truncate text-[9px] font-semibold text-ink-muted">
+          <p className="platform-metric-label truncate text-[11px] font-medium text-ink-muted">
             {item.label}
           </p>
           <p className="platform-metric-value mt-1 truncate text-[13px] font-extrabold tracking-[-0.02em] text-ink">

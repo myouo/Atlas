@@ -54,7 +54,7 @@ export function ProfileHeroWidget({ widget }: Readonly<{ widget: WidgetOf<"profi
           </p>
         ) : null}
         {showBio ? (
-          <p className="mt-1 line-clamp-1 max-w-xl text-[11px] leading-relaxed font-medium text-ink-muted sm:text-xs">
+          <p className="mt-1 line-clamp-2 max-w-xl text-[11px] leading-relaxed font-medium text-ink-muted sm:text-xs">
             {data.bio}
           </p>
         ) : null}
