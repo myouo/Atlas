@@ -120,7 +120,7 @@ describe("API persistence failure UX", () => {
       </QueryClientProvider>
     );
     await screen.findByTestId("dashboard-canvas");
-    await userEvent.click(screen.getByRole("button", { name: "同步", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: /^同步$/ }));
     await waitFor(() => expect(enqueueProviderSync).toHaveBeenCalledTimes(2));
     expect(enqueueProviderSync).toHaveBeenCalledWith("netease");
     expect(enqueueProviderSync).toHaveBeenCalledWith("steam");
@@ -193,6 +193,7 @@ describe("API persistence failure UX", () => {
       connectSteam: unsupported,
       disconnectSteam: unsupported,
       getSteamConnection: unsupported,
+      getSteamDataCatalog: unsupported,
       cancelNeteaseAuthAttempt: unsupported,
       connectNetease: unsupported,
       disconnectNetease: unsupported,
@@ -246,6 +247,7 @@ describe("API persistence failure UX", () => {
       connectSteam: mockDashboardSource.connectSteam,
       disconnectSteam: mockDashboardSource.disconnectSteam,
       getSteamConnection: mockDashboardSource.getSteamConnection,
+      getSteamDataCatalog: mockDashboardSource.getSteamDataCatalog,
       kind: "api",
       async cancelNeteaseAuthAttempt() {
         throw new Error("offline");
@@ -355,6 +357,7 @@ describe("API persistence failure UX", () => {
       connectSteam: mockDashboardSource.connectSteam,
       disconnectSteam: mockDashboardSource.disconnectSteam,
       getSteamConnection: mockDashboardSource.getSteamConnection,
+      getSteamDataCatalog: mockDashboardSource.getSteamDataCatalog,
       kind: "api",
       async cancelNeteaseAuthAttempt() {
         throw new Error("not needed");

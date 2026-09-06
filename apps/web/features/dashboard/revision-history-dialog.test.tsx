@@ -79,6 +79,9 @@ function historySource(): DashboardDataSource {
     async getSteamConnection() {
       throw new Error("not needed");
     },
+    async getSteamDataCatalog() {
+      throw new Error("Not used by revision history.");
+    },
     async cancelNeteaseAuthAttempt() {
       throw new Error("not needed");
     },

@@ -11,6 +11,11 @@ import { widgetRegistry } from "./widget-registry";
 import type { WidgetDataPreset } from "./widget-registry";
 import type { RuntimeWidgetProjection } from "./widget-types";
 import type { WidgetPresentationControl } from "./widget-presentation";
+import {
+  WidgetDataPlaceholder,
+  WidgetRenderBoundary,
+  widgetHasDisplayData
+} from "./widget-render-boundary";
 
 interface WidgetCardProps {
   readonly editable: boolean;
@@ -73,7 +78,14 @@ function WidgetCardComponent({
         stale={widget.stale}
         title={widget.title}
       >
-        <Renderer widget={widget as never} />
+        {widgetHasDisplayData(widget) ? (
+          <Renderer widget={widget as never} />
+        ) : (
+          <WidgetDataPlaceholder
+            editable={editable}
+            legacySteam={widget.type === "steam.profile" && widget.schemaVersion === 1}
+          />
+        )}
       </ModuleShell>
       {settingsMounted && configurable && "presentationConfig" in widget ? (
         <WidgetSettingsDialog
@@ -93,7 +105,29 @@ function WidgetCardComponent({
   );
 }
 
-export const WidgetCard = memo(WidgetCardComponent);
+export const WidgetCard = memo(function WidgetCard(props: WidgetCardProps) {
+  const { widget, editable, onRemove } = props;
+  // Successful syncs and configuration changes automatically retry the card.
+  const resetKey = `${widget.id}:${widget.type}:${widget.schemaVersion}:${widget.updatedAt}:${JSON.stringify("dataConfig" in widget ? widget.dataConfig : {})}:${JSON.stringify("presentationConfig" in widget ? widget.presentationConfig : {})}`;
+  return (
+    <WidgetRenderBoundary
+      resetKey={resetKey}
+      fallback={
+        <ModuleShell
+          accent="lilac"
+          editable={editable}
+          title={widget.title}
+          onRemove={onRemove}
+          stale
+        >
+          <WidgetDataPlaceholder failed editable={editable} />
+        </ModuleShell>
+      }
+    >
+      <WidgetCardComponent {...props} />
+    </WidgetRenderBoundary>
+  );
+});
 
 function WidgetSettingsDialog({
   controls,

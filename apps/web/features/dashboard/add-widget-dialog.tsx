@@ -37,7 +37,7 @@ export function AddWidgetDialog({ onAdd, onOpenChange, open, widgets }: AddWidge
               添加模块
             </Dialog.Title>
             <Dialog.Description className="mt-1 text-xs leading-relaxed text-ink-muted">
-              选择想展示的内容。添加后可拖动、调整大小和设置展示字段。
+              这里只列出已实现的模块。添加后可拖动、调整大小和设置展示字段。
             </Dialog.Description>
             <Dialog.Close
               aria-label="关闭"
@@ -51,7 +51,7 @@ export function AddWidgetDialog({ onAdd, onOpenChange, open, widgets }: AddWidge
                 aria-label="搜索模块"
                 className="h-11 min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="搜索音乐、统计、GitHub…"
+                placeholder="搜索个人档案、网易云、Steam…"
                 type="search"
                 value={search}
               />

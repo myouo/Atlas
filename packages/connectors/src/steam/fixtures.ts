@@ -21,13 +21,50 @@ export function createSteamFixtureFetcher(scenario: SteamFixtureScenario = "norm
               personastate: 1,
               avatarfull: "https://avatars.steamstatic.com/fixture.jpg",
               realname: "Not for public disclosure",
-              loccountrycode: "XX"
+              loccountrycode: "XX",
+              timecreated: 1400000000,
+              lastlogoff: 1700000000,
+              gameid: "10",
+              gameextrainfo: "Fixture Game A"
             }
           ]
         }
       });
     if (url.pathname.includes("GetSteamLevel"))
       return Response.json({ response: { player_level: 12 } });
+    if (url.pathname.includes("GetBadges"))
+      return Response.json({
+        response: {
+          badges:
+            scenario === "empty"
+              ? []
+              : [
+                  {
+                    badgeid: 1,
+                    appid: 10,
+                    level: 2,
+                    xp: 200,
+                    completion_time: 1700000000,
+                    border_color: 0
+                  }
+                ],
+          player_level: 12,
+          player_xp: 1500,
+          player_xp_needed_to_level_up: 100,
+          player_xp_needed_current_level: 1400
+        }
+      });
+    if (url.pathname.includes("GetPlayerAchievements"))
+      return Response.json({
+        playerstats: {
+          success: true,
+          steamID: steamFixtureId,
+          achievements: [
+            { apiname: "FIRST_STEP", name: "First step", achieved: 1, unlocktime: 1700000000 },
+            { apiname: "ALL_DONE", name: "All done", achieved: 0, unlocktime: 0 }
+          ]
+        }
+      });
     const games =
       scenario === "empty"
         ? []
@@ -36,6 +73,11 @@ export function createSteamFixtureFetcher(scenario: SteamFixtureScenario = "norm
               appid: 10,
               name: "Fixture Game A",
               img_icon_url: "b".repeat(40),
+              rtime_last_played: 1700000000,
+              has_community_visible_stats: true,
+              playtime_windows_forever: 100,
+              playtime_mac_forever: 0,
+              playtime_linux_forever: 25,
               ...(scenario === "hidden_playtime"
                 ? {}
                 : { playtime_forever: 125, playtime_2weeks: 20 })

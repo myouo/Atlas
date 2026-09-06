@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { dashboardSource } from "../../api/dashboard-source-factory";
+import { SteamDataExplorer } from "./steam-data-explorer";
 
 const statusLabels = {
   not_configured: "未连接",
@@ -83,6 +84,7 @@ export function SteamSettings({ owner }: { readonly owner: boolean }) {
     finished.current = value.jobId;
     void queryClient.invalidateQueries({ queryKey: ["provider-connection", "steam"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["provider-data", "steam"] });
   }, [job.data, queryClient]);
   const active =
     jobId !== null &&
@@ -253,6 +255,7 @@ export function SteamSettings({ owner }: { readonly owner: boolean }) {
                 ? "同步失败，之前成功的数据已保留。请检查凭据和 Steam 隐私设置。"
                 : notice}
           </p>
+          <SteamDataExplorer enabled={Boolean(configured)} />
         </>
       )}
     </section>

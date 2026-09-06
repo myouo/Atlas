@@ -100,7 +100,7 @@ describe("Steam PostgreSQL runtime", () => {
       providerAccountId: steamFixtureId
     });
     const raw = await repository.listRawSnapshotsForRun(accepted.validationJob.id);
-    expect(raw).toHaveLength(4);
+    expect(raw).toHaveLength(6);
     const saved = await database
       .selectFrom("widget_projections")
       .selectAll()

@@ -314,13 +314,19 @@ const worker = {
             );
           }
 
-          if (requestUrl.pathname === "/v1/me/providers/netease/data" && request.method === "GET") {
-            const catalog = await providers.sync.getOwnerDataCatalog(session.actor.id);
+          if (
+            ["/v1/me/providers/netease/data", "/v1/me/providers/steam/data"].includes(
+              requestUrl.pathname
+            ) &&
+            request.method === "GET"
+          ) {
+            const provider = requestUrl.pathname.includes("/steam/") ? "steam" : "netease";
+            const catalog = await providers.sync.getOwnerDataCatalog(session.actor.id, provider);
             if (!catalog) {
               return problem(
                 404,
                 "provider-data-not-found",
-                "NetEase data has not been synchronized yet",
+                "Provider data has not been synchronized yet",
                 requestUrl.pathname,
                 requestId,
                 corsHeaders

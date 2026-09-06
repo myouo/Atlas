@@ -23,10 +23,12 @@ import type {
   SteamProfileData
 } from "@nivalis/domain";
 import { SteamClient } from "./steam-client";
+import { collectAchievements, STEAM_ACHIEVEMENT_BUDGET } from "./steam-achievements";
 import {
   normalizeSteam,
   object,
   sanitizeGames,
+  sanitizeBadges,
   sanitizeLevel,
   sanitizeProfile,
   unavailable
@@ -44,31 +46,45 @@ export const STEAM_PROVIDER_MANIFEST = {
     },
     limits: {
       maxBatchBytes: 16_000_000,
-      maxBatchRecords: 4,
+      maxBatchRecords: 6,
       maxCacheRecords: 0,
       maxCheckpointBytes: 1024,
       maxCollectionBytes: 16_000_000,
       maxContinuationBatches: 1,
-      maxIssues: 4,
+      maxIssues: 6,
       maxNormalizedBytes: 16_000_000,
       maxProjectionBytes: 1_000_000,
       maxRecordBytes: 5_000_000
     },
     normalizedSchema: {
-      acceptedVersions: [1],
+      acceptedVersions: [1, 2],
       id: providerNormalizedSchemaId("steam"),
-      producedVersion: 1
+      producedVersion: 2
     },
-    sources: ["steam.profile", "steam.library", "steam.recent", "steam.level"].map((id) => ({
+    sources: [
+      "steam.profile",
+      "steam.library",
+      "steam.recent",
+      "steam.level",
+      "steam.badges",
+      "steam.achievements"
+    ].map((id) => ({
       id,
-      criticality: "required" as const,
+      criticality:
+        id === "steam.badges" || id === "steam.achievements"
+          ? ("optional" as const)
+          : ("required" as const),
       dataShape: "document" as const,
       extensions: {},
       mediaTypes: ["application/json"],
       operations: ["replace" as const],
       partitions: ["singleton" as const],
       payloadKinds: ["json" as const],
-      schema: { acceptedVersions: [1], id: providerSourceSchemaId("steam", id), producedVersion: 1 }
+      schema: {
+        acceptedVersions: sourceVersion(id) === 1 ? [1] : [1, 2],
+        id: providerSourceSchemaId("steam", id),
+        producedVersion: sourceVersion(id)
+      }
     }))
   },
   meta: providerProtocolMetadata("manifest", "steam")
@@ -104,28 +120,66 @@ export class SteamConnector implements ProviderConnector {
       secret.steamId
     );
     const isPrivate = account.communityvisibilitystate !== 3;
-    const [library, recent, level] = isPrivate
-      ? [unavailable("private"), unavailable("private"), { player_level: null }]
-      : await Promise.all([
-          this.client
-            .get("library", secret.steamId, secret.apiKey)
-            .then((value) => sanitizeGames(value, "library")),
-          this.client
-            .get("recent", secret.steamId, secret.apiKey)
-            .then((value) => sanitizeGames(value, "recent")),
-          this.client.get("level", secret.steamId, secret.apiKey).then(sanitizeLevel)
+    const [library, recent, level, badges] = isPrivate
+      ? [
+          unavailable("private"),
+          unavailable("private"),
+          { player_level: null },
+          unavailable("private")
+        ]
+      : await parallelReads([
+          () =>
+            this.client
+              .get("library", secret.steamId, secret.apiKey)
+              .then((value) => sanitizeGames(value, "library")),
+          () =>
+            this.client
+              .get("recent", secret.steamId, secret.apiKey)
+              .then((value) => sanitizeGames(value, "recent")),
+          () => this.client.get("level", secret.steamId, secret.apiKey).then(sanitizeLevel),
+          () => this.client.get("badges", secret.steamId, secret.apiKey).then(sanitizeBadges)
         ]);
+    const achievements = isPrivate
+      ? {
+          scope: "recent_and_most_played",
+          requestBudget: STEAM_ACHIEVEMENT_BUDGET,
+          candidateCount: null,
+          games: []
+        }
+      : await collectAchievements(this.client, secret.steamId, secret.apiKey, library!, recent!);
     const payloads: [string, JsonObject][] = [
       ["steam.profile", account],
       ["steam.library", library!],
       ["steam.recent", recent!],
-      ["steam.level", level!]
+      ["steam.level", level!],
+      ["steam.badges", badges!],
+      ["steam.achievements", achievements]
     ];
     const issues = payloads
-      .filter(([, data]) => data.availability === "unavailable")
+      .filter(
+        ([source, data]) =>
+          data.availability === "unavailable" ||
+          (source === "steam.achievements" &&
+            (data.candidateCount === null ||
+              (Array.isArray(data.games) &&
+                (data.games.length !== data.candidateCount ||
+                  data.games.some(
+                    (game) =>
+                      game &&
+                      typeof game === "object" &&
+                      !Array.isArray(game) &&
+                      game.availability === "unavailable"
+                  )))))
+      )
       .map(([source]) => ({
-        code: "steam-data-unavailable",
-        message: "Steam did not expose this data; check profile and game-details visibility.",
+        code:
+          source === "steam.achievements"
+            ? "steam-achievement-coverage-partial"
+            : "steam-data-unavailable",
+        message:
+          source === "steam.achievements"
+            ? "Achievement coverage is bounded; some games are deferred or unavailable."
+            : "Steam did not expose this data; check profile and game-details visibility.",
         partition: { kind: "singleton" as const },
         retryable: false,
         severity: "warning" as const,
@@ -144,7 +198,7 @@ export class SteamConnector implements ProviderConnector {
           partition: { kind: "singleton" as const },
           payloadKind: "json" as const,
           schemaId: providerSourceSchemaId("steam", source),
-          schemaVersion: 1,
+          schemaVersion: sourceVersion(source),
           source,
           sourceUpdatedAt: null
         }
@@ -167,7 +221,9 @@ export class SteamConnector implements ProviderConnector {
 export class SteamNormalizer {
   async normalize(input: ProviderNormalizationInput): Promise<NormalizedProviderData> {
     const data = normalizeSteam(
-      new Map(input.data.records.map((record) => [record.meta.source, record.data]))
+      new Map(input.data.records.map((record) => [record.meta.source, record.data])),
+      input.data.records.find((record) => record.meta.source === "steam.recent")?.meta
+        .schemaVersion ?? 1
     );
     return {
       data,
@@ -177,7 +233,7 @@ export class SteamNormalizer {
         issues: input.data.issues,
         outcome: input.data.collectionOutcome,
         schemaId: providerNormalizedSchemaId("steam"),
-        schemaVersion: 1,
+        schemaVersion: 2,
         sourceSnapshots: materializeProviderLineage(input)
       }
     };
@@ -228,7 +284,18 @@ export class SteamProjector {
           recentGames:
             target.dataConfig.shareRecentGames === true
               ? payload.recentGames.availability === "available"
-                ? { ...payload.recentGames, items: payload.recentGames.items.slice(0, 6) }
+                ? {
+                    availability: "available",
+                    totalCount: payload.recentGames.totalCount,
+                    items: payload.recentGames.items.slice(0, 6).map((game) => ({
+                      appId: game.appId,
+                      name: game.name,
+                      iconUrl: game.iconUrl,
+                      storeUrl: game.storeUrl,
+                      playtimeMinutes: game.playtimeMinutes,
+                      recentPlaytimeMinutes: game.recentPlaytimeMinutes
+                    }))
+                  }
                 : payload.recentGames
               : unavailable("not_shared")
         };
@@ -247,6 +314,26 @@ export class SteamProjector {
       }
     };
   }
+}
+
+function sourceVersion(source: string) {
+  return source === "steam.level" || source === "steam.badges" || source === "steam.achievements"
+    ? 1
+    : 2;
+}
+
+async function parallelReads(tasks: readonly (() => Promise<JsonObject>)[]) {
+  const results: JsonObject[] = [];
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(3, tasks.length) }, async () => {
+      while (cursor < tasks.length) {
+        const index = cursor++;
+        results[index] = await tasks[index]!();
+      }
+    })
+  );
+  return results;
 }
 
 export class SteamProviderRuntime implements ProviderRuntimeModule {

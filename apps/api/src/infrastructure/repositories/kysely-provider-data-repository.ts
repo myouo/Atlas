@@ -11,7 +11,7 @@ export class KyselyProviderDataCatalogReader implements ProviderDataCatalogReade
     ownerId: string,
     provider: ProviderType
   ): Promise<ProviderDataCatalogRecord | null> {
-    if (provider !== "netease") return null;
+    if (provider !== "netease" && provider !== "steam") return null;
     const row = await this.database
       .selectFrom("provider_data_catalogs as catalog")
       .innerJoin(

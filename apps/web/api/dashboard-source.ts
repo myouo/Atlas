@@ -5,6 +5,7 @@ import type {
   DashboardRevisionList,
   DashboardState,
   NeteaseDataCatalog,
+  SteamDataCatalog,
   Provider,
   ProviderAuthAttempt,
   ProviderConnectAccepted,
@@ -52,6 +53,7 @@ export interface DashboardDataSource {
   connectSteam(steamId: string, apiKey: string): Promise<ProviderConnectAccepted>;
   disconnectSteam(): Promise<void>;
   getSteamConnection(): Promise<ProviderConnection>;
+  getSteamDataCatalog(): Promise<SteamDataCatalog>;
   cancelNeteaseAuthAttempt(attemptId: string): Promise<void>;
   disconnectNetease(): Promise<void>;
   getNeteaseConnection(): Promise<ProviderConnection>;

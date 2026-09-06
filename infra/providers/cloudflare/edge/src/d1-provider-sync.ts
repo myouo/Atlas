@@ -51,6 +51,7 @@ import {
 } from "./d1-provider-credential-repository";
 import { createPortableProjectionKey } from "./projection-key";
 import { decodeRawPayload, encodeRawPayload } from "./raw-payload-codec";
+import { prepareNormalizedStorage, readStoredNormalizedJson } from "./normalized-payload-storage";
 import type { WebCryptoSecretProtector } from "./web-crypto-auth";
 
 interface SyncRunRow {
@@ -258,7 +259,7 @@ export class D1ProviderSyncRuntime {
     ];
   }
 
-  async getOwnerDataCatalog(ownerId: string) {
+  async getOwnerDataCatalog(ownerId: string, provider: ConnectedProvider = "netease") {
     const row = await this.database
       .prepare(
         `SELECT catalog.schema_version, catalog.data_version_id,
@@ -266,18 +267,18 @@ export class D1ProviderSyncRuntime {
            FROM provider_data_catalogs AS catalog
            JOIN provider_connections AS connection
              ON connection.id = catalog.provider_connection_id
-          WHERE connection.owner_id = ? AND connection.provider = 'netease'
-            AND catalog.provider = 'netease'
+          WHERE connection.owner_id = ? AND connection.provider = ?
+            AND catalog.provider = ?
           LIMIT 1`
       )
-      .bind(ownerId)
+      .bind(ownerId, provider, provider)
       .first<ProviderDataCatalogRow>();
     if (!row) return null;
     return {
-      catalog: JSON.parse(row.data_json) as JsonObject,
+      catalog: await readStoredNormalizedJson(this.database, row.data_json),
       dataVersion: row.data_version_id,
       generatedAt: new Date(row.generated_at),
-      provider: "netease" as const,
+      provider,
       schemaVersion: row.schema_version
     };
   }
@@ -437,6 +438,12 @@ export class D1ProviderSyncRuntime {
       const projectionMs = performance.now() - projectionStartedAt;
       const completedAt = new Date();
       const projectionVersionId = crypto.randomUUID();
+      const normalizedSnapshotId = crypto.randomUUID();
+      const normalizedStorage = await prepareNormalizedStorage(
+        this.database,
+        normalizedSnapshotId,
+        normalized
+      );
       const statements: D1PreparedStatement[] = projections.map((projection) =>
         this.database
           .prepare(
@@ -523,14 +530,15 @@ export class D1ProviderSyncRuntime {
             .prepare(
               `INSERT INTO provider_data_catalogs
             (provider_connection_id, provider, schema_version, data_version_id, data_json, generated_at)
-            VALUES (?, 'steam', 1, ?, ?, ?)
-            ON CONFLICT(provider_connection_id) DO UPDATE SET data_version_id=excluded.data_version_id,
+            VALUES (?, 'steam', ?, ?, ?, ?)
+            ON CONFLICT(provider_connection_id) DO UPDATE SET schema_version=excluded.schema_version, data_version_id=excluded.data_version_id,
             data_json=excluded.data_json, generated_at=excluded.generated_at`
             )
             .bind(
               run.providerConnectionId,
+              normalized.meta.schemaVersion,
               projectionVersionId,
-              JSON.stringify(normalized.data),
+              normalizedStorage.catalogJson,
               completedAt.toISOString()
             ),
           this.database
@@ -548,14 +556,14 @@ export class D1ProviderSyncRuntime {
              ON CONFLICT(sync_run_id) DO NOTHING`
           )
           .bind(
-            crypto.randomUUID(),
+            normalizedSnapshotId,
             run.id,
             run.providerConnectionId,
             run.provider,
             normalized.meta.protocolVersion,
             normalized.meta.schemaId,
             normalized.meta.schemaVersion,
-            JSON.stringify(normalized),
+            normalizedStorage.messageJson,
             completedAt.toISOString()
           ),
         this.database
@@ -597,6 +605,7 @@ export class D1ProviderSyncRuntime {
           .bind(completedAt.toISOString(), run.id)
       );
       const commitStartedAt = performance.now();
+      statements.push(...normalizedStorage.chunks);
       await this.database.batch(statements);
       const commitMs = performance.now() - commitStartedAt;
       const completed: D1SyncRun = {
@@ -750,7 +759,7 @@ export class D1ProviderSyncRuntime {
       .bind(run.providerConnectionId, run.id, run.requestedAt.toISOString())
       .first<NormalizedSnapshotRow>();
     if (!row) return null;
-    const parsed: unknown = JSON.parse(row.message_json);
+    const parsed: unknown = await readStoredNormalizedJson(this.database, row.message_json);
     assertCompatibleNormalizedData(parsed, runtime.manifest);
     return parsed;
   }

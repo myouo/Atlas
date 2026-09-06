@@ -35,6 +35,8 @@ export interface WidgetDefinition {
   readonly accent: WidgetAccent;
   readonly allowMultiple: boolean;
   readonly catalogVisible?: boolean;
+  /** Opt in only when creation, data collection and empty states are implemented. */
+  readonly implementation?: "ready";
   readonly description: string;
   readonly dataPresets?: readonly WidgetDataPreset[];
   readonly expandable?: boolean;
@@ -82,7 +84,7 @@ export class WidgetRegistry {
 
   list() {
     return [...this.definitions.values()].filter(
-      (definition) => definition.catalogVisible !== false
+      (definition) => definition.implementation === "ready" && definition.catalogVisible !== false
     );
   }
 
@@ -141,6 +143,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "profile.hero",
     schemaVersion: 1,
+    implementation: "ready",
     name: "个人档案",
     description: "头像、身份与简介",
     Icon: UserCircle,
@@ -205,6 +208,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.identity",
     schemaVersion: 1,
+    implementation: "ready",
     name: "网易云 · 身份档案",
     description: "等级、VIP 与账号信息",
     Icon: SiNeteasecloudmusic,
@@ -275,6 +279,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.listening",
     schemaVersion: 1,
+    implementation: "ready",
     name: "网易云 · 收听足迹",
     description: "累计听歌与累计时长",
     Icon: SiNeteasecloudmusic,
@@ -305,6 +310,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.calendar",
     schemaVersion: 1,
+    implementation: "ready",
     name: "网易云 · 收听日历",
     description: "周月逐日听歌时长",
     Icon: SiNeteasecloudmusic,
@@ -380,6 +386,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.ranking",
     schemaVersion: 2,
+    implementation: "ready",
     name: "网易云 · 听歌双榜",
     description: "周榜与总榜",
     Icon: SiNeteasecloudmusic,
@@ -484,6 +491,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.playlists",
     schemaVersion: 1,
+    implementation: "ready",
     name: "网易云 · 创建歌单",
     description: "公开创建的歌单",
     Icon: SiNeteasecloudmusic,
@@ -571,6 +579,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.showcase",
     schemaVersion: 2,
+    implementation: "ready",
     name: "网易云 · 音乐展柜",
     description: "主页音乐卡片",
     Icon: SiNeteasecloudmusic,
@@ -602,6 +611,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "music.netease.overview",
     schemaVersion: 2,
+    implementation: "ready",
     name: "网易云音乐",
     description: "音乐数据概览",
     Icon: SiNeteasecloudmusic,
@@ -691,6 +701,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register({
     type: "steam.profile",
     schemaVersion: 2,
+    implementation: "ready",
     name: "Steam",
     description: "账号、游戏库与最近游玩",
     Icon: SiSteam,

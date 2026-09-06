@@ -373,6 +373,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/providers/steam/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the full sanitized Owner-only Steam catalog and coverage */
+        get: operations["getSteamProviderDataCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/providers/netease": {
         parameters: {
             query?: never;
@@ -1242,6 +1259,20 @@ export interface components {
             providerVisibility?: string | null;
             sourceBlockCode?: string | null;
             sourceBlockType?: string;
+        };
+        SteamDataCatalog: {
+            /** @constant */
+            provider: "steam";
+            /** @enum {integer} */
+            schemaVersion: 1 | 2;
+            /** Format: uuid */
+            dataVersion: string;
+            /** Format: date-time */
+            generatedAt: string;
+            /** @description Steam normalized schema selected by schemaVersion. Version 2 includes account, accountDetails, full library and recentGames, badges and explicit coverage. Owner-only; not a public widget payload. */
+            catalog: {
+                [key: string]: unknown;
+            };
         };
         NeteaseDataCatalog: {
             /** @constant */
@@ -2356,6 +2387,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getSteamProviderDataCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Versioned full data, independent of public card limits */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SteamDataCatalog"];
+                };
             };
             401: components["responses"]["Problem"];
             403: components["responses"]["Problem"];

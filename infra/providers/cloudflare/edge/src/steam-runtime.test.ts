@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { ProviderConnectionService } from "@nivalis/application";
@@ -16,13 +17,14 @@ import {
 } from "./d1-provider-credential-repository";
 import { WebCryptoSecretProtector } from "./web-crypto-auth";
 import type { CloudflareQueueMessage } from "./cloudflare-sync-queue";
+import { readStoredNormalizedJson } from "./normalized-payload-storage";
 
 const directory = "infra/providers/cloudflare/edge/migrations";
 const owner = "00000000-0000-4000-8000-000000000001";
 const apiKey = "a".repeat(32);
 const now = new Date("2026-09-06T00:00:00.000Z");
 
-function database(through = 9) {
+function database(through = 10) {
   const sqlite = new DatabaseSync(":memory:");
   for (const file of readdirSync(directory)
     .filter((name) => name.endsWith(".sql") && Number(name.slice(0, 4)) <= through)
@@ -85,6 +87,12 @@ class Statement implements D1PreparedStatement {
       this.sql,
       values.map((value) => {
         if (
+          (typeof value === "string" && new TextEncoder().encode(value).byteLength > 1_900_000) ||
+          (ArrayBuffer.isView(value) && value.byteLength > 1_900_000) ||
+          (value instanceof ArrayBuffer && value.byteLength > 1_900_000)
+        )
+          throw new Error("Test D1 per-value byte limit exceeded");
+        if (
           value === null ||
           typeof value === "number" ||
           typeof value === "string" ||
@@ -131,6 +139,85 @@ class Statement implements D1PreparedStatement {
 }
 
 describe("Steam D1 integration", () => {
+  it("stores a large library losslessly below D1 row limits and detects incomplete chunks", async () => {
+    const sqlite = database();
+    try {
+      const db = new SqliteD1(sqlite);
+      const protector = new WebCryptoSecretProtector(new Uint8Array(32).fill(7), "test");
+      const metrics = { backlogCount: 0, backlogBytes: 0 };
+      const queue: Queue<CloudflareQueueMessage> = {
+        send: async () => ({ metadata: { metrics } }),
+        sendBatch: async () => ({ metadata: { metrics } }),
+        metrics: async () => metrics
+      };
+      const games = Array.from({ length: 12000 }, (_, index) => ({
+        appid: index + 1,
+        name: `Large library game ${index + 1} ${createHash("sha256").update(String(index)).digest("hex")}`,
+        playtime_forever: index,
+        playtime_2weeks: index,
+        rtime_last_played: 1700000000,
+        has_community_visible_stats: true
+      }));
+      const original = createSteamFixtureFetcher();
+      const fetcher: typeof fetch = async (input, init) =>
+        String(input).includes("GetOwnedGames")
+          ? Response.json({ response: { game_count: games.length, games } })
+          : String(input).includes("GetRecentlyPlayedGames")
+            ? Response.json({ response: { total_count: 35, games: games.slice(0, 35) } })
+            : original(input, init);
+      const runtime = new D1ProviderSyncRuntime(db, queue, protector, 1000, 3, fetcher);
+      const repo = new D1ProviderCredentialRepository(db);
+      const connections = new ProviderConnectionService(
+        repo,
+        new D1ProviderConnectionUnitOfWork(db),
+        protector,
+        { now: () => new Date() },
+        (context, provider) => runtime.enqueue(context.actorId, provider)
+      );
+      sqlite.exec(
+        `UPDATE dashboard_revision_widgets SET provider='steam',schema_version=2,data_config_json='{"shareRecentGames":true}' WHERE widget_type='steam.profile'`
+      );
+      const accepted = await connections.connectSteam({ actorId: owner }, steamFixtureId, apiKey);
+      expect((await runtime.process(accepted.validationJob.id)).run.status).toBe("completed");
+      const catalog = await runtime.getOwnerDataCatalog(owner, "steam");
+      expect(catalog?.schemaVersion).toBe(2);
+      const library = catalog?.catalog.library as { games: unknown[]; gameCount: number };
+      expect(library.games).toHaveLength(12000);
+      expect(library.gameCount).toBe(12000);
+      expect(catalog?.catalog.coverage).toMatchObject({
+        recentGames: { status: "complete", collectedCount: 35 },
+        achievements: { status: "partial", reportedCount: 12000 }
+      });
+      const row = sqlite
+        .prepare("SELECT message_json FROM provider_normalized_snapshots WHERE provider='steam'")
+        .get()!;
+      const normalized = await readStoredNormalizedJson(db, String(row.message_json));
+      expect(normalized.data).toEqual(catalog?.catalog);
+      expect(JSON.stringify(catalog)).not.toContain("_nivalisNormalizedStorage");
+      expect(await connections.getSteam({ actorId: owner })).toMatchObject({
+        displayName: "Steam Fixture"
+      });
+      const stored = sqlite
+        .prepare("SELECT length(payload) AS size FROM provider_normalized_payload_chunks")
+        .all();
+      expect(stored.length).toBeGreaterThan(1);
+      expect(stored.every((row) => Number(row.size) <= 512000)).toBe(true);
+      expect(await runtime.getOwnerDataCatalog("another-owner", "steam")).toBeNull();
+      expect(() =>
+        sqlite.exec("UPDATE provider_normalized_payload_chunks SET chunk_index=10")
+      ).toThrow("immutable");
+      const corruptedReference = JSON.parse(String(row.message_json));
+      corruptedReference._nivalisNormalizedStorage.sha256 = "0".repeat(64);
+      await expect(
+        readStoredNormalizedJson(db, JSON.stringify(corruptedReference))
+      ).rejects.toThrow("integrity");
+      // Explicit corruption simulation in an isolated in-memory DB, not a production mutation.
+      sqlite.exec("DELETE FROM provider_normalized_payload_chunks WHERE chunk_index=0");
+      await expect(runtime.getOwnerDataCatalog(owner, "steam")).rejects.toThrow("Incomplete");
+    } finally {
+      sqlite.close();
+    }
+  });
   it("preserves the legacy FK graph, credentials, evidence and immutable snapshots during upgrade", async () => {
     const sqlite = database(8);
     try {
@@ -255,7 +342,7 @@ describe("Steam D1 integration", () => {
       });
       expect(
         sqlite.prepare("SELECT id FROM provider_raw_snapshots WHERE provider='steam'").all()
-      ).toHaveLength(4);
+      ).toHaveLength(6);
       expect(
         sqlite.prepare("SELECT id FROM provider_normalized_snapshots WHERE provider='steam'").all()
       ).toHaveLength(1);

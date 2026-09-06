@@ -30,15 +30,15 @@ test("display and edit modes share the canvas while editing chrome stays isolate
 
 test("adds and removes a distinct Widget instance", async ({ page }) => {
   await page.getByRole("button", { name: "编辑视图" }).click();
-  const githubShells = page.getByRole("region", { name: /^GitHub/ });
-  const initialCount = await githubShells.count();
+  const steamShells = page.getByRole("region", { name: /^Steam/ });
+  const initialCount = await steamShells.count();
 
   await page.getByRole("button", { name: "添加模块" }).first().click();
-  await page.getByRole("button", { name: /GitHub.*仓库/ }).click();
-  await expect(githubShells).toHaveCount(initialCount + 1);
+  await page.getByRole("button", { name: /Steam.*游戏库/ }).click();
+  await expect(steamShells).toHaveCount(initialCount + 1);
 
-  await page.getByRole("button", { name: /移除 GitHub · 新实例/ }).click();
-  await expect(githubShells).toHaveCount(initialCount);
+  await page.getByRole("button", { name: /^移除 Steam$/ }).click();
+  await expect(steamShells).toHaveCount(initialCount);
 });
 
 test("resizes a module and persists the draft layout locally", async ({ page, isMobile }) => {

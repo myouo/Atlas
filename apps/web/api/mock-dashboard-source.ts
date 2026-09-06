@@ -104,6 +104,11 @@ export const mockDashboardSource: DashboardDataSource = {
       providerAccountId: null
     };
   },
+  async getSteamDataCatalog() {
+    throw new Error(
+      "Steam data requires an API connection; Mock mode has no synchronized Steam catalog."
+    );
+  },
   async connectSteam() {
     throw new Error("Steam connections require API mode; no Steam request was sent.");
   },

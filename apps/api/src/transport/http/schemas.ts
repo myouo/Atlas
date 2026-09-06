@@ -486,6 +486,17 @@ export const NeteaseDataCatalogSchema = Type.Object(
   { additionalProperties: false }
 );
 
+export const SteamDataCatalogSchema = Type.Object(
+  {
+    catalog: JsonObjectSchema,
+    dataVersion: Type.String({ format: "uuid" }),
+    generatedAt: Type.String({ format: "date-time" }),
+    provider: Type.Literal("steam"),
+    schemaVersion: Type.Integer({ minimum: 1, maximum: 2 })
+  },
+  { additionalProperties: false }
+);
+
 export const GithubProfileWidgetSchema = Type.Object(
   {
     ...widgetEnvelopeProperties,

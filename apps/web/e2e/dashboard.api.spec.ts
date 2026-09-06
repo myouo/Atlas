@@ -49,12 +49,12 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   expect(historyAfterSync.items).toHaveLength(initialHistory.items.length);
 
   await page.getByRole("button", { name: "编辑视图" }).click();
-  const githubRegions = page.getByRole("region", { name: /^GitHub/ });
-  await expect(githubRegions).toHaveCount(1);
+  const steamRegions = page.getByRole("region", { name: /^Steam/ });
+  await expect(steamRegions).toHaveCount(1);
 
   await page.getByRole("button", { name: "添加模块" }).first().click();
-  await page.getByRole("button", { name: /GitHub.*仓库/ }).click();
-  await expect(githubRegions).toHaveCount(2);
+  await page.getByRole("button", { name: /Steam.*游戏库/ }).click();
+  await expect(steamRegions).toHaveCount(2);
 
   const profileItem = page
     .locator(".react-grid-item")
@@ -103,7 +103,7 @@ test("API mode persists, rejects stale clients, and restores immutable history",
 
   await page.reload();
   await page.getByRole("button", { name: "编辑视图" }).click();
-  await expect(page.getByRole("region", { name: /^GitHub/ })).toHaveCount(2);
+  await expect(page.getByRole("region", { name: /^Steam/ })).toHaveCount(2);
   const reloadedResponse = await api.get("http://127.0.0.1:3002/v1/me/dashboards/about/draft");
   const reloadedDashboard = await reloadedResponse.json();
   expect(
@@ -113,10 +113,10 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   await page.getByRole("button", { name: "发布布局" }).click();
   await expect(page.getByText("草稿已显式发布到展示视图")).toBeVisible();
   await expect(page.getByRole("button", { name: /^拖动/ })).toHaveCount(0);
-  await expect(page.getByRole("region", { name: /^GitHub/ })).toHaveCount(2);
+  await expect(page.getByRole("region", { name: /^Steam/ })).toHaveCount(2);
 
   await page.reload();
-  await expect(page.getByRole("region", { name: /^GitHub/ })).toHaveCount(2);
+  await expect(page.getByRole("region", { name: /^Steam/ })).toHaveCount(2);
 
   const publicResponse = await api.get("http://127.0.0.1:3002/v1/public/dashboards/about");
   expect(publicResponse.ok()).toBe(true);
@@ -136,12 +136,12 @@ test("API mode persists, rejects stale clients, and restores immutable history",
     pageA.getByRole("button", { name: "编辑视图" }).click(),
     pageB.getByRole("button", { name: "编辑视图" }).click()
   ]);
-  const initialGithubCount = await pageA.getByRole("region", { name: /^GitHub/ }).count();
+  const initialSteamCount = await pageA.getByRole("region", { name: /^Steam/ }).count();
   for (const clientPage of [pageA, pageB]) {
     await clientPage.getByRole("button", { name: "添加模块" }).first().click();
-    await clientPage.getByRole("button", { name: /GitHub.*仓库/ }).click();
-    await expect(clientPage.getByRole("region", { name: /^GitHub/ })).toHaveCount(
-      initialGithubCount + 1
+    await clientPage.getByRole("button", { name: /Steam.*游戏库/ }).click();
+    await expect(clientPage.getByRole("region", { name: /^Steam/ })).toHaveCount(
+      initialSteamCount + 1
     );
   }
 
@@ -151,7 +151,7 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   await expect(pageB.getByRole("dialog", { name: "检测到新的版本" })).toBeVisible();
   await expect(pageB.getByText("草稿有未保存调整")).toBeVisible();
   await pageB.getByRole("button", { exact: true, name: "保留本地修改" }).click();
-  await expect(pageB.getByRole("region", { name: /^GitHub/ })).toHaveCount(initialGithubCount + 1);
+  await expect(pageB.getByRole("region", { name: /^Steam/ })).toHaveCount(initialSteamCount + 1);
   await expect(pageB.getByText("草稿有未保存调整")).toBeVisible();
   await Promise.all([contextA.close(), contextB.close()]);
 
@@ -164,7 +164,7 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   await expect(page.getByText("确认恢复 Revision 1？")).toBeVisible();
   await page.getByRole("button", { name: "恢复为新草稿" }).click();
   await expect(page.getByText(/已创建恢复后的新草稿 Revision 4/)).toBeVisible();
-  await expect(page.getByRole("region", { name: /^GitHub/ })).toHaveCount(1);
+  await expect(page.getByRole("region", { name: /^Steam/ })).toHaveCount(1);
 
   const historyResponse = await api.get("http://127.0.0.1:3002/v1/me/dashboards/about/revisions");
   const history = await historyResponse.json();

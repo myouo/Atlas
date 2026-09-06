@@ -596,6 +596,30 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/providers/steam/data:
+    get:
+      operationId: getSteamProviderDataCatalog
+      summary: Read the full sanitized Owner-only Steam catalog and coverage
+      tags: [Provider]
+      responses:
+        "200":
+          description: Versioned full data, independent of public card limits
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SteamDataCatalog"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/providers/netease:
     get:
       operationId: getNeteaseProviderConnection
@@ -2616,6 +2640,27 @@ components:
           type: [string, "null"]
         sourceBlockType:
           type: string
+    SteamDataCatalog:
+      type: object
+      additionalProperties: false
+      required: [provider, schemaVersion, dataVersion, generatedAt, catalog]
+      properties:
+        provider:
+          type: string
+          const: steam
+        schemaVersion:
+          type: integer
+          enum: [1, 2]
+        dataVersion:
+          type: string
+          format: uuid
+        generatedAt:
+          type: string
+          format: date-time
+        catalog:
+          type: object
+          additionalProperties: true
+          description: Steam normalized schema selected by schemaVersion. Version 2 includes account, accountDetails, full library and recentGames, badges and explicit coverage. Owner-only; not a public widget payload.
     NeteaseDataCatalog:
       type: object
       additionalProperties: false

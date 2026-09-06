@@ -32,7 +32,7 @@ export class KyselySteamCatalogStore implements ProviderNativeStore {
       generated_at: input.generatedAt,
       provider: this.provider,
       provider_connection_id: input.providerConnectionId,
-      schema_version: 1
+      schema_version: input.normalized.meta.schemaVersion
     };
     await this.database
       .insertInto("provider_data_catalogs")

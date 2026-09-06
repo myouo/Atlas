@@ -34,6 +34,12 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
 
   return {
     kind: "api",
+    async getSteamDataCatalog() {
+      return requireData(
+        await client.GET("/v1/me/providers/steam/data"),
+        "Steam catalog could not be loaded."
+      );
+    },
     async getSteamConnection() {
       return requireData(
         await client.GET("/v1/me/providers/steam"),

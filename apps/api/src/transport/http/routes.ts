@@ -40,6 +40,7 @@ import {
   JobParamsSchema,
   NeteaseConnectInputSchema,
   NeteaseDataCatalogSchema,
+  SteamDataCatalogSchema,
   NeteaseSmsAuthInputSchema,
   NeteaseSmsVerifyInputSchema,
   ProblemDetailsSchema,
@@ -529,6 +530,28 @@ export const deferredRoutes: FastifyPluginAsyncTypebox<RouteOptions> = async (ap
       serializeProviderConnection(
         await options.providerConnectionService.getSteam(requireOwnerContext(request))
       )
+  );
+
+  app.get(
+    "/v1/me/providers/steam/data",
+    {
+      schema: {
+        response: {
+          200: SteamDataCatalogSchema,
+          404: ProblemDetailsSchema,
+          default: ProblemDetailsSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const catalog = await options.providerDataService.getSteamCatalog(
+        requireOwnerContext(request)
+      );
+      return reply.header("etag", formatCatalogEtag(catalog.dataVersion)).send({
+        ...catalog,
+        generatedAt: catalog.generatedAt.toISOString()
+      });
+    }
   );
 
   app.post(

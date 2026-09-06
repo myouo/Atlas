@@ -45,17 +45,39 @@ async function setup(authenticated = true) {
     }
   }));
   const disconnectSteam = vi.fn(async () => {});
+  const getSteamCatalog = vi.fn(async () => ({
+    provider: "steam",
+    schemaVersion: 2,
+    dataVersion: "00000000-0000-4000-8000-000000000009",
+    generatedAt: new Date(),
+    catalog: {
+      coverage: { library: { status: "complete", collectedCount: 35, reportedCount: 35 } },
+      library: { games: Array.from({ length: 35 }, (_, index) => ({ appId: index + 1 })) }
+    }
+  }));
   await app.register(deferredRoutes, {
+    providerDataService: { getSteamCatalog },
     providerConnectionService: {
       connectSteam,
       disconnectSteam,
       getSteam: async () => connection
     }
   } as unknown as Parameters<typeof deferredRoutes>[1]);
-  return { app, connectSteam, disconnectSteam };
+  return { app, connectSteam, disconnectSteam, getSteamCatalog };
 }
 
 describe("Steam HTTP boundary", () => {
+  it("returns a complete Owner-only versioned catalog with an ETag", async () => {
+    const { app, getSteamCatalog } = await setup();
+    const response = await app.inject("/v1/me/providers/steam/data");
+    expect(response.statusCode).toBe(200);
+    expect(response.headers.etag).toContain("catalog:");
+    expect(response.json().catalog.library.games).toHaveLength(35);
+    expect(getSteamCatalog).toHaveBeenCalledWith(owner);
+    const visitor = await setup(false);
+    expect((await visitor.app.inject("/v1/me/providers/steam/data")).statusCode).toBe(403);
+    expect(visitor.getSteamCatalog).not.toHaveBeenCalled();
+  });
   it.each([
     { steamId: Number(steamId), apiKey },
     { steamId: [steamId], apiKey },

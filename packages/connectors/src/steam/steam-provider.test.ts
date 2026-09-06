@@ -58,8 +58,11 @@ function runtime(
     fetcher
   );
 }
-async function pipeline(scenario: SteamFixtureScenario = "normal") {
-  const provider = runtime(scenario);
+async function pipeline(
+  scenario: SteamFixtureScenario = "normal",
+  fetcher = createSteamFixtureFetcher(scenario)
+) {
+  const provider = runtime(scenario, fetcher);
   assertProviderManifest(provider.manifest, "steam");
   const collection = await collectProviderData(provider, run);
   const records = collection.records.map((record, index) =>
@@ -69,7 +72,7 @@ async function pipeline(scenario: SteamFixtureScenario = "normal") {
       providerConnectionId: run.providerConnectionId,
       syncRunId: run.id,
       sourceKind: record.meta.source,
-      schemaVersion: 1,
+      schemaVersion: record.meta.schemaVersion,
       payload: record.data,
       payloadHash: "f".repeat(64),
       fetchedAt: new Date(record.meta.collectedAt),
@@ -103,7 +106,7 @@ async function pipeline(scenario: SteamFixtureScenario = "normal") {
 describe("Steam Provider v2 integration", () => {
   it("collects replayable evidence, normalizes minutes and emits only selected public fields", async () => {
     const { collection, normalized, projections, provider, input } = await pipeline();
-    expect(collection.records).toHaveLength(4);
+    expect(collection.records).toHaveLength(6);
     expect(normalized.data).toMatchObject({
       account: { steamId: steamFixtureId, level: 12 },
       library: { gameCount: 2, playtimeMinutes: 125, playedGameCount: 1 }
@@ -139,7 +142,7 @@ describe("Steam Provider v2 integration", () => {
     for (const [url, init] of fetcher.mock.calls) {
       expect(String(url)).not.toContain(apiKey);
       expect(new Headers(init?.headers).get("x-webapi-key")).toBe(apiKey);
-      expect(init?.redirect).toBe("error");
+      expect(init?.redirect).toBe("manual");
     }
   });
   it("defaults recent titles to private and rejects invalid disclosure options", async () => {
@@ -156,6 +159,16 @@ describe("Steam Provider v2 integration", () => {
     expect(JSON.stringify(defaults.data)).not.toContain("Fixture Game");
     await expect(project({ shareRecentGames: "false" })).rejects.toThrow("disclosure");
     await expect(project({ shareAll: true })).rejects.toThrow("disclosure");
+  });
+  it("rejects redirects without forwarding a credential to another host", async () => {
+    const fetcher = vi.fn(
+      async () =>
+        new Response(null, { status: 302, headers: { location: "https://example.invalid/" } })
+    );
+    await expect(
+      new SteamClient(100, fetcher).get("profile", steamFixtureId, apiKey)
+    ).rejects.toThrow("redirects are not allowed");
+    expect(fetcher).toHaveBeenCalledOnce();
   });
   it("distinguishes private, empty, and hidden playtime without fabricated zeros", async () => {
     const privateData = await pipeline("private");
@@ -237,5 +250,122 @@ describe("Steam Provider v2 integration", () => {
       projections
     ])
       expect(validate(message), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("keeps all recent games, richer library fields and exact coverage independently of public limits", async () => {
+    const real = createSteamFixtureFetcher();
+    const games = Array.from({ length: 35 }, (_, index) => ({
+      appid: index + 1,
+      ...(index === 34 ? {} : { name: `Game ${index + 1}` }),
+      playtime_forever: index,
+      playtime_2weeks: index,
+      rtime_last_played: 1700000000,
+      playtime_windows_forever: index,
+      has_community_visible_stats: true
+    }));
+    let active = 0;
+    let maxActive = 0;
+    let achievementRequests = 0;
+    const fetched: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      active++;
+      maxActive = Math.max(maxActive, active);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        if (url.pathname.includes("GetRecentlyPlayedGames")) {
+          expect(JSON.parse(url.searchParams.get("input_json")!).count).toBe(0);
+          return Response.json({ response: { total_count: games.length, games } });
+        }
+        if (url.pathname.includes("GetOwnedGames"))
+          return Response.json({ response: { game_count: games.length, games } });
+        if (url.pathname.includes("GetPlayerAchievements")) achievementRequests++;
+        return await real(input, init);
+      } finally {
+        active--;
+      }
+    };
+    const { normalized, projections } = await pipeline("normal", fetched);
+    expect(normalized.meta.schemaVersion).toBe(2);
+    expect(normalized.data).toMatchObject({
+      accountDetails: { createdAt: "2014-05-13T16:53:20.000Z", currentGame: { gameId: "10" } },
+      library: {
+        gameCount: 35,
+        unplayedGameCount: 1,
+        games: expect.arrayContaining([
+          expect.objectContaining({ appId: 35, name: "Steam App 35", nameSource: "app_id" })
+        ])
+      },
+      badges: { playerXp: 1500, items: [{ badgeId: 1 }] },
+      coverage: {
+        library: { status: "complete", collectedCount: 35, reportedCount: 35 },
+        recentGames: { status: "complete", collectedCount: 35, reportedCount: 35 },
+        achievements: { status: "partial", collectedCount: 8, reportedCount: 35 }
+      }
+    });
+    expect(maxActive).toBeLessThanOrEqual(3);
+    expect(achievementRequests).toBe(8);
+    const data = projections.data[0]!.data as { recentGames: { items: unknown[] } };
+    expect(data.recentGames.items).toHaveLength(6);
+    expect(JSON.stringify(projections)).not.toContain("platformPlaytimeMinutes");
+    expect(JSON.stringify(projections)).not.toContain("accountDetails");
+    expect(JSON.stringify(projections)).not.toContain("FIRST_STEP");
+  });
+
+  it("keeps partial achievement failures explicit without failing the core catalog", async () => {
+    const real = createSteamFixtureFetcher();
+    const fetched: typeof fetch = async (input, init) =>
+      String(input).includes("GetPlayerAchievements")
+        ? new Response("Rate limited", { status: 429 })
+        : real(input, init);
+    const { normalized, collection } = await pipeline("normal", fetched);
+    expect(collection.outcome).toBe("partial");
+    expect(normalized.data).toMatchObject({
+      library: { gameCount: 2 },
+      achievements: {
+        games: [
+          { availability: "unavailable", reason: "temporarily_unavailable" },
+          { availability: "unavailable" }
+        ]
+      },
+      coverage: { achievements: { status: "partial", collectedCount: 0, reportedCount: 2 } }
+    });
+  });
+
+  it("replays legacy limited evidence without claiming full coverage or inventing new fields", async () => {
+    const { provider, input } = await pipeline();
+    const legacy: ProviderNormalizationInput = {
+      ...input,
+      data: {
+        ...input.data,
+        records: input.data.records
+          .filter((record) => !["steam.badges", "steam.achievements"].includes(record.meta.source))
+          .map((record) =>
+            record.meta.source === "steam.recent"
+              ? {
+                  ...record,
+                  meta: { ...record.meta, schemaVersion: 1 },
+                  data: {
+                    total_count: 30,
+                    games: Array.from({ length: 20 }, (_, index) => ({
+                      appid: index + 1,
+                      name: `Game ${index}`,
+                      img_icon_url: null,
+                      playtime_forever: null,
+                      playtime_2weeks: null
+                    }))
+                  }
+                }
+              : record
+          )
+      }
+    };
+    const replay = await provider.normalizer.normalize(legacy);
+    expect(replay.data).toMatchObject({
+      coverage: {
+        recentGames: { status: "partial", reportedCount: 30, collectedCount: 20 },
+        badges: { status: "unavailable", reason: "not_synced" },
+        achievements: { status: "not_collected" }
+      }
+    });
   });
 });

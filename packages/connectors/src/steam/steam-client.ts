@@ -15,19 +15,28 @@ export class SteamClient {
   ) {}
 
   async get(
-    method: "profile" | "library" | "recent" | "level",
+    method: "profile" | "library" | "recent" | "level" | "badges" | "achievements",
     steamId: string,
-    apiKey: string
+    apiKey: string,
+    appId?: number
   ): Promise<unknown> {
     const paths = {
       profile: "/ISteamUser/GetPlayerSummaries/v2/",
       library: "/IPlayerService/GetOwnedGames/v1/",
       recent: "/IPlayerService/GetRecentlyPlayedGames/v1/",
-      level: "/IPlayerService/GetSteamLevel/v1/"
+      level: "/IPlayerService/GetSteamLevel/v1/",
+      badges: "/IPlayerService/GetBadges/v1/",
+      achievements: "/ISteamUserStats/GetPlayerAchievements/v1/"
     } as const;
     const url = new URL(paths[method], ORIGIN);
     if (method === "profile") url.searchParams.set("steamids", steamId);
-    else
+    else if (method === "achievements") {
+      if (appId === undefined || !Number.isSafeInteger(appId) || appId < 1 || appId > 0xffffffff)
+        throw new PermanentProviderError("Invalid Steam application ID.");
+      url.searchParams.set("steamid", steamId);
+      url.searchParams.set("appid", String(appId));
+      url.searchParams.set("l", "english");
+    } else
       url.searchParams.set(
         "input_json",
         JSON.stringify({
@@ -35,7 +44,8 @@ export class SteamClient {
           ...(method === "library"
             ? { include_appinfo: true, include_played_free_games: true }
             : {}),
-          ...(method === "recent" ? { count: 20 } : {})
+          // Steam documents 0 as all recent games, not an arbitrary UI-sized slice.
+          ...(method === "recent" ? { count: 0 } : {})
         })
       );
     // Keep the key out of URLs, Raw evidence, redirects and error messages.
@@ -45,11 +55,13 @@ export class SteamClient {
       const response = await this.fetcher(url, {
         headers: { accept: "application/json", "x-webapi-key": apiKey },
         method: "GET",
-        redirect: "error",
+        redirect: "manual",
         signal: controller.signal
       });
       if (!response.ok) {
         await response.body?.cancel();
+        if (response.status >= 300 && response.status < 400)
+          throw new PermanentProviderError("Steam redirects are not allowed.");
         if (response.status === 429 || response.status >= 500) {
           const delay = Number(response.headers.get("retry-after"));
           throw new RetryableProviderError(
@@ -62,6 +74,8 @@ export class SteamClient {
           if (method !== "profile") return { response: {}, restricted: true };
           throw new ProviderCredentialError("invalid", "Steam rejected the Web API key.");
         }
+        if (method === "achievements" && (response.status === 400 || response.status === 404))
+          return { playerstats: { success: false } };
         throw new PermanentProviderError("Steam could not fulfill the requested read operation.");
       }
       const length = Number(response.headers.get("content-length"));

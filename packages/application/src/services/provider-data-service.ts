@@ -12,4 +12,11 @@ export class ProviderDataService {
     if (catalog.schemaVersion !== 1) throw new ProviderDataNotFoundError("netease");
     return { ...catalog, provider: "netease" as const, schemaVersion: 1 as const };
   }
+
+  async getSteamCatalog(context: OwnerContext) {
+    const catalog = await this.catalogs.findForOwner(context.actorId, "steam");
+    if (!catalog || (catalog.schemaVersion !== 1 && catalog.schemaVersion !== 2))
+      throw new ProviderDataNotFoundError("steam");
+    return { ...catalog, provider: "steam" as const, schemaVersion: catalog.schemaVersion };
+  }
 }
