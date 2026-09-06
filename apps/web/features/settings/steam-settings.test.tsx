@@ -57,6 +57,25 @@ afterEach(() => {
 });
 
 describe("Steam settings", () => {
+  it.each([
+    "https://steamcommunity.com/id/fixture_user/",
+    "https://steamcommunity.com/profiles/76561198000000001/",
+    "fixture_user"
+  ])("accepts profile links and custom IDs without truncation: %s", async (reference) => {
+    source.connectSteam.mockResolvedValue({ connection, validationJob: job });
+    mount();
+    const save = screen.getByRole("button", { name: "连接并验证 Steam" });
+    await waitFor(() => expect(save).toBeEnabled());
+    const input = screen.getByLabelText("SteamID64、个人主页链接或自定义 ID");
+    await userEvent.type(input, reference);
+    expect(input).toHaveValue(reference);
+    expect(input).not.toHaveAttribute("pattern");
+    await userEvent.type(screen.getByLabelText("Steam Web API Key"), "a".repeat(32));
+    await userEvent.click(save);
+    await waitFor(() =>
+      expect(source.connectSteam).toHaveBeenCalledWith(reference, "a".repeat(32))
+    );
+  });
   it("disables credentials in mock mode and for visitors", () => {
     source.kind = "mock";
     const view = mount();
@@ -73,7 +92,10 @@ describe("Steam settings", () => {
     mount();
     const save = screen.getByRole("button", { name: "连接并验证 Steam" });
     await waitFor(() => expect(save).toBeEnabled());
-    await userEvent.type(screen.getByLabelText("SteamID64"), "76561198000000001");
+    await userEvent.type(
+      screen.getByLabelText("SteamID64、个人主页链接或自定义 ID"),
+      "76561198000000001"
+    );
     const keyInput = screen.getByLabelText("Steam Web API Key");
     expect(keyInput).toHaveAttribute("type", "password");
     await userEvent.type(keyInput, "a".repeat(32));

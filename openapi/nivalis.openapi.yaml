@@ -1150,8 +1150,9 @@ components:
       properties:
         steamId:
           type: string
-          pattern: "^[0-9]{17}$"
-          description: SteamID64, always encoded as a string
+          minLength: 1
+          maxLength: 512
+          description: SteamID64, Steam Community profile URL, custom vanity ID, friend code, Steam2 or Steam3 ID; always a string. The Worker resolves vanity names through Steam.
         apiKey:
           type: string
           pattern: "^[a-fA-F0-9]{32}$"

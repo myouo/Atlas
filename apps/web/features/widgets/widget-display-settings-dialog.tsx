@@ -12,6 +12,7 @@ import {
   X
 } from "@phosphor-icons/react";
 import { useState } from "react";
+import Link from "next/link";
 import { useDialogFocusReturn } from "../../design-system/use-dialog-focus-return";
 
 import type { WidgetDataPreset } from "./widget-registry";
@@ -23,6 +24,7 @@ import {
 } from "./widget-presentation";
 
 interface WidgetDisplaySettingsDialogProps {
+  readonly connectionHref?: string;
   readonly controls: readonly WidgetPresentationControl[];
   readonly dataConfig: WidgetProjection["dataConfig"];
   readonly dataPresets: readonly WidgetDataPreset[];
@@ -50,6 +52,7 @@ export interface WidgetDataResourceOption {
 }
 
 export function WidgetDisplaySettingsDialog({
+  connectionHref,
   controls,
   dataConfig,
   dataPresets,
@@ -86,6 +89,15 @@ export function WidgetDisplaySettingsDialog({
             公开策略由服务端 Projection 执行，未选数据不会进入公共 Read
             Model。外观选项只影响渲染；保存草稿后同步并发布才会更新公开页面。
           </Dialog.Description>
+          {connectionHref ? (
+            <Link
+              href={connectionHref}
+              onClick={() => onOpenChange(false)}
+              className="jelly-control mt-4 block rounded-xl bg-blue-50/80 px-4 py-3 text-sm font-bold text-blue-700"
+            >
+              绑定或更换 Steam 账号 · 输入个人主页 / ID
+            </Link>
+          ) : null}
           <Dialog.Close
             aria-label="关闭展示字段设置"
             className="nivalis-modal-close absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full text-blue-700"

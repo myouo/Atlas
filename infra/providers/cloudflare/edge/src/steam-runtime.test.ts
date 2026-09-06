@@ -18,6 +18,7 @@ import {
 import { WebCryptoSecretProtector } from "./web-crypto-auth";
 import type { CloudflareQueueMessage } from "./cloudflare-sync-queue";
 import { readStoredNormalizedJson } from "./normalized-payload-storage";
+import { createNeteaseHttpFixtureFetcher } from "../../../../../packages/connectors/src/netease/fixtures";
 
 const directory = "infra/providers/cloudflare/edge/migrations";
 const owner = "00000000-0000-4000-8000-000000000001";
@@ -139,6 +140,55 @@ class Statement implements D1PreparedStatement {
 }
 
 describe("Steam D1 integration", () => {
+  it("refetches incompatible NetEase history caches instead of failing the new protocol", async () => {
+    const sqlite = database();
+    try {
+      const db = new SqliteD1(sqlite);
+      const protector = new WebCryptoSecretProtector(new Uint8Array(32).fill(7), "test");
+      const metrics = { backlogCount: 0, backlogBytes: 0 };
+      const queue: Queue<CloudflareQueueMessage> = {
+        send: async () => ({ metadata: { metrics } }),
+        sendBatch: async () => ({ metadata: { metrics } }),
+        metrics: async () => metrics
+      };
+      const fetcher = vi.fn(createNeteaseHttpFixtureFetcher("normal"));
+      const runtime = new D1ProviderSyncRuntime(db, queue, protector, 2000, 3, fetcher);
+      const repo = new D1ProviderCredentialRepository(db);
+      const connections = new ProviderConnectionService(
+        repo,
+        new D1ProviderConnectionUnitOfWork(db),
+        protector,
+        { now: () => new Date() },
+        (context, provider) => runtime.enqueue(context.actorId, provider)
+      );
+      sqlite.exec("UPDATE dashboard_revision_widgets SET enabled=0 WHERE provider='netease'");
+      const accepted = await connections.connectNetease(
+        { actorId: owner },
+        "music_u",
+        "netease-test-credential"
+      );
+      expect((await runtime.process(accepted.validationJob.id)).run.status).toBe("completed");
+      sqlite.exec(
+        "UPDATE provider_raw_snapshots SET payload_encoding='json',payload_blob=NULL,payload_json=json_set(payload_json,'$.unsafePictureId',9007199254740993) WHERE source_kind LIKE 'netease.listen_report.%.previous'"
+      );
+      fetcher.mockClear();
+      fetcher.mockImplementation(createNeteaseHttpFixtureFetcher("normal"));
+      const next = await runtime.enqueue(owner, "netease");
+      const processed = await runtime.process(next.id);
+      expect(
+        processed.run.status,
+        JSON.stringify({ run: processed.run, calls: fetcher.mock.calls.length })
+      ).toBe("completed");
+      expect(
+        fetcher.mock.calls.some(([input]) =>
+          String(input instanceof Request ? input.url : input).includes("listen/data/report")
+        )
+      ).toBe(true);
+      expect((await connections.getNetease({ actorId: owner })).credentialStatus).toBe("valid");
+    } finally {
+      sqlite.close();
+    }
+  });
   it("stores a large library losslessly below D1 row limits and detects incomplete chunks", async () => {
     const sqlite = database();
     try {
@@ -177,7 +227,11 @@ describe("Steam D1 integration", () => {
       sqlite.exec(
         `UPDATE dashboard_revision_widgets SET provider='steam',schema_version=2,data_config_json='{"shareRecentGames":true}' WHERE widget_type='steam.profile'`
       );
-      const accepted = await connections.connectSteam({ actorId: owner }, steamFixtureId, apiKey);
+      const accepted = await connections.connectSteam(
+        { actorId: owner },
+        "https://steamcommunity.com/id/steam_fixture/",
+        apiKey
+      );
       expect((await runtime.process(accepted.validationJob.id)).run.status).toBe("completed");
       const catalog = await runtime.getOwnerDataCatalog(owner, "steam");
       expect(catalog?.schemaVersion).toBe(2);

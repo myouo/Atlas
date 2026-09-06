@@ -50,10 +50,11 @@ const target: ProjectionTarget = {
 };
 function runtime(
   scenario: SteamFixtureScenario = "normal",
-  fetcher = createSteamFixtureFetcher(scenario)
+  fetcher = createSteamFixtureFetcher(scenario),
+  reference = steamFixtureId
 ) {
   return new SteamProviderRuntime(
-    { resolve: async () => JSON.stringify({ apiKey, steamId: steamFixtureId }) },
+    { resolve: async () => JSON.stringify({ apiKey, steamId: reference }) },
     { timeoutMs: 100 },
     fetcher
   );
@@ -104,6 +105,32 @@ async function pipeline(
 }
 
 describe("Steam Provider v2 integration", () => {
+  it.each([
+    "fixture_user",
+    "https://steamcommunity.com/id/fixture_user/",
+    `https://steamcommunity.com/profiles/${steamFixtureId}/`,
+    "39734273"
+  ])("resolves supported account input before collection: %s", async (reference) => {
+    const fetcher = vi.fn(createSteamFixtureFetcher());
+    const result = await runtime("normal", fetcher, reference).connector.collect(
+      toProviderSyncRequest(run)
+    );
+    expect(
+      result.data.records.find((record) => record.meta.source === "steam.profile")?.data
+    ).toMatchObject({ steamid: steamFixtureId });
+    for (const [input, init] of fetcher.mock.calls) {
+      expect(new URL(String(input)).origin).toBe("https://api.steampowered.com");
+      expect(String(input)).not.toContain(apiKey);
+      expect(new Headers(init?.headers).get("x-webapi-key")).toBe(apiKey);
+    }
+  });
+  it("reports an unresolved vanity account without fetching unrelated profiles", async () => {
+    const fetcher = vi.fn(async () => Response.json({ response: { success: 42 } }));
+    await expect(
+      runtime("normal", fetcher, "missing_user").connector.collect(toProviderSyncRequest(run))
+    ).rejects.toBeInstanceOf(ProviderCredentialError);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
   it("collects replayable evidence, normalizes minutes and emits only selected public fields", async () => {
     const { collection, normalized, projections, provider, input } = await pipeline();
     expect(collection.records).toHaveLength(6);

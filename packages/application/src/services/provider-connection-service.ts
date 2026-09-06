@@ -1,4 +1,8 @@
-import { InvalidProviderCredentialError, ProviderConnectionNotFoundError } from "@nivalis/domain";
+import {
+  InvalidProviderCredentialError,
+  ProviderConnectionNotFoundError,
+  parseSteamAccountReference
+} from "@nivalis/domain";
 import type {
   OwnerContext,
   ConnectedProvider,
@@ -41,14 +45,13 @@ export class ProviderConnectionService {
   async connectSteam(context: OwnerContext, steamId: string, apiKey: string) {
     if (typeof steamId !== "string" || typeof apiKey !== "string")
       throw new InvalidProviderCredentialError();
-    const id = steamId.trim();
+    const reference = parseSteamAccountReference(steamId);
+    const id =
+      reference.kind === "steam_id"
+        ? reference.value
+        : `https://steamcommunity.com/id/${reference.value}/`;
     const key = apiKey.trim();
-    if (
-      !/^\d{17}$/.test(id) ||
-      BigInt(id) <= 76561197960265728n ||
-      BigInt(id) > 76561202255233023n ||
-      !/^[a-fA-F0-9]{32}$/.test(key)
-    ) {
+    if (!/^[a-fA-F0-9]{32}$/.test(key)) {
       throw new InvalidProviderCredentialError();
     }
     return this.saveCredential(

@@ -10,6 +10,8 @@ export function createSteamFixtureFetcher(scenario: SteamFixtureScenario = "norm
     if (scenario === "invalid_key") return new Response("Rejected", { status: 403 });
     if (scenario === "rate_limit")
       return new Response("Limited", { status: 429, headers: { "retry-after": "2" } });
+    if (url.pathname.includes("ResolveVanityURL"))
+      return Response.json({ response: { success: 1, steamid: steamFixtureId } });
     if (url.pathname.includes("GetPlayerSummaries"))
       return Response.json({
         response: {

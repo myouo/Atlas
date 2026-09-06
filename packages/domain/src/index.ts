@@ -7,3 +7,4 @@ export * from "./errors";
 export * from "./json";
 export * from "./sync";
 export * from "./steam";
+export * from "./steam-account-reference";

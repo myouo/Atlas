@@ -15,7 +15,7 @@ export class SteamClient {
   ) {}
 
   async get(
-    method: "profile" | "library" | "recent" | "level" | "badges" | "achievements",
+    method: "profile" | "library" | "recent" | "level" | "badges" | "achievements" | "vanity",
     steamId: string,
     apiKey: string,
     appId?: number
@@ -26,11 +26,15 @@ export class SteamClient {
       recent: "/IPlayerService/GetRecentlyPlayedGames/v1/",
       level: "/IPlayerService/GetSteamLevel/v1/",
       badges: "/IPlayerService/GetBadges/v1/",
-      achievements: "/ISteamUserStats/GetPlayerAchievements/v1/"
+      achievements: "/ISteamUserStats/GetPlayerAchievements/v1/",
+      vanity: "/ISteamUser/ResolveVanityURL/v1/"
     } as const;
     const url = new URL(paths[method], ORIGIN);
     if (method === "profile") url.searchParams.set("steamids", steamId);
-    else if (method === "achievements") {
+    else if (method === "vanity") {
+      url.searchParams.set("vanityurl", steamId);
+      url.searchParams.set("url_type", "1");
+    } else if (method === "achievements") {
       if (appId === undefined || !Number.isSafeInteger(appId) || appId < 1 || appId > 0xffffffff)
         throw new PermanentProviderError("Invalid Steam application ID.");
       url.searchParams.set("steamid", steamId);
@@ -71,7 +75,8 @@ export class SteamClient {
           );
         }
         if (response.status === 401 || response.status === 403) {
-          if (method !== "profile") return { response: {}, restricted: true };
+          if (method !== "profile" && method !== "vanity")
+            return { response: {}, restricted: true };
           throw new ProviderCredentialError("invalid", "Steam rejected the Web API key.");
         }
         if (method === "achievements" && (response.status === 400 || response.status === 404))

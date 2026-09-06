@@ -5,6 +5,7 @@ import {
   assertProviderProjectionBatch,
   assertProviderProjectionInput,
   assertProviderProjectionSet,
+  assertProviderSyncRequest,
   collectProviderData,
   providerRecordIdentity,
   unwrapProviderResult
@@ -25,7 +26,8 @@ import {
   providerSupportsCollectionMode,
   RetryableProviderError,
   toProviderSourceRecord,
-  toProviderSnapshotRecord
+  toProviderSnapshotRecord,
+  toProviderSyncRequest
 } from "@nivalis/domain";
 import type {
   JsonObject,
@@ -319,9 +321,15 @@ export class D1ProviderSyncRuntime {
       const cachedHistory =
         run.provider === "steam"
           ? []
-          : await this.cachedHistory(run.providerConnectionId).catch(
-              (): readonly ProviderSourceRecord[] => []
-            );
+          : await this.cachedHistory(run.providerConnectionId)
+              .then((records) => {
+                assertProviderSyncRequest(
+                  toProviderSyncRequest(run, { cachedRecords: records }),
+                  runtime.manifest
+                );
+                return records;
+              })
+              .catch((): readonly ProviderSourceRecord[] => []);
       const previousNormalized = providerSupportsCollectionMode(runtime.manifest, "incremental")
         ? await this.previousNormalized(run, runtime)
         : null;

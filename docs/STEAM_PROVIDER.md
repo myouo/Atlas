@@ -9,9 +9,14 @@ immutable normalized snapshot → Owner catalog and public Widget projections.
 1. Apply PostgreSQL migration `011_steam_provider.mjs`, or D1 migrations through `0010_normalized_payload_chunks.sql`
    for a Cloudflare installation, before starting the new API and Worker.
 2. Run the frontend in API mode and sign in as the Nivalis Owner. Open Settings → Steam.
-3. Enter a **SteamID64 as a 17-digit string** and the Web API key registered for your own
+3. Enter a **SteamID64, Steam Community profile URL, custom profile ID, friend code, Steam2 or
+   Steam3 ID** and the Web API key registered for your own
    deployment at [Steam's key registration page](https://steamcommunity.com/dev/apikey).
    This is a read-only data connection, not Steam OpenID login or proof of ownership of that ID.
+   Custom IDs mean the `/id/...` portion of a Steam Community URL, not a non-unique display name
+   or private login username. `/profiles/...` URLs and numeric IDs are normalized locally;
+   vanity names are resolved by the Worker using Steam's `ResolveVanityURL` over HTTPS.
+   The Steam card settings include a direct link to Settings → Steam (`/settings#steam`).
 4. Connect and validate. Add the new Steam module to the dashboard, save the draft, synchronize,
    and publish. The original `steam.profile@1` Fixture cards remain readable but are not silently
    converted into real data or automatically republished.
@@ -85,7 +90,7 @@ separate capabilities and collection policies; this implementation does not clai
 - Requests go only to `https://api.steampowered.com`; the key is sent in `x-webapi-key`, never in
   a query string. Redirects are rejected.
 - A run reads the profile first, then makes at most three concurrent read requests. Core collection
-  makes 5 requests; achievement enrichment adds at most 8. Each has a
+  makes 5 requests; vanity resolution adds at most 1, and achievement enrichment adds at most 8. Each has a
   12-second default timeout and a streamed 5 MB response limit. Libraries are capped at 50,000
   returned games; oversized responses fail explicitly, with no silent truncation. Per-game reads
   are restricted to the achievement budget, never proportional to the full library size.

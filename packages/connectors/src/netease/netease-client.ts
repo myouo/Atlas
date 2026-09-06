@@ -6,6 +6,7 @@ import {
   RetryableProviderError
 } from "@nivalis/domain";
 import type { JsonObject, JsonValue } from "@nivalis/domain";
+import { readProviderJson } from "../provider-json";
 
 import { NETEASE_CREDENTIAL_CODES, NETEASE_RETRYABLE_CODES } from "./errors";
 
@@ -343,7 +344,7 @@ export class NeteaseClient {
     if (!response.ok) throw new PermanentProviderError("NetEase request was rejected.");
     let payload: unknown;
     try {
-      payload = await response.json();
+      payload = await readProviderJson(response);
     } catch {
       throw new PermanentProviderError("NetEase response was not JSON.");
     }

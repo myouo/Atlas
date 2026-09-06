@@ -51,7 +51,7 @@ export function SteamSettings({ owner }: { readonly owner: boolean }) {
       setNotice("凭据已加密保存，正在验证并读取 Steam 数据。");
       await queryClient.invalidateQueries({ queryKey: ["provider-connection", "steam"] });
     },
-    onError: () => setNotice("连接失败。请检查 SteamID64、API Key 和服务状态后重试。")
+    onError: () => setNotice("连接失败。请检查 Steam 主页链接或 ID、API Key 和服务状态后重试。")
   });
   const sync = useMutation({
     mutationFn: () => dashboardSource.enqueueProviderSync("steam"),
@@ -93,7 +93,11 @@ export function SteamSettings({ owner }: { readonly owner: boolean }) {
   const busy = connect.isPending || disconnect.isPending || sync.isPending || active;
   const configured = connection.data?.configured && connection.data.enabled;
   return (
-    <section className="settings-card glass-surface mt-4" aria-label="Steam 连接">
+    <section
+      id="steam"
+      className="settings-card glass-surface mt-4 scroll-mt-6"
+      aria-label="Steam 连接"
+    >
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#173b64] text-white">
           <GameController aria-hidden size={22} weight="duotone" />
@@ -150,7 +154,10 @@ export function SteamSettings({ owner }: { readonly owner: boolean }) {
                 <button
                   className="jelly-control rounded-xl bg-white/70 px-4 py-2 text-xs font-bold text-ink"
                   disabled={busy}
-                  onClick={() => setReconnecting(true)}
+                  onClick={() => {
+                    setSteamId(connection.data?.providerAccountId ?? "");
+                    setReconnecting(true);
+                  }}
                   type="button"
                 >
                   更新凭据
@@ -175,17 +182,17 @@ export function SteamSettings({ owner }: { readonly owner: boolean }) {
               }}
             >
               <label className="text-xs font-semibold text-ink-muted">
-                SteamID64
+                Steam 账号 / 个人主页
                 <input
-                  aria-label="SteamID64"
+                  aria-label="SteamID64、个人主页链接或自定义 ID"
                   className="settings-select mt-2 h-11 w-full rounded-xl px-3 text-sm"
                   value={steamId}
                   onChange={(event) => setSteamId(event.target.value)}
-                  inputMode="numeric"
-                  pattern="[0-9]{17}"
-                  maxLength={17}
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={512}
                   required
-                  placeholder="17 位数字 ID"
+                  placeholder="SteamID64 或 steamcommunity.com/id/…"
                 />
               </label>
               <label className="text-xs font-semibold text-ink-muted">
@@ -204,6 +211,10 @@ export function SteamSettings({ owner }: { readonly owner: boolean }) {
                   required
                 />
               </label>
+              <p className="text-xs leading-relaxed text-ink-muted sm:col-span-2">
+                支持 SteamID64、/profiles/ 或 /id/ 个人主页链接、自定义主页
+                ID，以及好友代码。昵称和登录用户名不一定是主页 ID。
+              </p>
               <p className="text-xs leading-relaxed text-ink-muted sm:col-span-2">
                 在{" "}
                 <a

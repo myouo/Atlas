@@ -89,6 +89,7 @@ function WidgetCardComponent({
       </ModuleShell>
       {settingsMounted && configurable && "presentationConfig" in widget ? (
         <WidgetSettingsDialog
+          {...(widget.type === "steam.profile" ? { connectionHref: "/settings#steam" } : {})}
           open={settingsOpen}
           controls={controls}
           dataConfig={widget.dataConfig}
@@ -130,6 +131,7 @@ export const WidgetCard = memo(function WidgetCard(props: WidgetCardProps) {
 });
 
 function WidgetSettingsDialog({
+  connectionHref,
   controls,
   dataConfig,
   dataPresets,
@@ -141,6 +143,7 @@ function WidgetSettingsDialog({
   presentationConfig,
   resourcePicker
 }: {
+  readonly connectionHref?: string;
   readonly controls: readonly WidgetPresentationControl[];
   readonly dataConfig: WidgetProjection["dataConfig"];
   readonly dataPresets: readonly WidgetDataPreset[];
@@ -160,6 +163,7 @@ function WidgetSettingsDialog({
   });
   return (
     <WidgetDisplaySettingsDialog
+      {...(connectionHref ? { connectionHref } : {})}
       controls={controls}
       dataConfig={dataConfig}
       dataPresets={dataPresets}

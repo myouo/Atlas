@@ -18,7 +18,7 @@ const Unavailable = Type.Object(
 );
 export const SteamConnectInputSchema = Type.Object(
   {
-    steamId: Type.String({ pattern: "^[0-9]{17}$" }),
+    steamId: Type.String({ minLength: 1, maxLength: 512 }),
     apiKey: Type.String({ pattern: "^[a-fA-F0-9]{32}$" })
   },
   { additionalProperties: false }

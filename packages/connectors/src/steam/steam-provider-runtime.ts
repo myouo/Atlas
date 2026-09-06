@@ -23,6 +23,7 @@ import type {
   SteamProfileData
 } from "@nivalis/domain";
 import { SteamClient } from "./steam-client";
+import { parseSteamAccountReference, isSteamId64 } from "@nivalis/domain";
 import { collectAchievements, STEAM_ACHIEVEMENT_BUDGET } from "./steam-achievements";
 import {
   normalizeSteam,
@@ -107,14 +108,30 @@ export class SteamConnector implements ProviderConnector {
       if (
         typeof record.apiKey !== "string" ||
         !/^[a-fA-F0-9]{32}$/.test(record.apiKey) ||
-        typeof record.steamId !== "string" ||
-        !/^\d{17}$/.test(record.steamId)
+        typeof record.steamId !== "string"
       )
         throw new Error();
+      parseSteamAccountReference(record.steamId);
       secret = { apiKey: record.apiKey, steamId: record.steamId };
     } catch {
       throw new ProviderCredentialError("invalid");
     }
+    const reference = parseSteamAccountReference(secret.steamId);
+    if (reference.kind === "vanity") {
+      const resolved = object(
+        object(await this.client.get("vanity", reference.value, secret.apiKey), "steam.identity")
+          .response,
+        "steam.identity"
+      );
+      if (resolved.success === 42)
+        throw new ProviderCredentialError(
+          "invalid",
+          "Steam could not resolve the profile identifier."
+        );
+      if (resolved.success !== 1 || !isSteamId64(resolved.steamid))
+        throw new ProviderSchemaMismatchError("steam.identity");
+      secret.steamId = resolved.steamid;
+    } else secret.steamId = reference.value;
     const account = sanitizeProfile(
       await this.client.get("profile", secret.steamId, secret.apiKey),
       secret.steamId

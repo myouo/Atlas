@@ -117,6 +117,20 @@ describe("WidgetRegistry", () => {
     registry.register(definition!);
     expect(() => registry.register(definition!)).toThrow(/already registered/);
   });
+  it("links Steam card settings to the account input form", async () => {
+    renderWidget(
+      <WidgetCard
+        editable
+        onRemove={vi.fn()}
+        widget={createMockWidget("steam.profile", "steam-settings-link", 2)}
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /设置 Steam 展示字段/ }));
+    expect(screen.getByRole("link", { name: /绑定或更换 Steam 账号/ })).toHaveAttribute(
+      "href",
+      "/settings#steam"
+    );
+  });
 
   it("renders a graceful fallback for an unknown runtime Widget", () => {
     renderWidget(

@@ -658,7 +658,7 @@ export interface components {
             lastValidatedAt: string | null;
         };
         SteamConnectInput: {
-            /** @description SteamID64, always encoded as a string */
+            /** @description SteamID64, Steam Community profile URL, custom vanity ID, friend code, Steam2 or Steam3 ID; always a string. The Worker resolves vanity names through Steam. */
             steamId: string;
             apiKey: string;
         };
