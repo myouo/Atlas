@@ -6,6 +6,7 @@ import {
 } from "@nivalis/domain";
 import type {
   JsonObject,
+  JsonValue,
   NormalizedProviderData,
   ProviderNormalizationInput,
   ProviderNormalizer,
@@ -287,6 +288,23 @@ export class NeteaseNormalizer implements ProviderNormalizer {
       }
     };
   }
+}
+
+export function normalizeNeteaseHistoricalReport(payload: JsonValue, period: "week" | "month") {
+  if (!Value.Check(NeteaseListenReportResponseSchema, payload)) {
+    throw new ProviderSchemaMismatchError(
+      period === "week"
+        ? NETEASE_SOURCE.listenReportPreviousWeek
+        : NETEASE_SOURCE.listenReportPreviousMonth
+    );
+  }
+  return normalizedReport(
+    payload,
+    period,
+    period === "week"
+      ? NETEASE_SOURCE.listenReportPreviousWeek
+      : NETEASE_SOURCE.listenReportPreviousMonth
+  );
 }
 
 function normalizedReport(

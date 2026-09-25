@@ -44,11 +44,17 @@ Anonymous visitors receive a content-only homepage. The mode switcher, editing c
 
 ## GitHub Owner authentication
 
-Create a GitHub OAuth App with this exact callback shape:
+Create a GitHub OAuth App with this exact callback shape on the canonical public host:
 
 ```text
-<pages-origin>/api/v1/auth/github/callback
+<app-public-origin>/api/v1/auth/github/callback
 ```
+
+Set `APP_PUBLIC_ORIGIN` to `<app-public-origin>` and `API_PUBLIC_ORIGIN` to
+`<app-public-origin>/api`. If Pages also has a custom domain, use that same custom host for both
+values and register its callback URL in the GitHub OAuth App. The callback sets a host-only
+HttpOnly session cookie; mixing a `pages.dev` callback with a custom-domain final redirect leaves
+the Owner signed in on the wrong host.
 
 Configure these Worker values through deployment variables/secrets, never source:
 
@@ -109,6 +115,11 @@ The Edge Worker Cron is the single automatic Provider scheduler. It runs at 00:0
 12:00, and 18:00 UTC (`0 */6 * * *`), enqueues each enabled NetEase or Steam connection,
 and lets the Queue process the sync. The GitHub Actions `manual-sync` workflow is only a
 manual fallback; it requires a configured `SYNC_TOKEN` or `ADMIN_TOKEN` repository secret.
+
+For NetEase, the same Cron also starts week and month history backfills. Queue messages fetch at
+most 16 historical periods each, save immutable calendar ranges in D1, and enqueue the next batch
+until the account's earliest period. Public calendar widgets read all stored periods permitted by
+their published `publicRanges`; the full history is not re-fetched during normal Provider syncs.
 
 The deployed client revalidates Dashboard data every 30 seconds while visible and on window focus. An Owner's dirty local Draft is never replaced by this refresh; only live Projection fields and the Published read model are updated. Manual NetEase sync persists its Queue message before returning `202`, starts an immediate `waitUntil` attempt, and lets the Queue retry a busy or stale CAS lease. Independent Provider reads are capped at four and the sanitized Raw batch uses one D1 binding call. Within the same current week/month, the Connector may reuse a strictly validated three-period completed-history window from the last successful run, removing six repeat Provider calls without weakening Raw replay completeness. Large Raw JSON is stored as explicit gzip BLOB evidence to reduce durable-write latency; small and historical payloads remain directly queryable JSON.
 

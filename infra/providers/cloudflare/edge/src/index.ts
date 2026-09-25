@@ -31,6 +31,7 @@ import {
   D1WidgetProjectionHydrator
 } from "./d1-dashboard-read-adapter";
 import { D1DashboardWriteService } from "./d1-dashboard-write-service";
+import { NeteaseCalendarBackfill } from "./netease-calendar-backfill";
 import { PortableViewVersionFactory } from "./portable-version-factory";
 
 export interface Environment extends AuthEnvironment, ProviderEnvironment {
@@ -647,7 +648,13 @@ const worker = {
       for (const message of batch.messages) message.retry({ delaySeconds: 300 });
       return;
     }
+    const calendarBackfill = new NeteaseCalendarBackfill(
+      environment.DB,
+      environment.SYNC_QUEUE,
+      environment
+    );
     await consumeQueueMessages(batch, environment.DB, {
+      calendarBackfill: (connectionId, period) => calendarBackfill.process(connectionId, period),
       providerAuth: async (attemptId) => {
         await providers.authWorker.process(attemptId);
       },
@@ -672,11 +679,16 @@ const worker = {
       console.warn("Scheduled sync skipped: provider runtime not configured");
       return;
     }
+    const calendarBackfill = new NeteaseCalendarBackfill(
+      environment.DB,
+      environment.SYNC_QUEUE,
+      environment
+    );
 
     try {
       const connections = await environment.DB.prepare(
-        `SELECT DISTINCT owner_id, provider FROM provider_connections WHERE enabled = 1`
-      ).all<{ owner_id: string; provider: ConnectedProvider }>();
+        `SELECT id, owner_id, provider FROM provider_connections WHERE enabled = 1`
+      ).all<{ id: string; owner_id: string; provider: ConnectedProvider }>();
 
       const activeList = connections.results || [];
       if (activeList.length === 0) {
@@ -693,7 +705,7 @@ const worker = {
         })
       );
 
-      for (const { owner_id, provider } of activeList) {
+      for (const { id, owner_id, provider } of activeList) {
         if (provider !== "netease" && provider !== "steam") continue;
         try {
           const run = await providers.sync.enqueue(owner_id, provider);
@@ -715,6 +727,22 @@ const worker = {
               provider
             })
           );
+        }
+        if (provider === "netease") {
+          for (const period of ["week", "month"] as const) {
+            try {
+              await calendarBackfill.enqueue(id, period);
+            } catch (error) {
+              console.error(
+                JSON.stringify({
+                  error: error instanceof Error ? error.message : String(error),
+                  event: "scheduled_calendar_backfill_error",
+                  ownerId: owner_id,
+                  period
+                })
+              );
+            }
+          }
         }
       }
     } catch (error) {

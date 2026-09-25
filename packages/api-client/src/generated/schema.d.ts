@@ -1048,10 +1048,14 @@ export interface components {
             month: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
             previousWeek?: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
             previousMonth?: components["schemas"]["NeteaseListeningCalendarRangeV1"] | components["schemas"]["DataUnavailable"];
-            /** @description Latest completed weeks, newest first, loaded through Provider start-time anchors. */
+            /** @description Completed weeks, newest first, including archived Provider history. */
             weekHistory?: components["schemas"]["NeteaseListeningCalendarRangeV1"][];
-            /** @description Latest completed months, newest first, loaded through Provider start-time anchors. */
+            /** @description Completed months, newest first, including archived Provider history. */
             monthHistory?: components["schemas"]["NeteaseListeningCalendarRangeV1"][];
+            historyBackfill?: {
+                weekComplete: boolean;
+                monthComplete: boolean;
+            };
         };
         NeteaseMetricAvailableV3: {
             /** @constant */

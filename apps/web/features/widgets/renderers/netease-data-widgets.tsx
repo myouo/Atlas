@@ -474,6 +474,8 @@ function ExpandedListeningCalendars({
     active.value.recordWall?.availability === "available" ? active.value.recordWall : null;
   const canGoOlder = activeIndex < entries.length - 1;
   const canGoNewer = activeIndex > 0;
+  const backfillComplete =
+    range === "week" ? data.historyBackfill?.weekComplete : data.historyBackfill?.monthComplete;
   return (
     <div className="min-h-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-100/70 pb-3">
@@ -536,6 +538,12 @@ function ExpandedListeningCalendars({
           <CaretRight aria-hidden size={14} weight="bold" />
         </button>
       </div>
+
+      {!canGoOlder && backfillComplete !== undefined ? (
+        <p className="text-center text-[10px] font-semibold text-ink-muted" role="status">
+          {backfillComplete ? "已到最早可用记录" : "更早记录正在后台同步，请稍后再试"}
+        </p>
+      ) : null}
 
       <div
         className={`netease-range-panel grid min-h-0 items-stretch gap-4 ${wall ? "lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.72fr)]" : ""}`}

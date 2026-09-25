@@ -83,6 +83,25 @@ describe("NetEase semantic data widgets", () => {
     expect(dialog.querySelector('[data-history-anchor="week:2026-08-09"]')).toBeInTheDocument();
   });
 
+  it("navigates beyond three historical weeks without a fixed period cap", async () => {
+    const widget = calendarWidget(12);
+    render(
+      <ModuleShell accent="coral" editable={false} expandable title="网易云 · 收听日历">
+        <NeteaseListeningCalendarWidget widget={widget} />
+      </ModuleShell>
+    );
+    await userEvent.click(screen.getByRole("button", { name: "本周" }));
+    await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 收听日历" }));
+    const dialog = await screen.findByRole("dialog", { name: "网易云 · 收听日历" });
+    for (let index = 0; index < 12; index += 1) {
+      await userEvent.click(within(dialog).getByRole("button", { name: "查看更早一周" }));
+    }
+    const earliest = widget.data.weekHistory?.at(-1)?.points[0]?.date;
+    expect(dialog.querySelector(`[data-history-anchor="week:${earliest}"]`)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "查看更早一周" })).toBeDisabled();
+    expect(within(dialog).getByText("更早记录正在后台同步，请稍后再试")).toBeVisible();
+  });
+
   it("falls back to previous-week left and current-week right when the weekly wall is absent", () => {
     const widget = calendarWidget();
     if (widget.data.week.availability !== "available") {
@@ -339,17 +358,20 @@ describe("NetEase semantic data widgets", () => {
   });
 });
 
-function calendarWidget(): WidgetOf<"music.netease.calendar"> {
+function calendarWidget(historyCount = 3): WidgetOf<"music.netease.calendar"> {
   const monthPoints = Array.from({ length: 27 }, (_, index) => ({
     date: `2026-08-${String(index + 1).padStart(2, "0")}`,
     minutes: index === 0 ? 61 : (index * 23) % 260
   }));
-  const weekHistory = Array.from({ length: 3 }, (_, index) => calendarHistoryRange("week", index));
-  const monthHistory = Array.from({ length: 3 }, (_, index) =>
+  const weekHistory = Array.from({ length: historyCount }, (_, index) =>
+    calendarHistoryRange("week", index)
+  );
+  const monthHistory = Array.from({ length: historyCount }, (_, index) =>
     calendarHistoryRange("month", index)
   );
   return {
     data: {
+      historyBackfill: { monthComplete: true, weekComplete: false },
       month: {
         availability: "available",
         coverage: "provider_month",

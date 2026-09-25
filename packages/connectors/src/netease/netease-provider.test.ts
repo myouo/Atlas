@@ -35,9 +35,13 @@ import {
 import { NeteaseClient } from "./netease-client";
 import { NeteaseAuthClient } from "./netease-auth-client";
 import { NeteaseConnector, sanitizeNeteasePayload } from "./netease-connector";
-import { NeteaseNormalizer } from "./netease-normalizer";
+import { NeteaseNormalizer, normalizeNeteaseHistoricalReport } from "./netease-normalizer";
 import { probeNeteaseMusicCards } from "./netease-music-cards-probe";
-import { NeteaseProjector, buildNeteaseOwnerDataCatalog } from "./netease-projector";
+import {
+  NeteaseProjector,
+  buildNeteaseOwnerDataCatalog,
+  projectNeteaseHistoricalCalendarRange
+} from "./netease-projector";
 import { NETEASE_PROVIDER_MANIFEST } from "./netease-provider-runtime";
 import {
   NETEASE_SOURCE,
@@ -50,6 +54,19 @@ const connectionId = "00000000-0000-4000-8000-000000000501";
 const secret = "private-cookie-value-for-tests";
 
 describe("NetEase Provider module", () => {
+  it("normalizes and projects a historical period beyond the old three-period window", () => {
+    const report = normalizeNeteaseHistoricalReport(
+      historicalListenReportFixture("week", 8),
+      "week"
+    );
+    const range = projectNeteaseHistoricalCalendarRange("week", report);
+    expect(range).toMatchObject({
+      availability: "available",
+      period: "week",
+      points: expect.arrayContaining([{ date: "2026-02-16", minutes: expect.any(Number) }])
+    });
+  });
+
   it("probes the real music-card path without API, Worker, Queue, or database infrastructure", async () => {
     const result = await probeNeteaseMusicCards(
       new NeteaseClient({ timeoutMs: 2_000 }, createNeteaseHttpFixtureFetcher("normal")),
