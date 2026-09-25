@@ -32,6 +32,7 @@ import {
   readAppearanceSettings,
   saveAppearanceSettings,
   type AppearanceAccent,
+  type AppearanceFont,
   type AppearanceGlass
 } from "../../design-system/appearance";
 import { AppProviders } from "../providers";
@@ -48,7 +49,7 @@ export default function SettingsPage() {
 function SettingsContent() {
   const [accent, setAccent] = useState<AppearanceAccent>("blue");
   const [glass, setGlass] = useState<AppearanceGlass>("balanced");
-  const [rotation, setRotation] = useState(false);
+  const [font, setFont] = useState<AppearanceFont>("noto");
   const [saved, setSaved] = useState(false);
   const [credential, setCredential] = useState("");
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
@@ -162,13 +163,13 @@ function SettingsContent() {
     const animationFrame = window.requestAnimationFrame(() => {
       setAccent(settings.accent);
       setGlass(settings.glass);
-      setRotation(settings.rotation);
+      setFont(settings.font);
     });
     return () => window.cancelAnimationFrame(animationFrame);
   }, []);
 
   const save = () => {
-    saveAppearanceSettings({ accent, glass, rotation });
+    saveAppearanceSettings({ accent, glass, font, rotation: false });
     setSaved(true);
     if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
     savedTimer.current = window.setTimeout(() => {
@@ -177,8 +178,64 @@ function SettingsContent() {
     }, 2_000);
   };
 
+  if (dashboardSource.kind === "api" && !owner) {
+    return (
+      <main className="nivalis-page settings-page flex min-h-screen items-center justify-center p-6">
+        <section className="glass-surface-strong w-full max-w-md rounded-[24px] p-8 text-center">
+          <ShieldCheck aria-hidden className="mx-auto text-blue-600" size={36} weight="duotone" />
+          <h1 className="mt-4 text-xl font-extrabold text-ink">设置仅对 Owner 开放</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+            {sessionQuery.isPending
+              ? "正在确认登录状态…"
+              : "请使用 Owner 的 GitHub 账号登录后管理外观和 Provider。"}
+          </p>
+          {sessionQuery.isError ? (
+            <p className="mt-3 text-xs text-rose-700" role="alert">
+              暂时无法确认登录状态，请重试。
+            </p>
+          ) : null}
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link className="settings-topbar-link glass-surface text-ink" href="/">
+              <ArrowLeft aria-hidden size={16} weight="bold" />
+              返回 About Me
+            </Link>
+            {sessionQuery.isError ? (
+              <button
+                className="settings-session-button bg-blue-600 text-white"
+                onClick={() => void sessionQuery.refetch()}
+                type="button"
+              >
+                重试
+              </button>
+            ) : !sessionQuery.isPending && !authenticated ? (
+              <button
+                className="settings-session-button bg-blue-600 text-white disabled:opacity-50"
+                disabled={loginMutation.isPending}
+                onClick={() => loginMutation.mutate()}
+                type="button"
+              >
+                <GithubLogo aria-hidden size={16} weight="bold" />
+                使用 GitHub 登录
+              </button>
+            ) : null}
+          </div>
+          {loginMutation.isError ? (
+            <p className="mt-3 text-xs text-rose-700" role="alert">
+              暂时无法开始 GitHub 登录，请稍后重试。
+            </p>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main className="nivalis-page settings-page" data-accent={accent} data-glass={glass}>
+    <main
+      className="nivalis-page settings-page"
+      data-accent={accent}
+      data-font={font}
+      data-glass={glass}
+    >
       <div className="nivalis-content settings-content">
         <header className="settings-topbar">
           <Link className="settings-topbar-link glass-surface-strong text-ink" href="/">
@@ -244,15 +301,10 @@ function SettingsContent() {
               <span>
                 <span className="block text-xs font-extrabold text-ink">Background rotation</span>
                 <span className="mt-0.5 block text-[10px] text-ink-muted">
-                  后续阶段将接入对象存储中的背景集合
+                  当前仅有一张背景，轮换将在新增背景后开放
                 </span>
               </span>
-              <input
-                checked={rotation}
-                className="settings-toggle-input"
-                onChange={(event) => setRotation(event.target.checked)}
-                type="checkbox"
-              />
+              <input checked={false} className="settings-toggle-input" disabled type="checkbox" />
               <span aria-hidden className="settings-toggle-track" />
             </label>
           </section>
@@ -287,9 +339,13 @@ function SettingsContent() {
               </div>
               <label className="mt-4 block text-[10px] font-bold text-ink-muted">
                 字体
-                <select className="settings-select mt-2 h-10 w-full rounded-xl px-3 text-xs font-semibold">
-                  <option>Noto Sans SC</option>
-                  <option>System Sans</option>
+                <select
+                  className="settings-select mt-2 h-10 w-full rounded-xl px-3 text-xs font-semibold"
+                  onChange={(event) => setFont(event.target.value as AppearanceFont)}
+                  value={font}
+                >
+                  <option value="noto">Noto Sans SC</option>
+                  <option value="system">System Sans</option>
                 </select>
               </label>
               <div className="mt-4 grid grid-cols-3 gap-2">
