@@ -42,8 +42,10 @@ dates and minute-valued `listenTimeDistributionBlock.durationDetails`; the indep
 The calendar also consumes the official read-only
 `content/activity/listen/data/song/play/rank` endpoint for current week/month record walls. Its
 `picUrls` order is preserved exactly; song metadata and Web links are attached only after matching a
-sanitized artwork URL to `songItems`. The historical report endpoint builds independent three-period
+sanitized artwork URL to `songItems`. Normal SyncRuns build independent three-period recent
 week and month windows by anchoring every next request to the selected response's `startTime - 1`.
+The Cloudflare Queue then backfills older completed periods in separate batches, keeping them in D1
+without a total-period cap.
 Each historical report keeps its own `wallpaperBlock`; the expanded UI mounts only the active anchor
 and restores separate week/month anchors when the view switches. The first previous week also acts
 as a semantic fallback when a current weekly wall is unavailable. See ADR 0022.

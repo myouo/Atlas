@@ -446,7 +446,7 @@ async function historicalReportSnapshots(
   return results;
 }
 
-function historicalReportState(payload: JsonValue) {
+export function historicalReportState(payload: JsonValue) {
   if (!isObject(payload) || !isObject(payload.data)) return null;
   const startTime = payload.data.startTime;
   const endTime = payload.data.endTime;
@@ -586,7 +586,7 @@ function extractUserId(payload: JsonValue): string | null {
   return typeof value === "string" || typeof value === "number" ? String(value) : null;
 }
 
-function previousPeriodEndTime(payload: JsonValue): number | null {
+export function previousPeriodEndTime(payload: JsonValue): number | null {
   if (!isObject(payload) || !isObject(payload.data)) return null;
   const startTime = payload.data.startTime;
   return typeof startTime === "number" && Number.isSafeInteger(startTime) && startTime > 1
