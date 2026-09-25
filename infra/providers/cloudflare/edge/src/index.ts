@@ -1,5 +1,6 @@
 import { DashboardReadService } from "@nivalis/application";
 import type {
+  ConnectedProvider,
   DashboardLiveDataSnapshot,
   DashboardReadModelSnapshot,
   DashboardSnapshot,
@@ -33,10 +34,12 @@ import { D1DashboardWriteService } from "./d1-dashboard-write-service";
 import { PortableViewVersionFactory } from "./portable-version-factory";
 
 export interface Environment extends AuthEnvironment, ProviderEnvironment {
+  readonly ADMIN_TOKEN?: string;
   readonly CORS_ORIGINS?: string;
   readonly DB: D1Database;
   readonly ENVIRONMENT?: string;
   readonly SYNC_QUEUE: Queue<CloudflareQueueMessage>;
+  readonly SYNC_TOKEN?: string;
 }
 
 const worker = {
@@ -193,6 +196,74 @@ const worker = {
           "Cache-Control": "public, max-age=60, no-transform",
           ETag: `"view:${dashboard.viewVersion}"`
         });
+      }
+
+      if (requestUrl.pathname === "/v1/internal/sync" && request.method === "POST") {
+        const authHeader = request.headers.get("authorization");
+        const tokenHeader = request.headers.get("x-sync-token");
+        const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+        const providedToken = tokenHeader?.trim() || bearerToken;
+
+        const validToken = environment.SYNC_TOKEN?.trim() || environment.ADMIN_TOKEN?.trim();
+        const session = environment.DB
+          ? await readAuthSession(request, environment.DB).catch(() => null)
+          : null;
+        const isOwner = session?.actor.role === "owner";
+
+        if (!isOwner && (!validToken || providedToken !== validToken)) {
+          return problem(
+            401,
+            "unauthorized",
+            "Valid sync token or owner session is required",
+            requestUrl.pathname,
+            requestId,
+            corsHeaders
+          );
+        }
+
+        const providers = createCloudflareProviderRuntime(
+          environment.DB,
+          environment.SYNC_QUEUE,
+          environment
+        );
+        if (!providers) {
+          return problem(
+            503,
+            "provider-security-not-configured",
+            "Provider credential encryption is not configured",
+            requestUrl.pathname,
+            requestId,
+            corsHeaders
+          );
+        }
+
+        const requestedProvider = requestUrl.searchParams.get("provider");
+        const connections = await environment.DB.prepare(
+          `SELECT DISTINCT owner_id, provider FROM provider_connections WHERE enabled = 1`
+        ).all<{ owner_id: string; provider: ConnectedProvider }>();
+
+        const activeList = (connections.results || []).filter(
+          (c) => !requestedProvider || c.provider === requestedProvider
+        );
+
+        const enqueued = [];
+        for (const { owner_id, provider } of activeList) {
+          if (provider !== "netease" && provider !== "steam") continue;
+          try {
+            const run = await providers.sync.enqueue(owner_id, provider);
+            executionContext.waitUntil(progressProviderSync(providers, run.id));
+            enqueued.push({ ownerId: owner_id, provider, status: "accepted", syncRunId: run.id });
+          } catch (error) {
+            enqueued.push({
+              error: error instanceof Error ? error.message : String(error),
+              ownerId: owner_id,
+              provider,
+              status: "failed"
+            });
+          }
+        }
+
+        return json({ enqueued, status: "ok" }, 202, corsHeaders);
       }
 
       if (requestUrl.pathname.startsWith("/v1/me/")) {
@@ -585,6 +656,75 @@ const worker = {
         return result.disposition;
       }
     });
+  },
+
+  async scheduled(
+    event: ScheduledController,
+    environment: Environment,
+    executionContext: ExecutionContext
+  ) {
+    const providers = createCloudflareProviderRuntime(
+      environment.DB,
+      environment.SYNC_QUEUE,
+      environment
+    );
+    if (!providers) {
+      console.warn("Scheduled sync skipped: provider runtime not configured");
+      return;
+    }
+
+    try {
+      const connections = await environment.DB.prepare(
+        `SELECT DISTINCT owner_id, provider FROM provider_connections WHERE enabled = 1`
+      ).all<{ owner_id: string; provider: ConnectedProvider }>();
+
+      const activeList = connections.results || [];
+      if (activeList.length === 0) {
+        console.info("Scheduled sync: no active provider connections found");
+        return;
+      }
+
+      console.info(
+        JSON.stringify({
+          cron: event.cron,
+          event: "scheduled_sync_start",
+          providerCount: activeList.length,
+          scheduledTime: event.scheduledTime
+        })
+      );
+
+      for (const { owner_id, provider } of activeList) {
+        if (provider !== "netease" && provider !== "steam") continue;
+        try {
+          const run = await providers.sync.enqueue(owner_id, provider);
+          executionContext.waitUntil(progressProviderSync(providers, run.id));
+          console.info(
+            JSON.stringify({
+              event: "scheduled_sync_enqueued",
+              ownerId: owner_id,
+              provider,
+              syncRunId: run.id
+            })
+          );
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              error: error instanceof Error ? error.message : String(error),
+              event: "scheduled_sync_error",
+              ownerId: owner_id,
+              provider
+            })
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : String(error),
+          event: "scheduled_sync_fatal"
+        })
+      );
+    }
   }
 } satisfies ExportedHandler<Environment, CloudflareQueueMessage>;
 
@@ -771,7 +911,7 @@ function resolveCorsHeaders(request: Request, configuredOrigins?: string) {
   return new Headers({
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Expose-Headers": "ETag, Location, Server-Timing",
-    "Access-Control-Allow-Headers": "Content-Type, If-Match",
+    "Access-Control-Allow-Headers": "Content-Type, If-Match, Authorization, X-Sync-Token",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Origin": origin,
     Vary: "Origin"

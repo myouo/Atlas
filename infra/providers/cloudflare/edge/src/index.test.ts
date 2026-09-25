@@ -65,6 +65,49 @@ describe("Cloudflare edge gateway", () => {
     expect(allowed.status).toBe(204);
     expect(allowed.headers.get("access-control-allow-origin")).toBe("https://trusted.invalid");
   });
+
+  it("rejects unauthorized internal sync requests", async () => {
+    const environment = { SYNC_TOKEN: "secret-token" } as Environment;
+    const response = await worker.fetch(
+      new Request("https://edge.invalid/v1/internal/sync", {
+        method: "POST"
+      }),
+      environment,
+      executionContext
+    );
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      status: 401,
+      type: "urn:nivalis:problem:unauthorized"
+    });
+  });
+
+  it("accepts valid sync token and checks provider configuration", async () => {
+    const environment = { SYNC_TOKEN: "secret-token" } as Environment;
+    const response = await worker.fetch(
+      new Request("https://edge.invalid/v1/internal/sync", {
+        headers: { Authorization: "Bearer secret-token" },
+        method: "POST"
+      }),
+      environment,
+      executionContext
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      status: 503,
+      type: "urn:nivalis:problem:provider-security-not-configured"
+    });
+  });
+
+  it("handles scheduled cron events gracefully when runtime is unconfigured", async () => {
+    await expect(
+      worker.scheduled(
+        { cron: "0 */6 * * *", noRetry() {}, scheduledTime: Date.now() },
+        {} as Environment,
+        executionContext
+      )
+    ).resolves.toBeUndefined();
+  });
 });
 
 const executionContext = {} as ExecutionContext;

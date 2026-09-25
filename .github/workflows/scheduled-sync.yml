@@ -1,0 +1,30 @@
+name: scheduled-sync
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync Providers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Trigger Provider Synchronization
+        env:
+          SYNC_ENDPOINT_URL: ${{ secrets.SYNC_ENDPOINT_URL || 'https://aboutme.nivalis.is/api/v1/internal/sync' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.ADMIN_TOKEN }}
+        run: node scripts/sync-edge-providers.mjs

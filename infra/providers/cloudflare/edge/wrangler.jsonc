@@ -8,6 +8,9 @@
     "mode": "smart"
   },
   "workers_dev": true,
+  "triggers": {
+    "crons": ["0 */6 * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
