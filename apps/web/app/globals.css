@@ -521,6 +521,7 @@ select:focus-visible {
   position: absolute;
   top: 0.65rem;
   right: 0.65rem;
+  z-index: 3;
 }
 
 .module-shell[data-editable="true"] {

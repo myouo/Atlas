@@ -37,8 +37,21 @@ test("adds and removes a distinct Widget instance", async ({ page }) => {
   await page.getByRole("button", { name: /Steam.*游戏库/ }).click();
   await expect(steamShells).toHaveCount(initialCount + 1);
 
-  await page.getByRole("button", { name: /^移除 Steam$/ }).click();
+  await steamShells
+    .last()
+    .getByRole("button", { name: /^移除 Steam$/ })
+    .click();
   await expect(steamShells).toHaveCount(initialCount);
+});
+
+test("opens an expandable module from its display view corner button", async ({ page }) => {
+  await page.getByRole("button", { name: "编辑视图" }).click();
+  await page.getByRole("button", { name: "添加模块" }).first().click();
+  await page.getByRole("button", { name: /网易云 · 听歌双榜/ }).click();
+  await page.getByRole("button", { name: "发布布局" }).click();
+
+  await page.getByRole("button", { name: "放大 网易云 · 听歌双榜" }).click();
+  await expect(page.getByRole("dialog", { name: "网易云 · 听歌双榜" })).toBeVisible();
 });
 
 test("resizes a module and persists the draft layout locally", async ({ page, isMobile }) => {

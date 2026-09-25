@@ -9,6 +9,7 @@ afterEach(() => {
   window.localStorage.clear();
   delete document.documentElement.dataset.accent;
   delete document.documentElement.dataset.glass;
+  delete document.documentElement.dataset.font;
 });
 
 describe("Settings Mock Provider boundary", () => {
@@ -26,9 +27,12 @@ describe("Settings Mock Provider boundary", () => {
     render(<SettingsPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Accent lilac" }));
     await userEvent.click(screen.getByRole("button", { name: "strong" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "字体" }), "system");
     await userEvent.click(await screen.findByRole("button", { name: "保存外观设置" }));
     expect(screen.getByRole("button", { name: "已保存到浏览器" })).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("data-accent", "lilac");
     expect(document.documentElement).toHaveAttribute("data-glass", "strong");
+    expect(document.documentElement).toHaveAttribute("data-font", "system");
+    expect(screen.getByRole("checkbox", { name: /Background rotation/ })).toBeDisabled();
   });
 });
