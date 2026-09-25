@@ -44,11 +44,17 @@ Anonymous visitors receive a content-only homepage. The mode switcher, editing c
 
 ## GitHub Owner authentication
 
-Create a GitHub OAuth App with this exact callback shape:
+Create a GitHub OAuth App with this exact callback shape on the canonical public host:
 
 ```text
-<pages-origin>/api/v1/auth/github/callback
+<app-public-origin>/api/v1/auth/github/callback
 ```
+
+Set `APP_PUBLIC_ORIGIN` to `<app-public-origin>` and `API_PUBLIC_ORIGIN` to
+`<app-public-origin>/api`. If Pages also has a custom domain, use that same custom host for both
+values and register its callback URL in the GitHub OAuth App. The callback sets a host-only
+HttpOnly session cookie; mixing a `pages.dev` callback with a custom-domain final redirect leaves
+the Owner signed in on the wrong host.
 
 Configure these Worker values through deployment variables/secrets, never source:
 
