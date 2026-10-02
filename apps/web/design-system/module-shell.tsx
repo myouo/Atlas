@@ -82,6 +82,15 @@ const accentClasses: Record<WidgetAccent, { badge: string; icon: string }> = {
   rose: { badge: "bg-pink-50 text-pink-700", icon: "bg-[#ff4f91] text-white" }
 };
 
+function platformLabel(type?: string) {
+  if (type?.startsWith("music.netease.")) return "NETEASE CLOUD MUSIC";
+  if (type?.startsWith("steam.")) return "STEAM";
+  if (type?.startsWith("github.")) return "GITHUB";
+  if (type?.startsWith("bilibili.")) return "BILIBILI";
+  if (type?.startsWith("bangumi.")) return "BANGUMI";
+  return "NIVALIS";
+}
+
 export function ModuleShell(props: ModuleShellProps) {
   return props.expandable ? <ExpandableModuleShell {...props} /> : <ModuleShellFrame {...props} />;
 }
@@ -112,12 +121,15 @@ function ExpandableModuleShell(props: ModuleShellProps) {
 
         <Dialog.Portal>
           <Dialog.Overlay className="module-expand-overlay nivalis-modal-overlay fixed inset-0 z-[90]" />
-          <Dialog.Content className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6">
+          <Dialog.Content
+            className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6"
+            data-accent={props.accent}
+          >
             <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-lg font-black tracking-[-0.025em] text-ink">
               {props.icon ? (
                 <span
                   className={clsx(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
+                    "module-shell-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
                     styles.icon
                   )}
                 >
@@ -242,6 +254,9 @@ function ModuleShellFrame({
             </span>
           ) : null}
           <div className="min-w-0 flex-1">
+            <p aria-hidden className="module-shell-eyebrow">
+              {platformLabel(widgetType)}
+            </p>
             <div className="flex items-center gap-2">
               <h2 className="module-shell-title truncate text-[14px] font-bold tracking-[-0.01em] text-ink">
                 {title}

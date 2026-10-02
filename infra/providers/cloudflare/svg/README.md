@@ -5,6 +5,10 @@ Phosphor icons, covers, the ranking switcher and the monthly record wall come fr
 they are not independently redrawn. Images are embedded and text remains vector text. The result
 contains no scripts or `foreignObject` elements.
 
+The capture session explicitly selects the original Glass card theme. The website's newer
+Porcelain default and browser-local appearance choices therefore do not change existing profile
+exports; both themes still use the shared website components.
+
 ## Universal entry
 
 `/render.svg` is the common entry for every published card and both color modes.

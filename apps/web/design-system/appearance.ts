@@ -1,11 +1,14 @@
 export type AppearanceAccent = "blue" | "lilac" | "rose";
 export type AppearanceGlass = "balanced" | "strong" | "subtle";
 export type AppearanceFont = "noto" | "system";
+export type AppearanceCardStyle = "glass" | "porcelain";
+export const defaultCardStyle: AppearanceCardStyle = "porcelain";
 
 export interface AppearanceSettings {
   readonly accent: AppearanceAccent;
   readonly glass: AppearanceGlass;
   readonly font: AppearanceFont;
+  readonly cardStyle: AppearanceCardStyle;
   readonly rotation: boolean;
 }
 
@@ -14,6 +17,7 @@ export const appearanceStorageKey = "nivalis.appearance.phase1.v1";
 const accents: readonly AppearanceAccent[] = ["blue", "lilac", "rose"];
 const glassLevels: readonly AppearanceGlass[] = ["balanced", "strong", "subtle"];
 const fonts: readonly AppearanceFont[] = ["noto", "system"];
+const cardStyles: readonly AppearanceCardStyle[] = ["glass", "porcelain"];
 
 export function readAppearanceSettings(): AppearanceSettings | null {
   if (typeof window === "undefined") return null;
@@ -31,6 +35,10 @@ export function readAppearanceSettings(): AppearanceSettings | null {
       font: fonts.includes(settings.font as AppearanceFont)
         ? (settings.font as AppearanceFont)
         : "noto",
+      // Existing saved preferences keep their original glass cards.
+      cardStyle: cardStyles.includes(settings.cardStyle as AppearanceCardStyle)
+        ? (settings.cardStyle as AppearanceCardStyle)
+        : "glass",
       rotation: settings.rotation === true
     };
   } catch {
@@ -39,12 +47,13 @@ export function readAppearanceSettings(): AppearanceSettings | null {
 }
 
 export function applyAppearanceSettings(
-  settings: Pick<AppearanceSettings, "accent" | "glass" | "font">
+  settings: Pick<AppearanceSettings, "accent" | "glass" | "font" | "cardStyle">
 ) {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.accent = settings.accent;
   document.documentElement.dataset.glass = settings.glass;
   document.documentElement.dataset.font = settings.font;
+  document.documentElement.dataset.cardStyle = settings.cardStyle;
 }
 
 export function saveAppearanceSettings(settings: AppearanceSettings) {

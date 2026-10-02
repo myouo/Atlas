@@ -42,7 +42,7 @@ function Artwork({
   return (
     <span
       aria-label={label}
-      className={`${dimensions} relative block shrink-0 overflow-hidden border border-white/90 bg-gradient-to-br from-rose-100 to-blue-100 shadow-sm`}
+      className={`provider-artwork ${dimensions} relative block shrink-0 overflow-hidden border border-white/90 bg-gradient-to-br from-rose-100 to-blue-100 shadow-sm`}
       role="img"
     >
       {url ? <LazyProviderImage url={url} /> : null}
@@ -283,7 +283,7 @@ export function NeteaseListeningCalendarWidget({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="netease-calendar-toolbar mb-2 flex items-center gap-2">
         {availableRanges.length === 2 ? (
           <SlidingSwitcher
             label="收听日历范围"
@@ -629,7 +629,7 @@ function ListeningRecordWall({
   );
   return (
     <div
-      className={`flex h-full min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 ${compact ? "p-1.5" : "p-2"}`}
+      className={`netease-record-wall flex h-full min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 ${compact ? "p-1.5" : "p-2"}`}
     >
       <div className={`${compact ? "mb-1" : "mb-1.5"} flex items-center justify-between gap-1`}>
         <p className="flex min-w-0 items-center gap-1 text-[8px] font-extrabold text-ink-muted">
@@ -692,7 +692,7 @@ function MonthlyListeningCalendar({
   const rowCount = Math.ceil(cells.length / 7);
   const monthLabel = formatCalendarMonth(points[0]!.date);
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2">
+    <div className="netease-monthly-calendar flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2">
       {!hidePeriodLabel ? (
         <div className="mb-1 flex items-center justify-between gap-2 sm:hidden">
           <p className="flex items-center gap-1.5 text-[8px] font-extrabold text-ink-muted">
@@ -769,7 +769,7 @@ function WeeklyListeningRhythm({
   const maximum = Math.max(...points.map((point) => point.minutes), 1);
   return (
     <div
-      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5"
+      className="netease-weekly-rhythm flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5"
       data-weekly-label={label}
     >
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -1091,8 +1091,8 @@ function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount
     <NeteaseWebLink
       className={
         item.rank <= 3
-          ? "group flex min-w-0 items-center gap-2 rounded-xl border border-rose-100/80 bg-gradient-to-r from-rose-50/80 to-white/50 px-2 py-1.5 transition hover:border-white hover:bg-white/75"
-          : "group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/34 px-2 py-1.5 transition hover:border-white/90 hover:bg-white/65"
+          ? "netease-ranking-row is-featured group flex min-w-0 items-center gap-2 rounded-xl border border-rose-100/80 bg-gradient-to-r from-rose-50/80 to-white/50 px-2 py-1.5 transition hover:border-white hover:bg-white/75"
+          : "netease-ranking-row group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/34 px-2 py-1.5 transition hover:border-white/90 hover:bg-white/65"
       }
       href={item.track.webUrl}
       label={`在网易云打开歌曲 ${item.track.name}`}
@@ -1110,10 +1110,10 @@ function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount
       </span>
       <Artwork label={item.track.name} size="xs" url={item.track.coverUrl} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[10px] leading-tight font-extrabold text-ink">
+        <p className="netease-ranking-track truncate text-[10px] leading-tight font-extrabold text-ink">
           {item.track.name}
         </p>
-        <p className="mt-0.5 truncate text-[8px] leading-tight text-ink-muted">
+        <p className="netease-ranking-artist mt-0.5 truncate text-[8px] leading-tight text-ink-muted">
           {item.track.artists.map((artist) => artist.name).join(" / ")}
         </p>
       </div>

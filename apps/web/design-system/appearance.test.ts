@@ -7,21 +7,30 @@ afterEach(() => {
   delete document.documentElement.dataset.accent;
   delete document.documentElement.dataset.glass;
   delete document.documentElement.dataset.font;
+  delete document.documentElement.dataset.cardStyle;
 });
 
 describe("appearance settings", () => {
   it("persists validated settings and applies their visual tokens", () => {
-    saveAppearanceSettings({ accent: "lilac", glass: "strong", font: "system", rotation: false });
+    saveAppearanceSettings({
+      accent: "lilac",
+      glass: "strong",
+      font: "system",
+      cardStyle: "porcelain",
+      rotation: false
+    });
 
     expect(readAppearanceSettings()).toEqual({
       accent: "lilac",
       glass: "strong",
       font: "system",
+      cardStyle: "porcelain",
       rotation: false
     });
     expect(document.documentElement).toHaveAttribute("data-accent", "lilac");
     expect(document.documentElement).toHaveAttribute("data-glass", "strong");
     expect(document.documentElement).toHaveAttribute("data-font", "system");
+    expect(document.documentElement).toHaveAttribute("data-card-style", "porcelain");
   });
 
   it("uses the original font for settings saved before font selection existed", () => {
@@ -31,6 +40,7 @@ describe("appearance settings", () => {
     );
 
     expect(readAppearanceSettings()?.font).toBe("noto");
+    expect(readAppearanceSettings()?.cardStyle).toBe("glass");
   });
 
   it("ignores malformed or unsupported persisted values", () => {

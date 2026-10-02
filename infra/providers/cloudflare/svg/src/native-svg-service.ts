@@ -74,6 +74,10 @@ export async function loadNativeScene(
     await page.goto(env.SITE_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
     stage = "wait_for_web_cards";
     await page.waitForSelector("section[data-widget-id]", { timeout: 30_000 });
+    // Existing profile exports intentionally retain the original website card theme.
+    await page.evaluate(() => {
+      document.documentElement.dataset.cardStyle = "glass";
+    });
     stage = "capture_library";
     const library = await env.CAPTURE_ASSETS.fetch(
       new Request("https://capture.internal/capture.js")
