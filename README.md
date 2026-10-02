@@ -309,6 +309,10 @@ CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 
 See [ADR 0016](docs/adr/0016-cloudflare-d1-worker-queue-adapter.md) and the [Cloudflare adapter guide](infra/providers/cloudflare/README.md).
 
+The separate [SVG card Worker](infra/providers/cloudflare/svg/README.md) serves the published
+Dashboard as GitHub profile images. `/dashboard.svg` includes every enabled published Widget,
+while `/widgets/{id}.svg` and `/types/{type}.svg` select individual cards.
+
 The public homepage intentionally has no administration chrome. Open `/settings` directly to authenticate as Owner; the display/edit controls, Provider status, sync actions, API information, and Settings link appear on the homepage only after the API reports an Owner session.
 
 In Owner edit mode, every registered card uses the shared configuration surface. Presentation choices update only `presentationConfig`; NetEase semantic public policies update `dataConfig` and are enforced by the Projector before data reaches a public payload. Use **Save Draft**, sync data-affecting policy changes, then **Publish Layout**. Presentation choices do not change Projection Keys; public policy and selected resources do.

@@ -120,6 +120,9 @@ For NetEase, the same Cron also starts week and month history backfills. Queue m
 most 16 historical periods each, save immutable calendar ranges in D1, and enqueue the next batch
 until the account's earliest period. Public calendar widgets read all stored periods permitted by
 their published `publicRanges`; the full history is not re-fetched during normal Provider syncs.
+Successful normal syncs also archive their completed historical weeks and months in the same D1
+transaction as the projections. Those periods remain available after they leave the recent history
+window, and existing immutable ranges are never overwritten.
 
 The deployed client revalidates Dashboard data every 30 seconds while visible and on window focus. An Owner's dirty local Draft is never replaced by this refresh; only live Projection fields and the Published read model are updated. Manual NetEase sync persists its Queue message before returning `202`, starts an immediate `waitUntil` attempt, and lets the Queue retry a busy or stale CAS lease. Independent Provider reads are capped at four and the sanitized Raw batch uses one D1 binding call. Within the same current week/month, the Connector may reuse a strictly validated three-period completed-history window from the last successful run, removing six repeat Provider calls without weakening Raw replay completeness. Large Raw JSON is stored as explicit gzip BLOB evidence to reduce durable-write latency; small and historical payloads remain directly queryable JSON.
 
