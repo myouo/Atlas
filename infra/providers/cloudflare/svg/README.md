@@ -63,8 +63,11 @@ Run `pnpm build:svg` and `pnpm deploy:svg`. The build also bundles the browser-s
 The Worker needs the existing API Service Binding, Browser Run, a KV cache and the bundled
 capture asset binding. Local/production KV instance IDs stay in ignored deployment config.
 
-A capture set is keyed by the complete public read model and the render options. A privacy or
-publication change cannot reuse a previous set. Original card metadata (`data-widget-id` and
+A capture set is keyed by public content and the render options. Only non-rendered Widget sync
+timestamps and equivalent numbered NetEase artwork CDN hosts are normalized. Actual data,
+artwork identities, public policies, presentation settings, stale state, layout and publication
+revision remain part of the key, so a privacy or publication change cannot reuse a previous set.
+Original card metadata (`data-widget-id` and
 `data-widget-type`) makes export independent of title and order, including duplicate titles.
 The six-hour SVG Cron prewarms both modes after the Provider sync; a cache miss renders the
 current public model. Failure returns an uncached error rather than a redesigned substitute.

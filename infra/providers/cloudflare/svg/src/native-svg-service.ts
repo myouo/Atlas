@@ -2,6 +2,7 @@ import type { DashboardReadModel } from "@nivalis/api-client";
 import type { NativeSvgCard, NativeSvgScene } from "./native-svg-types";
 import type { captureCard, finishCard } from "./browser-capture";
 import { svgAppearance, SVG_STYLES, SVG_THEMES } from "./svg-theme";
+import { NATIVE_CAPTURE_VERSION, nativeSceneContentHash } from "./native-scene-cache";
 
 declare global {
   interface Window {
@@ -9,7 +10,6 @@ declare global {
   }
 }
 
-const CAPTURE_VERSION = "web-components-v5-original-variants";
 const CACHE_SECONDS = 24 * 60 * 60;
 
 export async function loadNativeScene(
@@ -21,11 +21,8 @@ export async function loadNativeScene(
   const range = options.get("range") === "all_time" ? "all_time" : "week";
   const period = options.get("period") === "week" ? "week" : "month";
   const body = JSON.stringify(dashboard);
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
-  const hash = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  const key = `${CAPTURE_VERSION}:${hash}:${style}:${theme}:${range}:${period}`;
+  const hash = await nativeSceneContentHash(dashboard);
+  const key = `${NATIVE_CAPTURE_VERSION}:${hash}:${style}:${theme}:${range}:${period}`;
   const cached = await env.SVG_CACHE.get<NativeSvgScene>(key, "json");
   if (cached) return cached;
   const { default: puppeteer } = await import("@cloudflare/puppeteer");
@@ -258,7 +255,7 @@ export async function loadNativeScene(
         if (new TextEncoder().encode(serialized).byteLength > 12_000_000)
           throw new Error("Native scene exceeds export budget");
         stage = "cache_write";
-        const variantKey = `${CAPTURE_VERSION}:${hash}:${variantStyle}:${variantTheme}:${range}:${period}`;
+        const variantKey = `${NATIVE_CAPTURE_VERSION}:${hash}:${variantStyle}:${variantTheme}:${range}:${period}`;
         await env.SVG_CACHE.put(variantKey, serialized, { expirationTtl: CACHE_SECONDS });
         if (variantStyle === style && variantTheme === theme) requested = scene;
       }
