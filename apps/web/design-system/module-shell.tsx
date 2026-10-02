@@ -33,6 +33,8 @@ interface ModuleShellProps {
   readonly onRemove?: () => void;
   readonly stale?: boolean;
   readonly title: string;
+  readonly widgetId?: string;
+  readonly widgetType?: string;
 }
 
 interface ModuleShellFrameProps extends ModuleShellProps {
@@ -163,7 +165,9 @@ function ModuleShellFrame({
   onConfigure,
   onRemove,
   stale = false,
-  title
+  title,
+  widgetId,
+  widgetType
 }: ModuleShellFrameProps) {
   const showHeader = kind === "standard";
   const styles = accentClasses[accent];
@@ -178,6 +182,8 @@ function ModuleShellFrame({
       data-editable={editable}
       data-kind={kind}
       data-testid="module-shell"
+      data-widget-id={widgetId}
+      data-widget-type={widgetType}
     >
       {editable ? (
         <div className="module-edit-rail">

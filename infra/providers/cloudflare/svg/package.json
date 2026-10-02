@@ -7,9 +7,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@nivalis/api-client": "workspace:*"
+    "@cloudflare/puppeteer": "1.4.0",
+    "@nivalis/api-client": "workspace:*",
+    "dom-to-svg": "0.12.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260823.1"
+    "@cloudflare/workers-types": "^5.20260823.1",
+    "esbuild": "0.28.2"
   }
 }

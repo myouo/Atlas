@@ -12,7 +12,8 @@
   "scripts": {
     "build": "pnpm generate && pnpm -r --if-present build",
     "build:edge": "wrangler deploy --config infra/providers/cloudflare/edge/wrangler.jsonc --dry-run --outdir dist/cloudflare-edge",
-    "build:svg": "wrangler deploy --config infra/providers/cloudflare/svg/wrangler.jsonc --dry-run --outdir dist/cloudflare-svg",
+    "build:svg": "pnpm build:svg:capture && wrangler deploy --config infra/providers/cloudflare/svg/wrangler.jsonc --dry-run --outdir dist/cloudflare-svg",
+    "build:svg:capture": "node infra/providers/cloudflare/svg/scripts/build-browser-capture.mjs",
     "build:pages": "pnpm generate && NIVALIS_WEB_DEPLOY_TARGET=cloudflare-pages pnpm --filter @nivalis/web build",
     "build:pages:mock": "NEXT_PUBLIC_DASHBOARD_SOURCE=mock NEXT_PUBLIC_API_BASE_URL= pnpm build:pages",
     "cf:typecheck": "wrangler types infra/providers/cloudflare/edge/worker-configuration.d.ts --config infra/providers/cloudflare/edge/wrangler.jsonc --include-runtime=false --check",
@@ -31,7 +32,7 @@
     "dev:worker": "pnpm --filter @nivalis/worker dev",
     "dev:web": "pnpm --filter @nivalis/web dev",
     "deploy:edge": "wrangler deploy --config infra/providers/cloudflare/edge/wrangler.jsonc --keep-vars",
-    "deploy:svg": "wrangler deploy --config infra/providers/cloudflare/svg/wrangler.jsonc",
+    "deploy:svg": "pnpm build:svg:capture && wrangler deploy --config infra/providers/cloudflare/svg/wrangler.jsonc",
     "deploy:pages": "node scripts/deploy-cloudflare-pages.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

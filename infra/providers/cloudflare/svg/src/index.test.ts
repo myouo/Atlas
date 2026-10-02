@@ -1,7 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import worker, { selectRoute } from "./index";
+import { createSvgWorker, selectRoute } from "./index";
 import { dashboardFixture } from "./test-fixture";
+import type { NativeSvgScene } from "./native-svg-types";
+import { escapeXml } from "./svg-utils";
+
+const worker = createSvgWorker(async (dashboard): Promise<NativeSvgScene> => ({
+  profile: {
+    id: "profile",
+    type: "profile",
+    title: "About Me",
+    width: 668,
+    height: 80,
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" width="668" height="80"><text>About Me</text></svg>'
+  },
+  widgets: dashboard.widgets.map((widget) => ({
+    id: widget.id,
+    type: widget.type,
+    title: widget.title,
+    width: 668,
+    height: 305,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="668" height="305"><text>${escapeXml(widget.title)}</text></svg>`
+  }))
+}));
 
 const env = {
   NIVALIS_API: {
@@ -11,12 +32,19 @@ const env = {
     }) as Fetcher["connect"]
   },
   SITE_URL: "https://aboutme.nivalis.is"
-} as Env;
+} satisfies Pick<Env, "NIVALIS_API" | "SITE_URL">;
 
 describe("SVG Worker routes", () => {
   it("resolves a generic dashboard and future Widget routes", () => {
     expect(selectRoute("/dashboard.svg")).toEqual({ kind: "dashboard" });
-    expect(selectRoute("/netease.svg")).toEqual({ kind: "netease" });
+    expect(selectRoute("/netease.svg")).toEqual({ kind: "provider", value: "netease" });
+    expect(selectRoute("/render.svg", new URLSearchParams("provider=steam"))).toEqual({
+      kind: "provider",
+      value: "steam"
+    });
+    expect(
+      selectRoute("/render.svg", new URLSearchParams("type=system.stats&id=first-card"))
+    ).toEqual({ kind: "widget-type", value: "system.stats" });
     expect(selectRoute("/widgets/first-card.svg")).toEqual({
       kind: "widget-id",
       value: "first-card"
@@ -57,7 +85,8 @@ describe("SVG Worker routes", () => {
 
     const manifest = await worker.fetch(new Request("https://svg.example.test/manifest.json"), env);
     expect(await manifest.json()).toMatchObject({
-      widgets: [{ id: "first-card", svg: "https://svg.example.test/widgets/first-card.svg" }]
+      themes: ["light", "dark"],
+      widgets: [{ id: "first-card", svg: "https://svg.example.test/render.svg?id=first-card" }]
     });
   });
 
@@ -82,5 +111,33 @@ describe("SVG Worker routes", () => {
     expect(head.status).toBe(200);
     expect(await head.text()).toBe("");
     expect(head.headers.get("etag")).toBeTruthy();
+  });
+
+  it.each(["light", "dark"])(
+    "renders through the common entry in %s mode without exposing disabled cards",
+    async (theme) => {
+      const response = await worker.fetch(
+        new Request(
+          `https://svg.example.test/render.svg?type=system.stats&id=first-card&theme=${theme}`
+        ),
+        env
+      );
+      expect(response.status).toBe(200);
+      const svg = await response.text();
+      expect(svg).toContain(`data-theme="${theme}"`);
+      expect(svg).toContain("Future &amp; &lt;Card&gt;");
+      expect(svg).not.toContain("Hidden card");
+    }
+  );
+
+  it("rejects invalid themes and selectors without falling back to the full dashboard", async () => {
+    expect(
+      (await worker.fetch(new Request("https://svg.example.test/render.svg?theme=auto"), env))
+        .status
+    ).toBe(400);
+    expect(
+      (await worker.fetch(new Request("https://svg.example.test/render.svg?id=../private"), env))
+        .status
+    ).toBe(404);
   });
 });

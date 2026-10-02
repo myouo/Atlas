@@ -1,55 +1,69 @@
-# About Me SVG cards
+# Original Web cards as SVG
 
-`nivalis-about-svg` serves GitHub README friendly SVG images from the **published public**
-Dashboard through the `NIVALIS_API` Service Binding. It never reads Owner sessions, Provider
-credentials, or Draft data. All text is XML escaped; images contain no scripts, external artwork,
-or `foreignObject` elements.
+The SVG Worker exports the actual published Web components through Browser Run. Layout, fonts,
+Phosphor icons, covers, the ranking switcher and the monthly record wall come from the website;
+they are not independently redrawn. Images are embedded and text remains vector text. The result
+contains no scripts or `foreignObject` elements.
 
-The `svg.aboutme.nivalis.is` Custom Domain is created by the Worker route in `wrangler.jsonc`.
-Cloudflare manages its DNS record and certificate.
+## Universal entry
 
-| URL path                             | Image                                                              |
-| ------------------------------------ | ------------------------------------------------------------------ |
-| `/` or `/dashboard.svg`              | Profile and every enabled published Widget, including future types |
-| `/profile.svg`                       | About Me profile                                                   |
-| `/netease.svg`                       | Every enabled published NetEase Widget                             |
-| `/widgets/{widget-id}.svg`           | One published Widget by stable ID                                  |
-| `/types/{widget-type}.svg`           | First published Widget of a type; `?id=` selects an instance       |
-| `/netease/ranking.svg?range=week`    | Weekly ranking; `range=all_time` selects the all-time ranking      |
-| `/netease/identity.svg`              | NetEase account card                                               |
-| `/netease/playlists.svg`             | Created playlists                                                  |
-| `/netease/showcase.svg`              | Music showcase                                                     |
-| `/netease/calendar.svg?period=month` | Monthly heatmap; `period=week` selects the week                    |
-| `/steam/profile.svg`                 | Steam profile or its published empty state                         |
-| `/manifest.json`                     | Current Widget IDs, types, and SVG links                           |
+`/render.svg` is the common entry for every published card and both color modes.
 
-The named paths have tailored layouts. New Widget types automatically appear in `/dashboard.svg`,
-`/manifest.json`, and `/types/{widget-type}.svg` using a generic published-data card until a
-tailored layout is added. Disabled and draft Widgets are never exposed.
+| Query                                      | Selection                               |
+| ------------------------------------------ | --------------------------------------- |
+| none                                       | Profile and all enabled published cards |
+| `view=profile`                             | Original Web profile heading            |
+| `provider=netease`                         | All published NetEase cards             |
+| `provider=steam`                           | All published Steam cards               |
+| `type=music.netease.ranking`               | First published dual-ranking card       |
+| `type=music.netease.calendar&period=month` | Current monthly listening card          |
+| `id=<widget-id>`                           | One exact published card                |
+| `type=<type>&id=<widget-id>`               | A particular instance of a card type    |
 
-Cards show their last update time. Stale Steam data keeps its last known metrics and is marked
-as awaiting an update.
+`theme=light` and `theme=dark` apply to every entry. `style=soft` preserves the original Web
+presentation; `style=vinyl` retains that layout with a warm dark palette. An explicit `theme`
+overrides the style default (soft/light, vinyl/dark). `range=week` or `range=all_time` selects the
+original ranking tab, and `period=month` or `period=week` selects the original calendar tab.
 
-Two styles are available for NetEase cards:
+Legacy `/dashboard.svg`, `/profile.svg`, `/netease.svg`, `/widgets/{id}.svg`, `/types/{type}.svg`
+and named NetEase/Steam routes remain aliases. `/providers/{provider}.svg` works for future
+providers. The manifest exposes canonical `/render.svg` links and all style/theme variants.
+Disabled or Draft cards are not exported.
 
-- `style=soft` (default): light blue and coral, rounded dashboard cards.
-- `style=vinyl`: dark record sleeves, warm white typography, red listening bars, and vinyl artwork
-  drawn directly in SVG. All five current NetEase card types have tailored layouts.
+## GitHub profile
 
-Append `?style=vinyl` to a NetEase Widget, type, or named route. It also works with ranking and
-calendar parameters, for example `/netease/ranking.svg?style=vinyl&range=all_time` and
-`/netease/calendar.svg?style=vinyl&period=week`. `/netease.svg?style=vinyl` includes all enabled
-published NetEase cards and automatically includes future NetEase types. The manifest lists both
-styles and each NetEase card's `vinylSvg` URL.
+Use `picture` to switch with GitHub's light/dark scheme. The personal profile displays only the
+listening dual-ranking and current monthly listening card, for example:
 
-For a GitHub profile README:
-
-```markdown
-[![Nivalis About Me](https://svg.aboutme.nivalis.is/dashboard.svg)](https://aboutme.nivalis.is/)
-
-[![NetEase Vinyl](https://svg.aboutme.nivalis.is/netease.svg?style=vinyl)](https://aboutme.nivalis.is/)
+```html
+<picture>
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://svg.aboutme.nivalis.is/render.svg?type=music.netease.ranking&amp;theme=dark"
+  />
+  <img
+    src="https://svg.aboutme.nivalis.is/render.svg?type=music.netease.ranking&amp;theme=light"
+    alt="网易云听歌双榜"
+    width="720"
+  />
+</picture>
 ```
 
-Run `pnpm build:svg` for a dry run and `pnpm deploy:svg` to deploy. SVG responses use a
-five-minute cache policy and content-based ETags. GitHub's image proxy may keep an older image
-longer; changing the README URL query string requests a fresh proxy cache key.
+Use the corresponding calendar URL with `type=music.netease.calendar&period=month` for the
+second card. No Provider credentials, Owner sessions or unpublished configuration reach the
+browser export session; its public API responses are pinned to the Worker’s public read model.
+
+## Runtime and validation
+
+Run `pnpm build:svg` and `pnpm deploy:svg`. The build also bundles the browser-side converter.
+The Worker needs the existing API Service Binding, Browser Run, a KV cache and the bundled
+capture asset binding. Local/production KV instance IDs stay in ignored deployment config.
+
+A capture set is keyed by the complete public read model and the render options. A privacy or
+publication change cannot reuse a previous set. Original card metadata (`data-widget-id` and
+`data-widget-type`) makes export independent of title and order, including duplicate titles.
+The six-hour SVG Cron prewarms both modes after the Provider sync; a cache miss renders the
+current public model. Failure returns an uncached error rather than a redesigned substitute.
+
+Responses use five-minute caching and content ETags. GitHub's image proxy can cache images
+longer than the origin. Headless sessions are closed in `finally` and assets are size bounded.
