@@ -16,6 +16,7 @@ import {
   type SetStateAction,
   useCallback,
   useContext,
+  useEffect,
   useState
 } from "react";
 
@@ -97,12 +98,29 @@ export function ModuleShell(props: ModuleShellProps) {
 
 function ExpandableModuleShell(props: ModuleShellProps) {
   const [expanded, setExpanded] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   const [transientState] = useState(() => new Map<string, unknown>());
   const styles = accentClasses[props.accent];
+  const changeExpansion = useCallback((open: boolean) => {
+    setContentReady(false);
+    setExpanded(open);
+  }, []);
+  useEffect(() => {
+    if (!expanded) return;
+    let contentFrame = 0;
+    // Let the dialog paint and acquire focus before mounting large card bodies.
+    const shellFrame = requestAnimationFrame(() => {
+      contentFrame = requestAnimationFrame(() => setContentReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(shellFrame);
+      cancelAnimationFrame(contentFrame);
+    };
+  }, [expanded]);
 
   return (
     <ModuleShellTransientStateContext.Provider value={transientState}>
-      <Dialog.Root onOpenChange={setExpanded} open={expanded}>
+      <Dialog.Root onOpenChange={changeExpansion} open={expanded}>
         <ModuleShellFrame
           {...props}
           expandControl={
@@ -154,10 +172,22 @@ function ExpandableModuleShell(props: ModuleShellProps) {
             >
               <X aria-hidden size={17} weight="bold" />
             </Dialog.Close>
-            <div className="module-shell-expanded-content mt-4 min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-white/65 bg-white/34 p-3 sm:mt-5 sm:p-5">
-              <ModuleShellExpansionContext.Provider value>
-                {props.children}
-              </ModuleShellExpansionContext.Provider>
+            <div
+              aria-busy={!contentReady}
+              className="module-shell-expanded-content mt-4 min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-white/65 bg-white/34 p-3 sm:mt-5 sm:p-5"
+            >
+              {contentReady ? (
+                <ModuleShellExpansionContext.Provider value>
+                  {props.children}
+                </ModuleShellExpansionContext.Provider>
+              ) : (
+                <div
+                  className="flex h-full items-center justify-center text-xs text-ink-muted"
+                  role="status"
+                >
+                  正在展开…
+                </div>
+              )}
             </div>
           </Dialog.Content>
         </Dialog.Portal>

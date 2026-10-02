@@ -4,6 +4,17 @@ import worker from "./index";
 import type { Environment } from "./index";
 
 describe("Cloudflare edge gateway", () => {
+  it("checks Owner authorization before conditional private dashboard responses", async () => {
+    const response = await worker.fetch(
+      new Request("https://edge.invalid/v1/me/dashboards/about/data", {
+        headers: { "If-None-Match": "*" }
+      }),
+      {} as Environment,
+      executionContext
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("etag")).toBeNull();
+  });
   it("reports edge process health without claiming API readiness", async () => {
     const environment = {} as Environment;
     const health = await worker.fetch(

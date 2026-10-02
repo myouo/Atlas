@@ -33,6 +33,7 @@ import {
 import { D1DashboardWriteService } from "./d1-dashboard-write-service";
 import { NeteaseCalendarBackfill } from "./netease-calendar-backfill";
 import { PortableViewVersionFactory } from "./portable-version-factory";
+import { ownerDashboardResponse, publicDashboardResponse } from "./public-dashboard-response";
 
 export interface Environment extends AuthEnvironment, ProviderEnvironment {
   readonly ADMIN_TOKEN?: string;
@@ -193,10 +194,12 @@ const worker = {
 
       if (requestUrl.pathname === "/v1/public/dashboards/about" && request.method === "GET") {
         const dashboard = await service.getPublishedDashboard();
-        return json(serializePublicDashboard(dashboard), 200, corsHeaders, {
-          "Cache-Control": "public, max-age=60, no-transform",
-          ETag: `"view:${dashboard.viewVersion}"`
-        });
+        return publicDashboardResponse(
+          request,
+          serializePublicDashboard(dashboard),
+          dashboard.viewVersion,
+          corsHeaders
+        );
       }
 
       if (requestUrl.pathname === "/v1/internal/sync" && request.method === "POST") {
@@ -336,9 +339,12 @@ const worker = {
 
         if (requestUrl.pathname === "/v1/me/dashboards/about/data" && request.method === "GET") {
           const live = await service.getDraftLiveData({ actorId: session.actor.id });
-          return json(serializeLiveData(live), 200, corsHeaders, {
-            ETag: `"data:${live.dataVersion}"`
-          });
+          return ownerDashboardResponse(
+            request,
+            serializeLiveData(live),
+            live.dataVersion,
+            corsHeaders
+          );
         }
 
         if (
@@ -939,7 +945,8 @@ function resolveCorsHeaders(request: Request, configuredOrigins?: string) {
   return new Headers({
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Expose-Headers": "ETag, Location, Server-Timing",
-    "Access-Control-Allow-Headers": "Content-Type, If-Match, Authorization, X-Sync-Token",
+    "Access-Control-Allow-Headers":
+      "Content-Type, If-Match, If-None-Match, Authorization, X-Sync-Token",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Origin": origin,
     Vary: "Origin"

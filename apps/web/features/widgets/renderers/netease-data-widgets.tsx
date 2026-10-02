@@ -12,7 +12,7 @@ import {
   Trophy,
   UserList
 } from "@phosphor-icons/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   useModuleShellExpansion,
@@ -21,6 +21,7 @@ import {
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
 import { NeteaseWebLink, safeNeteaseWebUrl } from "./netease-web-link";
+import { providerArtworkSize, providerArtworkUrl } from "./provider-artwork-url";
 
 function Artwork({
   label,
@@ -52,14 +53,20 @@ function Artwork({
 
 function LazyProviderImage({ url }: { readonly url: string }) {
   const imageRef = useRef<HTMLImageElement>(null);
-  const [nearViewport, setNearViewport] = useState(false);
+  const [size, setSize] = useState<number | null>(null);
+  const source = useMemo(
+    () => (size === null ? undefined : providerArtworkUrl(url, size)),
+    [size, url]
+  );
   useEffect(() => {
     const image = imageRef.current;
     if (!image) return;
-    return observeProviderArtwork(image, () => setNearViewport(true));
+    return observeProviderArtwork(image, (slot) => {
+      setSize(providerArtworkSize(slot, window.devicePixelRatio));
+    });
   }, []);
   return (
-    // Provider artwork is already normalized. Native lazy loading avoids decoding off-screen cards.
+    // Request a thumbnail for its actual slot and decode only near the viewport.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       alt=""
@@ -68,12 +75,12 @@ function LazyProviderImage({ url }: { readonly url: string }) {
       loading="lazy"
       ref={imageRef}
       referrerPolicy="no-referrer"
-      src={nearViewport ? url : undefined}
+      src={source}
     />
   );
 }
 
-const providerArtworkCallbacks = new Map<Element, () => void>();
+const providerArtworkCallbacks = new Map<Element, (slot: number) => void>();
 let providerArtworkObserver: IntersectionObserver | null = null;
 
 function releaseProviderArtworkObserverWhenIdle() {
@@ -82,16 +89,18 @@ function releaseProviderArtworkObserverWhenIdle() {
   providerArtworkObserver = null;
 }
 
-function observeProviderArtwork(element: Element, reveal: () => void) {
+function observeProviderArtwork(element: Element, reveal: (slot: number) => void) {
   if (typeof IntersectionObserver === "undefined") {
-    reveal();
+    reveal(128);
     return undefined;
   }
   providerArtworkObserver ??= new IntersectionObserver(
     (entries, observer) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        providerArtworkCallbacks.get(entry.target)?.();
+        providerArtworkCallbacks.get(entry.target)?.(
+          Math.max(entry.boundingClientRect.width, entry.boundingClientRect.height)
+        );
         providerArtworkCallbacks.delete(entry.target);
         observer.unobserve(entry.target);
         releaseProviderArtworkObserverWhenIdle();
@@ -1071,14 +1080,37 @@ function RankingBoard({
 }) {
   if (items.length === 0) return <Empty>这是一个有效空榜单</Empty>;
   const visible = expanded ? items : items.slice(0, style === "compact" ? 8 : 6);
+  if (expanded) {
+    const batches = Array.from({ length: Math.ceil(visible.length / 12) }, (_, index) =>
+      visible.slice(index * 12, index * 12 + 12)
+    );
+    return (
+      <div className="netease-ranking-expanded-list space-y-1.5">
+        {batches.map((batch) => (
+          <div
+            className="netease-ranking-batch grid min-h-0 content-start gap-1.5 md:grid-cols-2"
+            key={batch[0]!.track.providerTrackId}
+            style={
+              {
+                "--ranking-rows": batch.length,
+                "--ranking-paired-rows": Math.ceil(batch.length / 2)
+              } as CSSProperties
+            }
+          >
+            {batch.map((item) => (
+              <RankingRow
+                item={item}
+                key={item.track.providerTrackId}
+                showPlayCount={showPlayCount}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
-    <div
-      className={
-        expanded
-          ? "grid min-h-0 content-start gap-1.5 md:grid-cols-2"
-          : "netease-ranking-list grid min-h-0 content-start gap-1"
-      }
-    >
+    <div className="netease-ranking-list grid min-h-0 content-start gap-1">
       {visible.map((item) => (
         <RankingRow item={item} key={item.track.providerTrackId} showPlayCount={showPlayCount} />
       ))}

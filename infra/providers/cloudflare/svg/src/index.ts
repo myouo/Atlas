@@ -276,7 +276,7 @@ function renderVariants(origin: string, selection: Readonly<Record<string, strin
 async function loadPublishedDashboard(service: Fetcher): Promise<DashboardReadModel> {
   const response = await service.fetch(
     new Request("https://nivalis.internal/v1/public/dashboards/about", {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "Accept-Encoding": "identity" },
       method: "GET"
     })
   );

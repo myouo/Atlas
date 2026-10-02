@@ -327,6 +327,13 @@ Cloudflare Pages Functions proxies `/api/*` to the API Worker through a Service 
 
 The API-backed Dashboard revalidates on a 30-second foreground interval and whenever the browser window regains focus. Projection refreshes merge only live Provider data into a dirty local Draft; layout, Widget configuration, and the `rev:` concurrency token remain untouched.
 
+Public and Owner live Dashboard reads use conditional ETags and gzip transport. Unchanged views
+reuse the existing client objects without downloading or parsing the historical payload again;
+Owner responses retain `no-store` and authorization runs before conditional responses. NetEase
+artwork uses bounded thumbnails sized for its visible slot. Expanded panels paint their shell
+before mounting content, and complete ranking lists skip off-screen batches without removing
+public rows or limiting history navigation.
+
 ## Security
 
 Assume this repository is public:

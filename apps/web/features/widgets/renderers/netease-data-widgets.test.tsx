@@ -52,7 +52,7 @@ describe("NetEase semantic data widgets", () => {
     await userEvent.click(screen.getByRole("button", { name: "本周" }));
     await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 收听日历" }));
     const dialog = await screen.findByRole("dialog", { name: "网易云 · 收听日历" });
-    expect(within(dialog).getByRole("group", { name: "收听日历历史范围" })).toBeVisible();
+    expect(await within(dialog).findByRole("group", { name: "收听日历历史范围" })).toBeVisible();
     expect(within(dialog).getAllByText("本周")).toHaveLength(2);
     const dailyRows = [...dialog.querySelectorAll('[role="img"][aria-label$="分钟"]')];
     expect(dailyRows[0]).toHaveAttribute("aria-label", "2026-08-23，27 分钟");
@@ -94,7 +94,7 @@ describe("NetEase semantic data widgets", () => {
     await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 收听日历" }));
     const dialog = await screen.findByRole("dialog", { name: "网易云 · 收听日历" });
     for (let index = 0; index < 12; index += 1) {
-      await userEvent.click(within(dialog).getByRole("button", { name: "查看更早一周" }));
+      await userEvent.click(await within(dialog).findByRole("button", { name: "查看更早一周" }));
     }
     const earliest = widget.data.weekHistory?.at(-1)?.points[0]?.date;
     expect(dialog.querySelector(`[data-history-anchor="week:${earliest}"]`)).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe("NetEase semantic data widgets", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 创建歌单" }));
     expect(await screen.findByRole("dialog", { name: "网易云 · 创建歌单" })).toBeVisible();
-    expect(screen.getAllByRole("link", { name: /在网易云打开歌单/ })).toHaveLength(8);
+    expect(await screen.findAllByRole("link", { name: /在网易云打开歌单/ })).toHaveLength(8);
   });
 
   it("switches between weekly and all-time rankings inside one card", async () => {
@@ -211,7 +211,7 @@ describe("NetEase semantic data widgets", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "放大 网易云 · 听歌双榜" }));
     expect(await screen.findByRole("dialog", { name: "网易云 · 听歌双榜" })).toBeVisible();
-    expect(screen.getByText("Weekly 100")).toBeInTheDocument();
+    expect(await screen.findByText("Weekly 100")).toBeInTheDocument();
     expect(screen.getByText("All-time One")).toBeInTheDocument();
     expect(screen.getByText("All-time 100")).toBeInTheDocument();
   });

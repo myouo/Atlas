@@ -715,6 +715,17 @@ select:focus-visible {
   animation: netease-range-panel-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.netease-ranking-batch {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto calc(var(--ranking-rows) * 48px - 6px);
+}
+
+@media (min-width: 768px) {
+  .netease-ranking-batch {
+    contain-intrinsic-block-size: auto calc(var(--ranking-paired-rows) * 48px - 6px);
+  }
+}
+
 .netease-sliding-switcher-indicator {
   position: absolute;
   top: 2px;
