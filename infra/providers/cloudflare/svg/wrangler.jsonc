@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../node_modules/wrangler/config-schema.json",
+  "name": "nivalis-about-svg",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-09-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "secrets": { "required": ["SVG_PUBLISH_TOKEN"] },
+  "kv_namespaces": [
+    {
+      "binding": "SVG_CACHE"
+    }
+  ],
+  "vars": {
+    "SITE_URL": "https://aboutme.nivalis.is"
+  },
+  "routes": [
+    {
+      "pattern": "svg.aboutme.nivalis.is",
+      "custom_domain": true
+    }
+  ],
+  "services": [
+    {
+      "binding": "NIVALIS_API",
+      "service": "nivalis-edge-preview"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

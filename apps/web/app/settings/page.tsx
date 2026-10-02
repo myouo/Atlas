@@ -31,10 +31,13 @@ import { dashboardSource } from "../../api/dashboard-source-factory";
 import {
   readAppearanceSettings,
   saveAppearanceSettings,
+  defaultCardStyle,
   type AppearanceAccent,
+  type AppearanceCardStyle,
   type AppearanceFont,
   type AppearanceGlass
 } from "../../design-system/appearance";
+import { ModuleShell } from "../../design-system/module-shell";
 import { AppProviders } from "../providers";
 import { SteamSettings } from "../../features/settings/steam-settings";
 
@@ -50,6 +53,7 @@ function SettingsContent() {
   const [accent, setAccent] = useState<AppearanceAccent>("blue");
   const [glass, setGlass] = useState<AppearanceGlass>("balanced");
   const [font, setFont] = useState<AppearanceFont>("noto");
+  const [cardStyle, setCardStyle] = useState<AppearanceCardStyle>(defaultCardStyle);
   const [saved, setSaved] = useState(false);
   const [credential, setCredential] = useState("");
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
@@ -164,12 +168,13 @@ function SettingsContent() {
       setAccent(settings.accent);
       setGlass(settings.glass);
       setFont(settings.font);
+      setCardStyle(settings.cardStyle);
     });
     return () => window.cancelAnimationFrame(animationFrame);
   }, []);
 
   const save = () => {
-    saveAppearanceSettings({ accent, glass, font, rotation: false });
+    saveAppearanceSettings({ accent, glass, font, cardStyle, rotation: false });
     setSaved(true);
     if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
     savedTimer.current = window.setTimeout(() => {
@@ -233,6 +238,7 @@ function SettingsContent() {
     <main
       className="nivalis-page settings-page"
       data-accent={accent}
+      data-card-style={cardStyle}
       data-font={font}
       data-glass={glass}
     >
@@ -364,6 +370,68 @@ function SettingsContent() {
             </section>
           </div>
         </div>
+
+        <section className="settings-card settings-card-appearance glass-surface">
+          <div className="flex items-center gap-3">
+            <Palette aria-hidden className="text-blue-600" size={22} weight="duotone" />
+            <div>
+              <h2 className="settings-card-title text-ink">卡片风格</h2>
+              <p className="text-[11px] text-ink-muted">选择风格，预览后保存</p>
+            </div>
+          </div>
+          <div className="settings-card-style-layout">
+            <div aria-label="卡片风格" className="settings-card-style-options" role="group">
+              {(
+                [
+                  { value: "porcelain", label: "雪瓷", description: "柔白卡面 · 细腻层次" },
+                  { value: "glass", label: "晨光玻璃", description: "透明卡面 · 轻盈光感" }
+                ] as const
+              ).map((style) => (
+                <button
+                  aria-pressed={cardStyle === style.value}
+                  className="settings-card-style-choice settings-choice"
+                  key={style.value}
+                  onClick={() => setCardStyle(style.value)}
+                  type="button"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-extrabold">{style.label}</span>
+                    {cardStyle === style.value ? (
+                      <Check aria-hidden size={16} weight="bold" />
+                    ) : null}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-medium text-ink-muted">
+                    {style.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="settings-card-style-preview" data-testid="card-style-preview">
+              <ModuleShell
+                accent="coral"
+                editable={false}
+                icon={<MusicNotes aria-hidden size={19} weight="fill" />}
+                title="音乐与日常"
+                widgetType="music.netease.listening"
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="netease-stat rounded-2xl border border-white/80 bg-white/48 px-3 py-2.5">
+                    <p className="netease-stat-label text-[11px] text-ink-muted">喜欢的旋律</p>
+                    <p className="netease-stat-value mt-1 text-sm font-extrabold text-ink">
+                      留在唱片里
+                    </p>
+                  </div>
+                  <div className="netease-stat rounded-2xl border border-white/80 bg-white/48 px-3 py-2.5">
+                    <p className="netease-stat-label text-[11px] text-ink-muted">听歌的日子</p>
+                    <p className="netease-stat-value mt-1 text-sm font-extrabold text-ink">
+                      记录每一天
+                    </p>
+                  </div>
+                </div>
+              </ModuleShell>
+            </div>
+          </div>
+        </section>
 
         <div className="settings-secondary-grid">
           <ProviderSettings

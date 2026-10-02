@@ -54,6 +54,59 @@ const connectionId = "00000000-0000-4000-8000-000000000501";
 const secret = "private-cookie-value-for-tests";
 
 describe("NetEase Provider module", () => {
+  it.each(["data", "resource"])(
+    "normalizes explicit missing recent-track metadata in the %s response shape",
+    async (field) => {
+      const fixture = {
+        ...normalNeteaseFixture,
+        [NETEASE_SOURCE.recentSongs]: {
+          code: 200,
+          data: {
+            list: [
+              {
+                [field]: {
+                  al: { id: 0, name: null, picUrl: "" },
+                  ar: [{ id: 0, name: null }],
+                  id: 20003,
+                  name: "Unattributed Track"
+                },
+                playTime: 1_777_000_000_000,
+                resourceId: "20003"
+              }
+            ],
+            total: 1
+          }
+        }
+      };
+      const normalized = await normalize(snapshots(fixture));
+      expect((normalized.data as NeteaseNormalizedPayload).recentListens).toMatchObject([
+        {
+          track: { albumName: null, albumProviderId: null, artists: [], name: "Unattributed Track" }
+        }
+      ]);
+    }
+  );
+
+  it("rejects unrecognized recent-track metadata instead of guessing artist names", async () => {
+    const fixture = {
+      ...normalNeteaseFixture,
+      [NETEASE_SOURCE.recentSongs]: {
+        code: 200,
+        data: {
+          list: [
+            {
+              data: { ar: [{ id: 30001, name: null }], id: 20003, name: "Unknown Shape" },
+              playTime: 1_777_000_000_000
+            }
+          ]
+        }
+      }
+    };
+    await expect(normalize(snapshots(fixture))).rejects.toMatchObject({
+      sourceKind: NETEASE_SOURCE.recentSongs
+    });
+  });
+
   it("normalizes and projects a historical period beyond the old three-period window", () => {
     const report = normalizeNeteaseHistoricalReport(
       historicalListenReportFixture("week", 8),

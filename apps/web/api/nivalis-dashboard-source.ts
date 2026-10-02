@@ -2,6 +2,8 @@ import { createNivalisClient } from "@nivalis/api-client";
 import type {
   components,
   DashboardState,
+  DashboardReadModel,
+  DashboardLiveData,
   WidgetConfiguration,
   WidgetProjection
 } from "@nivalis/api-client";
@@ -31,6 +33,33 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
   }
   const client = createNivalisClient(baseUrl);
   let latestDraftWidgets: readonly WidgetProjection[] = [];
+  let publishedCache: {
+    readonly dashboard: DashboardReadModel;
+    readonly etag: string | null;
+  } | null = null;
+  let liveCache: { readonly data: DashboardLiveData; readonly etag: string | null } | null = null;
+
+  async function loadLiveData() {
+    const response = await client.GET("/v1/me/dashboards/about/data", {
+      cache: "no-store",
+      ...(liveCache?.etag ? { headers: { "If-None-Match": liveCache.etag } } : {})
+    });
+    if (response.response.status === 304 && liveCache) return liveCache.data;
+    const data = requireData(response, "Live Widget data could not be loaded.");
+    liveCache = { data, etag: response.response.headers.get("etag") };
+    return data;
+  }
+
+  async function loadPublished() {
+    const response = await client.GET("/v1/public/dashboards/about", {
+      cache: "no-store",
+      ...(publishedCache?.etag ? { headers: { "If-None-Match": publishedCache.etag } } : {})
+    });
+    if (response.response.status === 304 && publishedCache) return publishedCache.dashboard;
+    const dashboard = requireData(response, "The Published Dashboard could not be loaded.");
+    publishedCache = { dashboard, etag: response.response.headers.get("etag") };
+    return dashboard;
+  }
 
   return {
     kind: "api",
@@ -155,24 +184,20 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
       return requireData(response, "The SyncRun state could not be loaded.");
     },
     async load() {
-      const [publishedResponse, sessionResponse] = await Promise.all([
-        client.GET("/v1/public/dashboards/about", { cache: "no-cache" }),
+      const [published, sessionResponse] = await Promise.all([
+        loadPublished(),
         client.GET("/v1/auth/session")
       ]);
-      const published = requireData(
-        publishedResponse,
-        "The Published Dashboard could not be loaded."
-      );
       const session = requireData(sessionResponse, "Authentication state could not be loaded.");
       if (!session.authenticated || session.role !== "owner") {
         return { draft: null, providerStatuses: [], published, session };
       }
       const [draft, liveData, statuses] = await Promise.all([
         client.GET("/v1/me/dashboards/about/draft"),
-        client.GET("/v1/me/dashboards/about/data"),
+        loadLiveData(),
         client.GET("/v1/me/providers/status")
       ]);
-      const projections = requireData(liveData, "Live Widget data could not be loaded.").widgets;
+      const projections = liveData.widgets;
       latestDraftWidgets = projections;
       return {
         draft: requireVersioned(draft, "The persisted Draft could not be loaded.", projections),
@@ -226,11 +251,8 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
           path: { revisionId }
         }
       });
-      const liveData = await client.GET("/v1/me/dashboards/about/data");
-      latestDraftWidgets = requireData(
-        liveData,
-        "The restored revision live data could not be loaded."
-      ).widgets;
+      const liveData = await loadLiveData();
+      latestDraftWidgets = liveData.widgets;
       return requireVersioned(
         response,
         "The selected revision could not be restored.",
@@ -239,19 +261,16 @@ export function createApiDashboardSource(baseUrl: string): DashboardDataSource {
     },
     async refreshProjections() {
       const [published, liveData, statuses] = await Promise.all([
-        client.GET("/v1/public/dashboards/about", { cache: "no-cache" }),
-        client.GET("/v1/me/dashboards/about/data"),
+        loadPublished(),
+        loadLiveData(),
         client.GET("/v1/me/providers/status")
       ]);
-      latestDraftWidgets = requireData(
-        liveData,
-        "Live Widget data could not be refreshed."
-      ).widgets;
+      latestDraftWidgets = liveData.widgets;
       return {
         draftWidgets: latestDraftWidgets,
         providerStatuses: requireData(statuses, "Provider status could not be refreshed.")
           .providers,
-        published: requireData(published, "The public Dashboard could not be refreshed.")
+        published
       };
     }
   };

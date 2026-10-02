@@ -1,0 +1,17 @@
+{
+  "name": "@nivalis/cloudflare-svg",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nivalis/api-client": "workspace:*",
+    "dom-to-svg": "0.12.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260823.1",
+    "esbuild": "0.28.2"
+  }
+}

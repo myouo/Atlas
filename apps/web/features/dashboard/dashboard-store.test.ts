@@ -11,6 +11,21 @@ const mockDraft = {
 };
 
 describe("local Draft / Published lifecycle", () => {
+  it("reuses unchanged server snapshots while preserving immutable draft edits", () => {
+    useDashboardStore.getState().replacePublic(mockDashboard);
+    const snapshot = useDashboardStore.getState().published;
+    useDashboardStore.getState().replacePublic(mockDashboard);
+    expect(useDashboardStore.getState().published).toBe(snapshot);
+    expect(useDashboardStore.getState().draft).toBe(snapshot);
+    useDashboardStore
+      .getState()
+      .updateBreakpointLayout("lg", [
+        { ...mockDashboard.layout.lg[0]!, x: 3 },
+        ...mockDashboard.layout.lg.slice(1)
+      ]);
+    expect(useDashboardStore.getState().published!.layout.lg).toEqual(mockDashboard.layout.lg);
+    expect(useDashboardStore.getState().draft!.layout.lg[0]?.x).toBe(3);
+  });
   beforeEach(() => {
     localStorage.clear();
     useDashboardStore.setState({

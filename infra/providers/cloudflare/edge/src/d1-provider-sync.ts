@@ -14,7 +14,11 @@ import {
   NeteaseProviderRuntime,
   SteamProviderRuntime,
   buildNeteaseOwnerDataCatalog,
-  isNeteaseNormalizedPayload
+  historicalReportState,
+  isNeteaseNormalizedPayload,
+  NETEASE_SOURCE,
+  normalizeNeteaseHistoricalReport,
+  projectNeteaseHistoricalCalendarRange
 } from "@nivalis/connectors";
 import {
   encodeProviderSourceContext,
@@ -479,6 +483,38 @@ export class D1ProviderSyncRuntime {
           )
       );
       if (isNeteaseNormalizedPayload(normalized.data)) {
+        for (const record of fetched) {
+          const period =
+            record.meta.source === NETEASE_SOURCE.listenReportPreviousWeek
+              ? "week"
+              : record.meta.source === NETEASE_SOURCE.listenReportPreviousMonth
+                ? "month"
+                : null;
+          if (!period) continue;
+          const state = historicalReportState(record.data);
+          if (!state) continue;
+          const range = projectNeteaseHistoricalCalendarRange(
+            period,
+            normalizeNeteaseHistoricalReport(record.data, period)
+          );
+          if (range.availability !== "available") continue;
+          statements.push(
+            this.database
+              .prepare(
+                `INSERT OR IGNORE INTO netease_calendar_history
+                  (provider_connection_id, period, start_time, end_time, range_json, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)`
+              )
+              .bind(
+                run.providerConnectionId,
+                period,
+                state.startTime,
+                state.endTime,
+                JSON.stringify(range),
+                completedAt.toISOString()
+              )
+          );
+        }
         statements.push(
           this.database
             .prepare(

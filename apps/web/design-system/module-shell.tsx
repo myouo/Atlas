@@ -16,6 +16,7 @@ import {
   type SetStateAction,
   useCallback,
   useContext,
+  useEffect,
   useState
 } from "react";
 
@@ -33,6 +34,8 @@ interface ModuleShellProps {
   readonly onRemove?: () => void;
   readonly stale?: boolean;
   readonly title: string;
+  readonly widgetId?: string;
+  readonly widgetType?: string;
 }
 
 interface ModuleShellFrameProps extends ModuleShellProps {
@@ -80,18 +83,44 @@ const accentClasses: Record<WidgetAccent, { badge: string; icon: string }> = {
   rose: { badge: "bg-pink-50 text-pink-700", icon: "bg-[#ff4f91] text-white" }
 };
 
+function platformLabel(type?: string) {
+  if (type?.startsWith("music.netease.")) return "NETEASE CLOUD MUSIC";
+  if (type?.startsWith("steam.")) return "STEAM";
+  if (type?.startsWith("github.")) return "GITHUB";
+  if (type?.startsWith("bilibili.")) return "BILIBILI";
+  if (type?.startsWith("bangumi.")) return "BANGUMI";
+  return "NIVALIS";
+}
+
 export function ModuleShell(props: ModuleShellProps) {
   return props.expandable ? <ExpandableModuleShell {...props} /> : <ModuleShellFrame {...props} />;
 }
 
 function ExpandableModuleShell(props: ModuleShellProps) {
   const [expanded, setExpanded] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   const [transientState] = useState(() => new Map<string, unknown>());
   const styles = accentClasses[props.accent];
+  const changeExpansion = useCallback((open: boolean) => {
+    setContentReady(false);
+    setExpanded(open);
+  }, []);
+  useEffect(() => {
+    if (!expanded) return;
+    let contentFrame = 0;
+    // Let the dialog paint and acquire focus before mounting large card bodies.
+    const shellFrame = requestAnimationFrame(() => {
+      contentFrame = requestAnimationFrame(() => setContentReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(shellFrame);
+      cancelAnimationFrame(contentFrame);
+    };
+  }, [expanded]);
 
   return (
     <ModuleShellTransientStateContext.Provider value={transientState}>
-      <Dialog.Root onOpenChange={setExpanded} open={expanded}>
+      <Dialog.Root onOpenChange={changeExpansion} open={expanded}>
         <ModuleShellFrame
           {...props}
           expandControl={
@@ -110,12 +139,15 @@ function ExpandableModuleShell(props: ModuleShellProps) {
 
         <Dialog.Portal>
           <Dialog.Overlay className="module-expand-overlay nivalis-modal-overlay fixed inset-0 z-[90]" />
-          <Dialog.Content className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6">
+          <Dialog.Content
+            className="module-shell-expanded glass-surface-strong fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/90 p-4 shadow-[0_28px_90px_rgba(4,28,77,0.3)] outline-none sm:p-6"
+            data-accent={props.accent}
+          >
             <Dialog.Title className="flex min-w-0 items-center gap-3 pr-12 text-lg font-black tracking-[-0.025em] text-ink">
               {props.icon ? (
                 <span
                   className={clsx(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
+                    "module-shell-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
                     styles.icon
                   )}
                 >
@@ -140,10 +172,22 @@ function ExpandableModuleShell(props: ModuleShellProps) {
             >
               <X aria-hidden size={17} weight="bold" />
             </Dialog.Close>
-            <div className="module-shell-expanded-content mt-4 min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-white/65 bg-white/34 p-3 sm:mt-5 sm:p-5">
-              <ModuleShellExpansionContext.Provider value>
-                {props.children}
-              </ModuleShellExpansionContext.Provider>
+            <div
+              aria-busy={!contentReady}
+              className="module-shell-expanded-content mt-4 min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-white/65 bg-white/34 p-3 sm:mt-5 sm:p-5"
+            >
+              {contentReady ? (
+                <ModuleShellExpansionContext.Provider value>
+                  {props.children}
+                </ModuleShellExpansionContext.Provider>
+              ) : (
+                <div
+                  className="flex h-full items-center justify-center text-xs text-ink-muted"
+                  role="status"
+                >
+                  正在展开…
+                </div>
+              )}
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -163,7 +207,9 @@ function ModuleShellFrame({
   onConfigure,
   onRemove,
   stale = false,
-  title
+  title,
+  widgetId,
+  widgetType
 }: ModuleShellFrameProps) {
   const showHeader = kind === "standard";
   const styles = accentClasses[accent];
@@ -178,6 +224,8 @@ function ModuleShellFrame({
       data-editable={editable}
       data-kind={kind}
       data-testid="module-shell"
+      data-widget-id={widgetId}
+      data-widget-type={widgetType}
     >
       {editable ? (
         <div className="module-edit-rail">
@@ -236,6 +284,9 @@ function ModuleShellFrame({
             </span>
           ) : null}
           <div className="min-w-0 flex-1">
+            <p aria-hidden className="module-shell-eyebrow">
+              {platformLabel(widgetType)}
+            </p>
             <div className="flex items-center gap-2">
               <h2 className="module-shell-title truncate text-[14px] font-bold tracking-[-0.01em] text-ink">
                 {title}

@@ -12,7 +12,7 @@ import {
   Trophy,
   UserList
 } from "@phosphor-icons/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   useModuleShellExpansion,
@@ -21,6 +21,7 @@ import {
 import type { WidgetOf } from "../widget-types";
 import { presentationSelection, presentationToggle } from "../widget-presentation";
 import { NeteaseWebLink, safeNeteaseWebUrl } from "./netease-web-link";
+import { providerArtworkSize, providerArtworkUrl } from "./provider-artwork-url";
 
 function Artwork({
   label,
@@ -42,7 +43,7 @@ function Artwork({
   return (
     <span
       aria-label={label}
-      className={`${dimensions} relative block shrink-0 overflow-hidden border border-white/90 bg-gradient-to-br from-rose-100 to-blue-100 shadow-sm`}
+      className={`provider-artwork ${dimensions} relative block shrink-0 overflow-hidden border border-white/90 bg-gradient-to-br from-rose-100 to-blue-100 shadow-sm`}
       role="img"
     >
       {url ? <LazyProviderImage url={url} /> : null}
@@ -52,14 +53,20 @@ function Artwork({
 
 function LazyProviderImage({ url }: { readonly url: string }) {
   const imageRef = useRef<HTMLImageElement>(null);
-  const [nearViewport, setNearViewport] = useState(false);
+  const [size, setSize] = useState<number | null>(null);
+  const source = useMemo(
+    () => (size === null ? undefined : providerArtworkUrl(url, size)),
+    [size, url]
+  );
   useEffect(() => {
     const image = imageRef.current;
     if (!image) return;
-    return observeProviderArtwork(image, () => setNearViewport(true));
+    return observeProviderArtwork(image, (slot) => {
+      setSize(providerArtworkSize(slot, window.devicePixelRatio));
+    });
   }, []);
   return (
-    // Provider artwork is already normalized. Native lazy loading avoids decoding off-screen cards.
+    // Request a thumbnail for its actual slot and decode only near the viewport.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       alt=""
@@ -68,12 +75,12 @@ function LazyProviderImage({ url }: { readonly url: string }) {
       loading="lazy"
       ref={imageRef}
       referrerPolicy="no-referrer"
-      src={nearViewport ? url : undefined}
+      src={source}
     />
   );
 }
 
-const providerArtworkCallbacks = new Map<Element, () => void>();
+const providerArtworkCallbacks = new Map<Element, (slot: number) => void>();
 let providerArtworkObserver: IntersectionObserver | null = null;
 
 function releaseProviderArtworkObserverWhenIdle() {
@@ -82,16 +89,18 @@ function releaseProviderArtworkObserverWhenIdle() {
   providerArtworkObserver = null;
 }
 
-function observeProviderArtwork(element: Element, reveal: () => void) {
+function observeProviderArtwork(element: Element, reveal: (slot: number) => void) {
   if (typeof IntersectionObserver === "undefined") {
-    reveal();
+    reveal(128);
     return undefined;
   }
   providerArtworkObserver ??= new IntersectionObserver(
     (entries, observer) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        providerArtworkCallbacks.get(entry.target)?.();
+        providerArtworkCallbacks.get(entry.target)?.(
+          Math.max(entry.boundingClientRect.width, entry.boundingClientRect.height)
+        );
         providerArtworkCallbacks.delete(entry.target);
         observer.unobserve(entry.target);
         releaseProviderArtworkObserverWhenIdle();
@@ -283,7 +292,7 @@ export function NeteaseListeningCalendarWidget({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="netease-calendar-toolbar mb-2 flex items-center gap-2">
         {availableRanges.length === 2 ? (
           <SlidingSwitcher
             label="收听日历范围"
@@ -629,7 +638,7 @@ function ListeningRecordWall({
   );
   return (
     <div
-      className={`flex h-full min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 ${compact ? "p-1.5" : "p-2"}`}
+      className={`netease-record-wall flex h-full min-h-0 flex-col rounded-2xl border border-white/70 bg-white/30 ${compact ? "p-1.5" : "p-2"}`}
     >
       <div className={`${compact ? "mb-1" : "mb-1.5"} flex items-center justify-between gap-1`}>
         <p className="flex min-w-0 items-center gap-1 text-[8px] font-extrabold text-ink-muted">
@@ -692,7 +701,7 @@ function MonthlyListeningCalendar({
   const rowCount = Math.ceil(cells.length / 7);
   const monthLabel = formatCalendarMonth(points[0]!.date);
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2">
+    <div className="netease-monthly-calendar flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2">
       {!hidePeriodLabel ? (
         <div className="mb-1 flex items-center justify-between gap-2 sm:hidden">
           <p className="flex items-center gap-1.5 text-[8px] font-extrabold text-ink-muted">
@@ -769,7 +778,7 @@ function WeeklyListeningRhythm({
   const maximum = Math.max(...points.map((point) => point.minutes), 1);
   return (
     <div
-      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5"
+      className="netease-weekly-rhythm flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/30 p-2.5"
       data-weekly-label={label}
     >
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -1071,14 +1080,37 @@ function RankingBoard({
 }) {
   if (items.length === 0) return <Empty>这是一个有效空榜单</Empty>;
   const visible = expanded ? items : items.slice(0, style === "compact" ? 8 : 6);
+  if (expanded) {
+    const batches = Array.from({ length: Math.ceil(visible.length / 12) }, (_, index) =>
+      visible.slice(index * 12, index * 12 + 12)
+    );
+    return (
+      <div className="netease-ranking-expanded-list space-y-1.5">
+        {batches.map((batch) => (
+          <div
+            className="netease-ranking-batch grid min-h-0 content-start gap-1.5 md:grid-cols-2"
+            key={batch[0]!.track.providerTrackId}
+            style={
+              {
+                "--ranking-rows": batch.length,
+                "--ranking-paired-rows": Math.ceil(batch.length / 2)
+              } as CSSProperties
+            }
+          >
+            {batch.map((item) => (
+              <RankingRow
+                item={item}
+                key={item.track.providerTrackId}
+                showPlayCount={showPlayCount}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
-    <div
-      className={
-        expanded
-          ? "grid min-h-0 content-start gap-1.5 md:grid-cols-2"
-          : "netease-ranking-list grid min-h-0 content-start gap-1"
-      }
-    >
+    <div className="netease-ranking-list grid min-h-0 content-start gap-1">
       {visible.map((item) => (
         <RankingRow item={item} key={item.track.providerTrackId} showPlayCount={showPlayCount} />
       ))}
@@ -1091,8 +1123,8 @@ function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount
     <NeteaseWebLink
       className={
         item.rank <= 3
-          ? "group flex min-w-0 items-center gap-2 rounded-xl border border-rose-100/80 bg-gradient-to-r from-rose-50/80 to-white/50 px-2 py-1.5 transition hover:border-white hover:bg-white/75"
-          : "group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/34 px-2 py-1.5 transition hover:border-white/90 hover:bg-white/65"
+          ? "netease-ranking-row is-featured group flex min-w-0 items-center gap-2 rounded-xl border border-rose-100/80 bg-gradient-to-r from-rose-50/80 to-white/50 px-2 py-1.5 transition hover:border-white hover:bg-white/75"
+          : "netease-ranking-row group flex min-w-0 items-center gap-2 rounded-xl border border-transparent bg-white/34 px-2 py-1.5 transition hover:border-white/90 hover:bg-white/65"
       }
       href={item.track.webUrl}
       label={`在网易云打开歌曲 ${item.track.name}`}
@@ -1110,10 +1142,10 @@ function RankingRow({ item, showPlayCount }: { item: RankingEntry; showPlayCount
       </span>
       <Artwork label={item.track.name} size="xs" url={item.track.coverUrl} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[10px] leading-tight font-extrabold text-ink">
+        <p className="netease-ranking-track truncate text-[10px] leading-tight font-extrabold text-ink">
           {item.track.name}
         </p>
-        <p className="mt-0.5 truncate text-[8px] leading-tight text-ink-muted">
+        <p className="netease-ranking-artist mt-0.5 truncate text-[8px] leading-tight text-ink-muted">
           {item.track.artists.map((artist) => artist.name).join(" / ")}
         </p>
       </div>

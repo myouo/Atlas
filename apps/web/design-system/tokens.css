@@ -1,4 +1,5 @@
-:root {
+:root,
+.settings-page {
   --color-ink: #11356f;
   --color-ink-muted: #5a7399;
   --color-primary: #3274f2;
@@ -37,6 +38,68 @@
   --ease-press: cubic-bezier(0.4, 0, 0.7, 0.2);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --font-sans: "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --card-radius: 22px;
+  --card-surface:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.79), rgba(244, 249, 255, 0.67)),
+    var(--color-surface);
+  --card-border: var(--color-border);
+  --card-shadow: var(--shadow-glass);
+  --card-eyebrow-display: none;
+  --card-icon-background-white: 0%;
+  --card-icon-foreground-white: 100%;
+  --card-icon-border-opacity: 0;
+  --card-icon-shadow-opacity: 0.16;
+  --card-sheen-display: block;
+  --card-row-surface: rgba(255, 255, 255, 0.34);
+  --card-row-border: transparent;
+  --card-row-featured-surface: linear-gradient(
+    to right,
+    rgba(255, 241, 242, 0.8),
+    rgba(255, 255, 255, 0.5)
+  );
+  --card-row-featured-border: rgba(255, 204, 211, 0.8);
+  --card-item-title-size: 10px;
+  --card-item-caption-size: 8px;
+  --card-playlist-surface: rgba(255, 255, 255, 0.42);
+  --card-playlist-border: transparent;
+  --card-panel-surface: rgba(255, 255, 255, 0.3);
+  --card-panel-border: rgba(255, 255, 255, 0.7);
+  --card-stat-surface: rgba(255, 255, 255, 0.36);
+  --card-stat-border: rgba(255, 255, 255, 0.62);
+  --card-action-surface: rgba(252, 254, 255, 0.88);
+  --card-action-border: rgba(255, 255, 255, 0.78);
+  --card-action-shadow: 0 5px 13px rgba(24, 65, 126, 0.11);
+}
+
+:root[data-card-style="porcelain"],
+.settings-page[data-card-style="porcelain"] {
+  --color-ink: #263650;
+  --color-ink-muted: #63738b;
+  --card-radius: 24px;
+  --card-surface: linear-gradient(150deg, #ffffff 0%, #fcfdff 62%, #f5f8fe 100%);
+  --card-border: rgba(105, 128, 160, 0.18);
+  --card-shadow: 0 8px 24px rgba(36, 55, 86, 0.07), 0 2px 5px rgba(36, 55, 86, 0.025);
+  --card-eyebrow-display: block;
+  --card-icon-background-white: 92%;
+  --card-icon-foreground-white: 0%;
+  --card-icon-border-opacity: 0.12;
+  --card-icon-shadow-opacity: 0;
+  --card-sheen-display: none;
+  --card-row-surface: #f6f8fc;
+  --card-row-border: #edf0f5;
+  --card-row-featured-surface: linear-gradient(110deg, #fff2f3, #fff8f7);
+  --card-row-featured-border: #f8e1e5;
+  --card-item-title-size: 11px;
+  --card-item-caption-size: 9px;
+  --card-playlist-surface: #f7f9fd;
+  --card-playlist-border: #ebeff6;
+  --card-panel-surface: #f7f9fd;
+  --card-panel-border: #e9eef6;
+  --card-stat-surface: #f4f7fc;
+  --card-stat-border: #e7edf6;
+  --card-action-surface: #f4f7fc;
+  --card-action-border: #e4eaf3;
+  --card-action-shadow: none;
 }
 
 :root[data-font="system"],

@@ -309,13 +309,37 @@ CLOUDFLARE_PAGES_PROJECT=<project> pnpm deploy:pages
 
 See [ADR 0016](docs/adr/0016-cloudflare-d1-worker-queue-adapter.md) and the [Cloudflare adapter guide](infra/providers/cloudflare/README.md).
 
+The separate [SVG card Worker](infra/providers/cloudflare/svg/README.md) serves the published
+Dashboard as GitHub profile images. `/dashboard.svg` includes every enabled published Widget,
+while `/widgets/{id}.svg` and `/types/{type}.svg` select individual cards.
+
 The public homepage intentionally has no administration chrome. Open `/settings` directly to authenticate as Owner; the display/edit controls, Provider status, sync actions, API information, and Settings link appear on the homepage only after the API reports an Owner session.
+
+Website cards offer **雪瓷 (Porcelain)** and **晨光玻璃 (Glass)** in Settings → 卡片风格,
+with a live component preview. New browsers use Porcelain; existing saved appearance preferences
+keep Glass until changed. Appearance stays local to the browser and uses the same Widget renderers,
+layouts, public fields, and editing controls. GitHub SVG captures explicitly keep the original Glass
+card theme and its existing light/dark variants.
 
 In Owner edit mode, every registered card uses the shared configuration surface. Presentation choices update only `presentationConfig`; NetEase semantic public policies update `dataConfig` and are enforced by the Projector before data reaches a public payload. Use **Save Draft**, sync data-affecting policy changes, then **Publish Layout**. Presentation choices do not change Projection Keys; public policy and selected resources do.
 
 Cloudflare Pages Functions proxies `/api/*` to the API Worker through a Service Binding. OAuth callback and Session cookies therefore stay on the Pages origin instead of relying on cross-site `pages.dev` → `workers.dev` cookies.
 
 The API-backed Dashboard revalidates on a 30-second foreground interval and whenever the browser window regains focus. Projection refreshes merge only live Provider data into a dirty local Draft; layout, Widget configuration, and the `rev:` concurrency token remain untouched.
+
+Public and Owner live Dashboard reads use conditional ETags and gzip transport. Unchanged views
+reuse the existing client objects without downloading or parsing the historical payload again;
+Owner responses retain `no-store` and authorization runs before conditional responses. NetEase
+artwork uses bounded thumbnails sized for its visible slot. Expanded panels paint their shell
+before mounting content, and complete ranking lists skip off-screen batches without removing
+public rows or limiting history navigation.
+
+Browser persistence keeps full Draft/Published snapshots separate from small UI state updates.
+The existing v3 snapshots remain readable, and a generation marker prevents old UI state from
+being overlaid onto a newer saved layout. Immutable server snapshots and stable per-card
+callbacks are reused so view changes and unrelated card updates do less work on the main thread.
+Expanded card layouts contain internal painting and avoid applying scrollbar rules to every
+descendant element.
 
 ## Security
 

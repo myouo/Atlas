@@ -38,7 +38,7 @@ describe("ModuleShell", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "放大 听歌榜单" }));
     expect(await screen.findByRole("dialog", { name: "听歌榜单" })).toBeVisible();
-    expect(screen.getByText("完整榜单内容")).toBeVisible();
+    expect(await screen.findByText("完整榜单内容")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "关闭 听歌榜单 全屏视图" }));
     expect(screen.queryByRole("dialog", { name: "听歌榜单" })).not.toBeInTheDocument();
   });
@@ -54,7 +54,7 @@ describe("ModuleShell", () => {
     expect(screen.getByRole("button", { name: "切换 selected" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "放大 状态保留" }));
     const dialog = await screen.findByRole("dialog", { name: "状态保留" });
-    expect(screen.getByRole("button", { name: "切换 selected" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "切换 selected" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "切换 selected" }));
     expect(screen.getByRole("button", { name: "切换 expanded" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "关闭 状态保留 全屏视图" }));

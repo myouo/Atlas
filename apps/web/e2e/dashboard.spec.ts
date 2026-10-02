@@ -146,6 +146,22 @@ test("background management is isolated to Settings", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Background" })).toHaveCount(0);
   await page.getByRole("link", { name: "打开设置" }).click();
   await expect(page.getByRole("heading", { name: "Background" })).toBeVisible();
+  await page.getByRole("button", { name: /晨光玻璃/ }).click();
   await page.getByRole("button", { name: "保存外观设置" }).click();
   await expect(page.getByRole("button", { name: "已保存到浏览器" })).toBeVisible();
+  await page.getByRole("link", { name: "返回 About Me" }).click();
+  await expect(page.getByRole("heading", { name: "About Me" })).toBeVisible();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-card-style", "glass");
+  await page.getByRole("link", { name: "打开设置" }).click();
+  await expect(page.getByRole("button", { name: /晨光玻璃/ })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await page.getByRole("button", { name: /雪瓷/ }).click();
+  await page.getByRole("button", { name: "保存外观设置" }).click();
+  await page.getByRole("link", { name: "返回 About Me" }).click();
+  await expect(page.getByRole("heading", { name: "About Me" })).toBeVisible();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-card-style", "porcelain");
 });

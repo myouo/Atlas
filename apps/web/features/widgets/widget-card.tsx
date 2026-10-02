@@ -45,6 +45,8 @@ function WidgetCardComponent({
         onRemove={onRemove}
         stale={widget.stale}
         title="暂不支持的模块"
+        widgetId={widget.id}
+        widgetType={widget.type}
       >
         <div className="flex h-full items-center rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-xs leading-relaxed text-violet-800">
           当前前端没有匹配此 type + schemaVersion 的 Renderer。其它模块仍可正常显示。
@@ -77,6 +79,8 @@ function WidgetCardComponent({
         onRemove={onRemove}
         stale={widget.stale}
         title={widget.title}
+        widgetId={widget.id}
+        widgetType={widget.type}
       >
         {widgetHasDisplayData(widget) ? (
           <Renderer widget={widget as never} />
@@ -118,6 +122,8 @@ export const WidgetCard = memo(function WidgetCard(props: WidgetCardProps) {
           accent="lilac"
           editable={editable}
           title={widget.title}
+          widgetId={widget.id}
+          widgetType={widget.type}
           onRemove={onRemove}
           stale
         >

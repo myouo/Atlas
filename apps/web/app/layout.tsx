@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { defaultCardStyle } from "../design-system/appearance";
 
 import "./globals.css";
 
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="zh-CN">
+    <html data-card-style={defaultCardStyle} lang="zh-CN">
       <body>{children}</body>
     </html>
   );

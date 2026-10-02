@@ -42,6 +42,95 @@ const revisionDetail: DashboardRevisionDetail = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("DashboardDataSource composition", () => {
+  it("reuses validated Owner live data on 304 without changing revision tokens", async () => {
+    let liveLoads = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session")
+          return json(
+            {
+              actorId: "00000000-0000-4000-8000-000000000001",
+              authenticated: true,
+              expiresAt: "2099-01-01T00:00:00.000Z",
+              role: "owner"
+            },
+            200,
+            {}
+          );
+        if (path === "/v1/public/dashboards/about") return json(mockDashboard, 200, {});
+        if (path === "/v1/me/providers/status") return json({ providers: [] }, 200, {});
+        if (path === "/v1/me/dashboards/about/draft") return json(draft, 200, { ETag: etagOne });
+        if (path === "/v1/me/dashboards/about/data") {
+          liveLoads += 1;
+          if (liveLoads > 1) {
+            expect(request.headers.get("if-none-match")).toBe('W/"data:one"');
+            return new Response(null, { status: 304 });
+          }
+          return json(
+            {
+              configurationRevisionId: revisionOneId,
+              dashboardId: "about",
+              dataVersion: "one",
+              generatedAt: "2026-10-03T00:00:00.000Z",
+              widgets: mockDashboard.widgets
+            },
+            200,
+            { ETag: 'W/"data:one"' }
+          );
+        }
+        throw new Error("Unexpected request");
+      })
+    );
+    const source = createDashboardDataSource({ apiBaseUrl: "https://api.test", kind: "api" });
+    const first = await source.load();
+    const unchanged = await source.load();
+    expect(unchanged.draft?.dashboard.widgets[0]?.data).toBe(
+      first.draft?.dashboard.widgets[0]?.data
+    );
+    expect(unchanged.draft?.concurrencyToken).toBe(etagOne);
+  });
+  it("reuses unchanged public views and replaces them when publication changes", async () => {
+    let loads = 0;
+    const headers: (string | null)[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        if (new URL(request.url).pathname === "/v1/auth/session")
+          return json(
+            { actorId: null, authenticated: false, expiresAt: null, role: null },
+            200,
+            {}
+          );
+        headers.push(request.headers.get("if-none-match"));
+        loads += 1;
+        if (loads === 2)
+          return new Response(null, { status: 304, headers: { ETag: 'W/"view:one"' } });
+        const model =
+          loads === 1
+            ? mockDashboard
+            : {
+                ...mockDashboard,
+                revision: mockDashboard.revision + 1,
+                widgets: mockDashboard.widgets.map((widget, index) =>
+                  index === 0 ? { ...widget, enabled: false } : widget
+                )
+              };
+        return json(model, 200, { ETag: loads === 1 ? 'W/"view:one"' : 'W/"view:two"' });
+      })
+    );
+    const source = createDashboardDataSource({ apiBaseUrl: "https://api.test", kind: "api" });
+    const first = await source.load();
+    const same = await source.load();
+    expect(same.published).toBe(first.published);
+    const changed = await source.load();
+    expect(changed.published).not.toBe(first.published);
+    expect(changed.published.widgets[0]?.enabled).toBe(false);
+    expect(headers).toEqual([null, 'W/"view:one"', 'W/"view:one"']);
+  });
   it("keeps Mock mode available with a simple revision token", async () => {
     const source = createDashboardDataSource({ kind: "mock" });
     expect(source.kind).toBe("mock");
@@ -287,7 +376,7 @@ describe("DashboardDataSource composition", () => {
     const publicRequest = fetchMock.mock.calls
       .map(([input, init]) => (input instanceof Request ? input : new Request(input, init)))
       .find((request) => new URL(request.url).pathname === "/v1/public/dashboards/about");
-    expect(publicRequest?.cache).toBe("no-cache");
+    expect(publicRequest?.cache).toBe("no-store");
     const connectRequest = fetchMock.mock.calls
       .map(([input, init]) => (input instanceof Request ? input : new Request(input, init)))
       .find(
