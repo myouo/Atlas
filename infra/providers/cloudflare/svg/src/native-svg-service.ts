@@ -67,7 +67,8 @@ export async function sceneKeys(
     scopeHash,
     periodKey,
     exact: `${NATIVE_CAPTURE_VERSION}:published:${contentHash}:${variant}:${periodKey}`,
-    latest: `${NATIVE_CAPTURE_VERSION}:latest:${scopeHash}:${variant}`
+    latest: `${NATIVE_CAPTURE_VERSION}:latest:${dashboard.dashboardId}:${variant}`,
+    legacyLatest: `${NATIVE_CAPTURE_VERSION}:latest:${scopeHash}:${variant}`
   };
 }
 
@@ -84,7 +85,9 @@ export async function loadNativeScene(
   env: Pick<Env, "SVG_CACHE">
 ): Promise<NativeSvgScene> {
   const keys = await sceneKeys(dashboard, sceneOptions(options));
-  const published = await env.SVG_CACHE.get<PublishedScene>(keys.latest, "json");
+  const published =
+    (await env.SVG_CACHE.get<PublishedScene>(keys.latest, "json")) ??
+    (await env.SVG_CACHE.get<PublishedScene>(keys.legacyLatest, "json"));
   if (
     !published ||
     published.version !== NATIVE_CAPTURE_VERSION ||

@@ -90,8 +90,9 @@ serve that original SVG while a new render is pending; `X-Nivalis-SVG-State` and
 `X-Nivalis-SVG-Captured-At` identify this state. A change to publication revision, public
 disclosure, enabled cards, profile identity, presentation or the selected listening period
 blocks reuse. A failed or obsolete upload never replaces the previous successful artifact.
-Two-day immutable copies are also retained; latest keys overwrite by public scope and variant
-so listening periods do not accumulate permanent copies.
+Two-day immutable copies are also retained. Each of the 16 latest variants overwrites its
+previous file and validates the stored scope and period against the current public state,
+so periods and publication revisions do not accumulate permanent scene copies.
 
 Responses use five-minute caching and content ETags. GitHub's image proxy can cache images
 longer than the origin. CI headless sessions are closed in `finally` and assets are size bounded.
