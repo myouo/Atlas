@@ -75,6 +75,9 @@ unchanged captures, and publishes all 16 combinations of theme, style, ranking r
 calendar period. It retries on the next hourly run after failures. The Provider sync remains
 every six hours. Set the repository variable `SVG_PUBLISH_ENABLED=true` in exactly one
 repository, and share a dedicated `SVG_PUBLISH_TOKEN` secret with the SVG Worker.
+A separate job records one successful refresh per month in `.github/svg-publisher-health.json`.
+This keeps the public scheduler active when the Profile repository otherwise has no commits;
+only that job receives repository write permission, and the Profile README is not rewritten.
 
 The authenticated `GET /internal/scenes` endpoint reports capture readiness; authenticated
 `POST /internal/scenes` accepts bounded native scenes only for the current public snapshot.
