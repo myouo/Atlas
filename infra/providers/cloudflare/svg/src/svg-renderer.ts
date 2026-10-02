@@ -1,5 +1,20 @@
 import type { DashboardReadModel, Profile } from "@nivalis/api-client";
 
+import { renderVinylCard } from "./netease-vinyl-renderer";
+import {
+  array,
+  escapeXml,
+  fit,
+  formatDuration,
+  formatNumber,
+  initials,
+  numeric,
+  object,
+  periodLabel,
+  safeHost,
+  string
+} from "./svg-utils";
+
 export interface PublishedWidget {
   readonly data: unknown;
   readonly enabled: boolean;
@@ -38,13 +53,35 @@ export function renderWidgetSvg(
   return svgDocument(card.title, card.height, card.markup);
 }
 
-export function renderDashboardSvg(dashboard: DashboardReadModel, siteUrl: string) {
+export function renderDashboardSvg(
+  dashboard: DashboardReadModel,
+  siteUrl: string,
+  options: URLSearchParams = new URLSearchParams()
+) {
   const cards = [
     profileCard(dashboard.profile, siteUrl),
     ...dashboard.widgets
       .filter((widget) => widget.enabled)
-      .map((widget) => widgetCard(widget, siteUrl))
+      .map((widget) => widgetCard(widget, siteUrl, options))
   ];
+  return stackCards(`${dashboard.profile.displayName} · About Me`, cards);
+}
+
+export function renderNeteaseSvg(
+  dashboard: DashboardReadModel,
+  siteUrl: string,
+  options: URLSearchParams = new URLSearchParams()
+) {
+  const cards = dashboard.widgets
+    .filter((widget) => widget.enabled && widget.type.startsWith("music.netease."))
+    .map((widget) => widgetCard(widget, siteUrl, options));
+  return stackCards(`${dashboard.profile.displayName} · NetEase`, cards);
+}
+
+function stackCards(title: string, cards: readonly SvgCard[]) {
+  if (cards.length === 0) {
+    return svgDocument(title, 180, text(360, 96, "暂无公开卡片", 16, MUTED, 600, "middle"));
+  }
   const gap = 16;
   const height = cards.reduce((sum, card) => sum + card.height, 0) + gap * (cards.length - 1);
   let offset = 0;
@@ -55,7 +92,7 @@ export function renderDashboardSvg(dashboard: DashboardReadModel, siteUrl: strin
       return current;
     })
     .join("");
-  return svgDocument(`${dashboard.profile.displayName} · About Me`, height, body);
+  return svgDocument(title, height, body);
 }
 
 function profileCard(profile: Profile, siteUrl: string): SvgCard {
@@ -80,6 +117,9 @@ function widgetCard(
   siteUrl: string,
   options = new URLSearchParams()
 ): SvgCard {
+  if (options.get("style") === "vinyl" && widget.type.startsWith("music.netease.")) {
+    return renderVinylCard(widget, siteUrl, options);
+  }
   const card = renderWidgetCard(widget, siteUrl, options);
   const updated = widget.updatedAt ? new Date(widget.updatedAt) : null;
   const timestamp =
@@ -478,71 +518,6 @@ function emptyMessage(label: string, height: number) {
     `<rect x="24" y="102" width="672" height="${height - 142}" rx="16" fill="#f2f7ff" stroke="#dce8f7" stroke-dasharray="5 5"/>` +
     text(360, Math.round((height + 83) / 2), label, 15, MUTED, 600, "middle")
   );
-}
-
-function object(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function array(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function string(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function numeric(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function fit(value: string, max: number) {
-  const letters = Array.from(value.replace(/[\r\n\t]+/g, " "));
-  return letters.length > max ? `${letters.slice(0, max - 1).join("")}…` : letters.join("");
-}
-
-function initials(value: string) {
-  return Array.from(value.trim())[0]?.toUpperCase() ?? "N";
-}
-
-function escapeXml(value: string) {
-  return value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, "").replace(
-    /[&<>"']/g,
-    (character) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&apos;"
-      })[character]!
-  );
-}
-
-function safeHost(value: string) {
-  try {
-    return new URL(value).host;
-  } catch {
-    return "About Me";
-  }
-}
-
-function formatNumber(value: number) {
-  return Math.round(value).toLocaleString("zh-CN");
-}
-
-function formatDuration(minutes: number) {
-  if (minutes < 60) return `${Math.round(minutes)} 分钟`;
-  return `${Math.floor(minutes / 60)} 小时 ${Math.round(minutes % 60)} 分`;
-}
-
-function periodLabel(date: string, period: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return period === "week" ? "本周" : "本月";
-  return period === "week"
-    ? `${date.slice(5)} 起`
-    : `${date.slice(0, 4)} 年 ${Number(date.slice(5, 7))} 月`;
 }
 
 function heatColor(minutes: number) {

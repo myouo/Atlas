@@ -2,6 +2,7 @@ import type { DashboardReadModel } from "@nivalis/api-client";
 
 import {
   renderDashboardSvg,
+  renderNeteaseSvg,
   renderProfileSvg,
   renderWidgetSvg,
   type PublishedWidget
@@ -22,6 +23,7 @@ type Selection =
   | { readonly kind: "dashboard" }
   | { readonly kind: "manifest" }
   | { readonly kind: "profile" }
+  | { readonly kind: "netease" }
   | { readonly kind: "widget-id"; readonly value: string }
   | { readonly kind: "widget-type"; readonly value: string };
 
@@ -54,6 +56,8 @@ export default {
       const manifest = {
         dashboard: `${url.origin}/dashboard.svg`,
         profile: `${url.origin}/profile.svg`,
+        netease: `${url.origin}/netease.svg`,
+        styles: ["soft", "vinyl"],
         site: env.SITE_URL,
         widgets: dashboard.widgets
           .filter((widget) => widget.enabled)
@@ -62,7 +66,12 @@ export default {
             title: widget.title,
             type: widget.type,
             svg: `${url.origin}/widgets/${encodeURIComponent(widget.id)}.svg`,
-            typeSvg: `${url.origin}/types/${encodeURIComponent(widget.type)}.svg`
+            typeSvg: `${url.origin}/types/${encodeURIComponent(widget.type)}.svg`,
+            ...(widget.type.startsWith("music.netease.")
+              ? {
+                  vinylSvg: `${url.origin}/widgets/${encodeURIComponent(widget.id)}.svg?style=vinyl`
+                }
+              : {})
           }))
       };
       return new Response(request.method === "HEAD" ? null : JSON.stringify(manifest), {
@@ -75,8 +84,18 @@ export default {
     }
 
     let svg: string;
-    if (selection.kind === "dashboard") svg = renderDashboardSvg(dashboard, env.SITE_URL);
-    else if (selection.kind === "profile") svg = renderProfileSvg(dashboard.profile, env.SITE_URL);
+    if (selection.kind === "dashboard")
+      svg = renderDashboardSvg(dashboard, env.SITE_URL, url.searchParams);
+    else if (selection.kind === "netease") {
+      if (
+        !dashboard.widgets.some(
+          (widget) => widget.enabled && widget.type.startsWith("music.netease.")
+        )
+      )
+        return new Response("Published NetEase cards not found", { status: 404 });
+      svg = renderNeteaseSvg(dashboard, env.SITE_URL, url.searchParams);
+    } else if (selection.kind === "profile")
+      svg = renderProfileSvg(dashboard.profile, env.SITE_URL);
     else {
       const widget = selectWidget(dashboard.widgets, selection, url.searchParams.get("id"));
       if (!widget) return new Response("Published card not found", { status: 404 });
@@ -102,6 +121,8 @@ export function selectRoute(pathname: string): Selection | null {
   if (pathname === "/" || pathname === "/dashboard.svg") return { kind: "dashboard" };
   if (pathname === "/manifest.json") return { kind: "manifest" };
   if (pathname === "/profile.svg") return { kind: "profile" };
+  if (pathname === "/netease.svg" || pathname === "/netease/dashboard.svg")
+    return { kind: "netease" };
   const alias = aliases[pathname];
   if (alias) return { kind: "widget-type", value: alias };
   const widgetId = pathname.match(/^\/widgets\/([^/]+)\.svg$/)?.[1];

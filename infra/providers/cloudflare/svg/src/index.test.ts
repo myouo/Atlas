@@ -16,6 +16,7 @@ const env = {
 describe("SVG Worker routes", () => {
   it("resolves a generic dashboard and future Widget routes", () => {
     expect(selectRoute("/dashboard.svg")).toEqual({ kind: "dashboard" });
+    expect(selectRoute("/netease.svg")).toEqual({ kind: "netease" });
     expect(selectRoute("/widgets/first-card.svg")).toEqual({
       kind: "widget-id",
       value: "first-card"
@@ -66,5 +67,20 @@ describe("SVG Worker routes", () => {
       env
     );
     expect(response.status).toBe(404);
+  });
+
+  it("returns 404 for an empty NetEase collection and keeps HEAD responses bodyless", async () => {
+    const missing = await worker.fetch(
+      new Request("https://svg.example.test/netease.svg?style=vinyl"),
+      env
+    );
+    expect(missing.status).toBe(404);
+    const head = await worker.fetch(
+      new Request("https://svg.example.test/dashboard.svg", { method: "HEAD" }),
+      env
+    );
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    expect(head.headers.get("etag")).toBeTruthy();
   });
 });
