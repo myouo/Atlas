@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { noCompactor, Responsive } from "react-grid-layout";
 import { getCompactor } from "react-grid-layout/core";
 import type { Layout, LayoutItem, ResponsiveLayouts } from "react-grid-layout";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { WidgetCard } from "../widgets/widget-card";
 import { widgetRegistry } from "../widgets/widget-registry";
@@ -24,6 +24,37 @@ interface DashboardCanvasProps {
   readonly onRemoveWidget: (widgetId: string) => void;
   readonly widgets: readonly WidgetProjection[];
 }
+
+const CanvasWidget = memo(function CanvasWidget({
+  editable,
+  onDataConfigChange,
+  onPresentationConfigChange,
+  onRemoveWidget,
+  widget
+}: Pick<
+  DashboardCanvasProps,
+  "editable" | "onDataConfigChange" | "onPresentationConfigChange" | "onRemoveWidget"
+> & { readonly widget: WidgetProjection }) {
+  const id = widget.id;
+  const configureData = useCallback(
+    (config: WidgetProjection["dataConfig"]) => onDataConfigChange(id, config),
+    [id, onDataConfigChange]
+  );
+  const configurePresentation = useCallback(
+    (config: WidgetProjection["presentationConfig"]) => onPresentationConfigChange(id, config),
+    [id, onPresentationConfigChange]
+  );
+  const remove = useCallback(() => onRemoveWidget(id), [id, onRemoveWidget]);
+  return (
+    <WidgetCard
+      editable={editable}
+      onDataConfigChange={configureData}
+      onPresentationConfigChange={configurePresentation}
+      onRemove={remove}
+      widget={widget}
+    />
+  );
+});
 
 function buildGridLayouts(layout: ResponsiveLayout, widgets: readonly WidgetProjection[]) {
   const widgetMap = new Map(widgets.map((widget) => [widget.id, widget]));
@@ -135,11 +166,11 @@ function DashboardCanvasComponent({
     () =>
       widgets.map((widget) => (
         <div key={widget.id}>
-          <WidgetCard
+          <CanvasWidget
             editable={editable}
-            onDataConfigChange={(config) => onDataConfigChange(widget.id, config)}
-            onPresentationConfigChange={(config) => onPresentationConfigChange(widget.id, config)}
-            onRemove={() => onRemoveWidget(widget.id)}
+            onDataConfigChange={onDataConfigChange}
+            onPresentationConfigChange={onPresentationConfigChange}
+            onRemoveWidget={onRemoveWidget}
             widget={widget}
           />
         </div>

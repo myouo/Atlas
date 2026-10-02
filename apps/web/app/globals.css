@@ -338,7 +338,8 @@ select:focus-visible {
   bottom: 0.5rem;
   left: 0.5rem;
   container-name: module-shell;
-  container-type: size;
+  container-type: inline-size;
+  contain: layout style paint;
 }
 
 .module-shell-expanded[data-state="open"] {
@@ -1007,36 +1008,66 @@ select:focus-visible {
   }
 }
 
-.glass-surface *,
-.glass-surface-strong * {
+:is(
+  .module-shell-content,
+  .module-shell-expanded-content,
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto
+) {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
 
-.glass-surface *::-webkit-scrollbar,
-.glass-surface-strong *::-webkit-scrollbar {
+:is(
+  .module-shell-content,
+  .module-shell-expanded-content,
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto
+)::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
-.glass-surface *::-webkit-scrollbar-track,
-.glass-surface-strong *::-webkit-scrollbar-track {
+:is(
+  .module-shell-content,
+  .module-shell-expanded-content,
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto
+)::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.glass-surface *::-webkit-scrollbar-thumb,
-.glass-surface-strong *::-webkit-scrollbar-thumb {
+:is(
+  .module-shell-content,
+  .module-shell-expanded-content,
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto
+)::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: transparent;
 }
 
-.glass-surface *:hover::-webkit-scrollbar-thumb,
-.glass-surface-strong *:hover::-webkit-scrollbar-thumb {
+:is(
+    .module-shell-content,
+    .module-shell-expanded-content,
+    .overflow-auto,
+    .overflow-y-auto,
+    .overflow-x-auto
+  ):hover::-webkit-scrollbar-thumb {
   background: rgba(92, 119, 176, 0.28);
 }
 
-.glass-surface *:hover,
-.glass-surface-strong *:hover {
+:is(
+  .module-shell-content,
+  .module-shell-expanded-content,
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto
+):hover {
   scrollbar-color: rgba(92, 119, 176, 0.28) transparent;
 }
 

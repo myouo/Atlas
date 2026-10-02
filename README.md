@@ -334,6 +334,13 @@ artwork uses bounded thumbnails sized for its visible slot. Expanded panels pain
 before mounting content, and complete ranking lists skip off-screen batches without removing
 public rows or limiting history navigation.
 
+Browser persistence keeps full Draft/Published snapshots separate from small UI state updates.
+The existing v3 snapshots remain readable, and a generation marker prevents old UI state from
+being overlaid onto a newer saved layout. Immutable server snapshots and stable per-card
+callbacks are reused so view changes and unrelated card updates do less work on the main thread.
+Expanded card layouts contain internal painting and avoid applying scrollbar rules to every
+descendant element.
+
 ## Security
 
 Assume this repository is public:

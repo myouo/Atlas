@@ -7,12 +7,13 @@ import type {
   WidgetProjection
 } from "@nivalis/api-client";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist } from "zustand/middleware";
 
 import type { DashboardSourceKind, HydratedDashboardState } from "../../api/dashboard-source";
 import type { DashboardConcurrencyToken, RevisionConflictState } from "../../api/dashboard-source";
 import { addWidgetToLayouts, removeWidgetFromLayouts } from "./layout-engine";
 import type { DashboardBreakpoint, DashboardLayoutItem, WidgetGridSizes } from "./layout-engine";
+import { createDashboardStorage } from "./dashboard-storage";
 
 export type DashboardMode = "display" | "edit";
 
@@ -77,16 +78,25 @@ interface DashboardStore {
 const cloneSnapshot = (snapshot: LocalDashboardSnapshot): LocalDashboardSnapshot =>
   structuredClone(snapshot);
 
+const snapshotCache = new WeakMap<
+  DashboardReadModel | HydratedDashboardState,
+  LocalDashboardSnapshot
+>();
+
 function toSnapshot(
   dashboard: DashboardReadModel | HydratedDashboardState
 ): LocalDashboardSnapshot {
-  return {
+  const cached = snapshotCache.get(dashboard);
+  if (cached) return cached;
+  const snapshot: LocalDashboardSnapshot = {
     dashboardId: dashboard.dashboardId,
     layout: structuredClone(dashboard.layout),
     profile: structuredClone(dashboard.profile),
     revision: dashboard.revision,
     widgets: structuredClone(dashboard.widgets)
   };
+  snapshotCache.set(dashboard, snapshot);
+  return snapshot;
 }
 
 export const useDashboardStore = create<DashboardStore>()(
@@ -244,7 +254,7 @@ export const useDashboardStore = create<DashboardStore>()(
     }),
     {
       name: "nivalis.dashboard.v3",
-      storage: createJSONStorage(() => localStorage),
+      storage: createDashboardStorage<DashboardStore>(),
       version: 3
     }
   )
