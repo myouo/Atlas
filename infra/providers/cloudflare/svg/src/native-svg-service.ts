@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-const CAPTURE_VERSION = "web-components-v6-rounded-backdrops";
+const CAPTURE_VERSION = "web-components-v5-original-variants";
 const CACHE_SECONDS = 24 * 60 * 60;
 
 export async function loadNativeScene(

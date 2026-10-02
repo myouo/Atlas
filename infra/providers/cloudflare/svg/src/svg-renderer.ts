@@ -38,7 +38,9 @@ export function composeNativeSvg(
         .replace(/^<\?xml[^>]*>\s*/, "")
         .replace(/<svg\b/, `<svg x="${x}" y="${offset}"`);
       offset += card.height + gap;
-      return body;
+      if (!card.background || card.background.radius <= 0) return body;
+      const clipId = `export-bounds-${card.id}`;
+      return `<defs><clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${x}" y="${offset - card.height - gap}" width="${card.width}" height="${card.height}" rx="${card.background.radius}"/></clipPath></defs><g clip-path="url(#${clipId})">${body}</g>`;
     })
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(title)}" data-style="${style}" data-theme="${theme}"><title>${escapeXml(title)}</title>${contents}</svg>`;
