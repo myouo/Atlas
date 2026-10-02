@@ -60,8 +60,9 @@ browser export session; its public API responses are pinned to the Worker’s pu
 ## Runtime and validation
 
 Run `pnpm build:svg` and `pnpm deploy:svg`. The build also bundles the browser-side converter.
-The Worker needs the existing API Service Binding, Browser Run, a KV cache and the bundled
-capture asset binding. Local/production KV instance IDs stay in ignored deployment config.
+The Worker needs the existing API Service Binding and KV cache. Chromium rendering runs
+separately in GitHub Actions (or locally); image reads do not launch a Cloudflare browser.
+Local/production KV instance IDs stay in ignored deployment config.
 
 A capture set is keyed by public content and the render options. Only non-rendered Widget sync
 timestamps and equivalent numbered NetEase artwork CDN hosts are normalized. Actual data,
@@ -69,8 +70,25 @@ artwork identities, public policies, presentation settings, stale state, layout 
 revision remain part of the key, so a privacy or publication change cannot reuse a previous set.
 Original card metadata (`data-widget-id` and
 `data-widget-type`) makes export independent of title and order, including duplicate titles.
-The six-hour SVG Cron prewarms both modes after the Provider sync; a cache miss renders the
-current public model. Failure returns an uncached error rather than a redesigned substitute.
+The hourly `refresh-profile-svg.yml` workflow checks the current public content, skips
+unchanged captures, and publishes all 16 combinations of theme, style, ranking range and
+calendar period. It retries on the next hourly run after failures. The Provider sync remains
+every six hours. Set the repository variable `SVG_PUBLISH_ENABLED=true` in exactly one
+repository, and share a dedicated `SVG_PUBLISH_TOKEN` secret with the SVG Worker.
+
+The authenticated `GET /internal/scenes` endpoint reports capture readiness; authenticated
+`POST /internal/scenes` accepts bounded native scenes only for the current public snapshot.
+Use `pnpm svg:publish` with `SVG_PUBLISH_TOKEN` to generate and publish from local Chromium,
+or `SVG_OUTPUT_DIR` to inspect captures without publishing. Both paths use the same original
+Web DOM converter and rounded backdrop clipping.
+
+The last successful capture is retained without expiry. Provider data updates can temporarily
+serve that original SVG while a new render is pending; `X-Nivalis-SVG-State` and
+`X-Nivalis-SVG-Captured-At` identify this state. A change to publication revision, public
+disclosure, enabled cards, profile identity, presentation or the selected listening period
+blocks reuse. A failed or obsolete upload never replaces the previous successful artifact.
+Two-day immutable copies are also retained; latest keys overwrite by public scope and variant
+so listening periods do not accumulate permanent copies.
 
 Responses use five-minute caching and content ETags. GitHub's image proxy can cache images
-longer than the origin. Headless sessions are closed in `finally` and assets are size bounded.
+longer than the origin. CI headless sessions are closed in `finally` and assets are size bounded.

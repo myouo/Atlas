@@ -1,6 +1,6 @@
 import type { DashboardReadModel } from "@nivalis/api-client";
 
-export const NATIVE_CAPTURE_VERSION = "web-components-v7-stable-content";
+export const NATIVE_CAPTURE_VERSION = "web-components-v8-published";
 
 const artworkFields = new Set(["avatarUrl", "coverUrl", "iconUrl", "imageUrls"]);
 
@@ -31,9 +31,54 @@ export function serializeNativeSceneContent(dashboard: DashboardReadModel): stri
 }
 
 export async function nativeSceneContentHash(dashboard: DashboardReadModel): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(serializeNativeSceneContent(dashboard))
+  return hashContent(serializeNativeSceneContent(dashboard));
+}
+
+// A successful capture can outlive Provider data updates, but never changes to
+// the published identity, card selection, disclosure rules or presentation.
+export async function nativeSceneScopeHash(dashboard: DashboardReadModel): Promise<string> {
+  return hashContent(
+    JSON.stringify({
+      ...dashboard,
+      widgets: dashboard.widgets.map((widget) => ({
+        ...Object.fromEntries(
+          Object.entries(widget).filter(([key]) => !["data", "updatedAt", "stale"].includes(key))
+        ),
+        disclosure: dataDisclosure(widget.data)
+      }))
+    })
   );
+}
+
+function dataDisclosure(data: unknown) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const fields = data as Record<string, unknown>;
+  return Object.fromEntries(
+    [
+      "publicFields",
+      "publicRanges",
+      "publicLimit",
+      "maxItems",
+      "mode",
+      "availability",
+      "month",
+      "week",
+      "allTime"
+    ]
+      .filter((key) => key in fields)
+      .map((key) => {
+        const value = fields[key];
+        return [
+          key,
+          ["month", "week", "allTime"].includes(key) && value && typeof value === "object"
+            ? { availability: (value as Record<string, unknown>).availability }
+            : value
+        ];
+      })
+  );
+}
+
+async function hashContent(content: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

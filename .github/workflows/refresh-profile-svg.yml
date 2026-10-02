@@ -1,0 +1,43 @@
+name: Refresh profile SVG
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild all variants even when published content is unchanged
+        type: boolean
+        default: false
+  schedule:
+    # Provider sync runs at 00/06/12/18 UTC. Retry hourly through transient failures.
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-profile-svg
+  cancel-in-progress: false
+
+jobs:
+  render:
+    if: ${{ vars.SVG_PUBLISH_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: pnpm/setup@v2
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build native DOM converter
+        run: pnpm build:svg:capture
+      - name: Publish public SVG variants
+        env:
+          SVG_PUBLISH_TOKEN: ${{ secrets.SVG_PUBLISH_TOKEN }}
+          SVG_FORCE_CAPTURE: ${{ inputs.force == true && '1' || '' }}
+        run: pnpm svg:publish

@@ -4,6 +4,7 @@ import { composeNativeSvg, widgetProvider, type PublishedWidget } from "./svg-re
 import { SVG_STYLES, SVG_THEMES, type SvgStyle, type SvgTheme } from "./svg-theme";
 import { loadNativeScene } from "./native-svg-service";
 import type { NativeSvgScene } from "./native-svg-types";
+import { handleScenePublication } from "./scene-publication";
 
 const MAX_DASHBOARD_BYTES = 16_000_000;
 
@@ -136,8 +137,10 @@ export function createSvgWorker<Environment extends Pick<Env, "NIVALIS_API" | "S
       }
 
       let svg: string;
+      let capture: NativeSvgScene;
       try {
         const scene = await loadScene(dashboard, url.searchParams, env);
+        capture = scene;
         const ids = new Set(selected.map((widget) => widget.id));
         const cards = scene.widgets.filter((card) => ids.has(card.id));
         if (selection.kind === "profile" || selection.kind === "dashboard")
@@ -177,28 +180,29 @@ export function createSvgWorker<Environment extends Pick<Env, "NIVALIS_API" | "S
           "default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'",
         "Content-Type": "image/svg+xml; charset=utf-8",
         ETag: etag,
+        ...(capture.capturedAt ? { "X-Nivalis-SVG-Captured-At": capture.capturedAt } : {}),
+        ...(capture.contentHash
+          ? { "X-Nivalis-SVG-State": capture.outdated ? "previous-success" : "current" }
+          : {}),
         "X-Content-Type-Options": "nosniff"
       });
       if (etagMatches(request.headers.get("If-None-Match"), etag)) {
         return new Response(null, { headers, status: 304 });
       }
       return new Response(request.method === "HEAD" ? null : svg, { headers });
-    },
-    async scheduled(_event: ScheduledController, environment: Environment) {
-      const dashboard = await loadPublishedDashboard(environment.NIVALIS_API);
-      for (const style of SVG_STYLES)
-        for (const theme of SVG_THEMES) {
-          await loadScene(
-            dashboard,
-            new URLSearchParams({ style, theme, period: "month", range: "week" }),
-            environment
-          );
-        }
     }
   };
 }
 
-export default createSvgWorker(loadNativeScene) satisfies ExportedHandler<Env>;
+const publicWorker = createSvgWorker<Env>(loadNativeScene);
+
+export default {
+  async fetch(request, env) {
+    if (new URL(request.url).pathname === "/internal/scenes")
+      return handleScenePublication(request, env, loadPublishedDashboard);
+    return publicWorker.fetch(request, env);
+  }
+} satisfies ExportedHandler<Env>;
 
 export function selectRoute(
   pathname: string,

@@ -5,14 +5,12 @@
   "compatibility_date": "2026-09-25",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
-  "browser": { "binding": "BROWSER" },
-  "kv_namespaces": [{ "binding": "SVG_CACHE" }],
-  "assets": {
-    "directory": "../../../../dist/svg-browser",
-    "binding": "CAPTURE_ASSETS",
-    "run_worker_first": true
-  },
-  "triggers": { "crons": ["2 */6 * * *"] },
+  "secrets": { "required": ["SVG_PUBLISH_TOKEN"] },
+  "kv_namespaces": [
+    {
+      "binding": "SVG_CACHE"
+    }
+  ],
   "vars": {
     "SITE_URL": "https://aboutme.nivalis.is"
   },

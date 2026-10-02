@@ -11,4 +11,7 @@ export interface NativeSvgCard {
 export interface NativeSvgScene {
   readonly profile: NativeSvgCard;
   readonly widgets: readonly NativeSvgCard[];
+  readonly capturedAt?: string;
+  readonly contentHash?: string;
+  readonly outdated?: boolean;
 }
