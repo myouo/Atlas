@@ -3,6 +3,7 @@ import type { DashboardReadModel } from "@nivalis/api-client";
 import type { NativeSvgCard, NativeSvgScene } from "./native-svg-types";
 import type { captureCard, finishCard } from "./browser-capture";
 import { SVG_STYLES, SVG_THEMES, type SvgStyle, type SvgTheme } from "./svg-theme";
+import { fetchPublicArtwork } from "./public-artwork";
 
 declare global {
   interface Window {
@@ -187,21 +188,17 @@ export async function captureNativeVariants(
       [...cards, capturedProfile]
     );
     let nextImage = 0;
+    stage = "embed_artwork";
     const embedImage = async (url: string) => {
+      if (embedded[url]) return;
       const asset = new URL(url, siteUrl);
-      if (embedded[url] && !asset.hostname.endsWith("music.126.net")) return;
       const ownHost = asset.hostname === new URL(siteUrl).hostname;
       const providerHost =
         /(?:^|\.)(?:music\.126\.net|githubusercontent\.com|steamstatic\.com)$/.test(asset.hostname);
       if (asset.protocol !== "https:" || (!ownHost && !providerHost))
         throw new Error("Unrecognized public artwork host");
       if (asset.hostname.endsWith("music.126.net")) asset.searchParams.set("param", "128y128");
-      const response = await fetch(asset.toString(), { signal: AbortSignal.timeout(15_000) });
-      if (!response.ok) throw new Error(`Public artwork HTTP ${response.status}`);
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength > 2_000_000) throw new Error("Artwork exceeds export budget");
-      embedded[url] =
-        `data:${response.headers.get("content-type")?.split(";")[0] ?? "image/jpeg"};base64,${Buffer.from(bytes).toString("base64")}`;
+      embedded[url] = await fetchPublicArtwork(asset);
     };
     await Promise.all(
       Array.from({ length: 4 }, async () => {
