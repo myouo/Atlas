@@ -134,6 +134,20 @@ export function finishCard(
     image.setAttribute("width", String(card.width));
     image.setAttribute("height", String(card.height));
     image.setAttribute("href", backdrop);
+    if (card.background && card.background.radius > 0) {
+      const clip = document.createElementNS(SVG_NS, "clipPath");
+      clip.id = "native-card-backdrop-clip";
+      clip.setAttribute("clipPathUnits", "userSpaceOnUse");
+      const bounds = document.createElementNS(SVG_NS, "rect");
+      bounds.setAttribute("x", String(viewBox[0] ?? 0));
+      bounds.setAttribute("y", String(viewBox[1] ?? 0));
+      bounds.setAttribute("width", String(card.width));
+      bounds.setAttribute("height", String(card.height));
+      bounds.setAttribute("rx", String(card.background.radius));
+      clip.appendChild(bounds);
+      root.insertBefore(clip, root.firstChild);
+      image.setAttribute("clip-path", `url(#${clip.id})`);
+    }
     if (theme === "dark") image.setAttribute("opacity", "0.18");
     root.insertBefore(image, root.firstChild);
   }
