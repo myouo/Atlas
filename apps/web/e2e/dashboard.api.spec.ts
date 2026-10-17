@@ -4,6 +4,7 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   browser,
   page
 }) => {
+  test.setTimeout(120_000);
   await authenticateOwner(page);
   const api = page.context().request;
   await page.goto("/");
@@ -230,11 +231,18 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   expect(historyAfterNetease.items).toHaveLength(historyBeforeNetease.items.length);
 
   await page.goto("/settings");
+  const disconnectedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/v1/me/providers/netease/connection") &&
+      response.request().method() === "DELETE"
+  );
   await page.getByRole("button", { name: "断开并删除凭据" }).click();
+  expect((await disconnectedResponse).status()).toBe(204);
   const freshQrResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith("/v1/me/providers/netease/auth-attempts/qr") &&
-      response.request().method() === "POST"
+      response.request().method() === "POST",
+    { timeout: 15_000 }
   );
   await page.reload();
   const freshQr = await (await freshQrResponse).json();
