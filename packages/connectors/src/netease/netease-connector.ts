@@ -34,7 +34,7 @@ export class NeteaseConnector implements ProviderConnector {
     const fetchedAt = this.now();
     const records: ProviderSourceRecord[] = [snapshot(NETEASE_SOURCE.account, account, fetchedAt)];
     const userId = extractUserId(account);
-    if (!userId) return collection(records, request.data.runId);
+    if (!userId) throw new ProviderSchemaMismatchError(NETEASE_SOURCE.account);
     const tasks: readonly ProviderFetchTask[] = [
       async () => [
         snapshot(

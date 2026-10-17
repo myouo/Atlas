@@ -44,8 +44,18 @@ export class NeteaseClient {
     this.fetcher = fetcher ?? ((input, init) => globalThis.fetch(input, init));
   }
 
-  getAccount(credential: string) {
-    return this.weapi("/api/w/nuser/account/get", {}, credential);
+  async getAccount(credential: string) {
+    const payload = await this.weapi("/api/w/nuser/account/get", {}, credential);
+    // NetEase also reports an unauthenticated session as a successful empty response.
+    if (
+      isObject(payload) &&
+      payload.code === 200 &&
+      payload.account === null &&
+      payload.profile === null
+    ) {
+      throw new ProviderCredentialError("expired");
+    }
+    return payload;
   }
 
   getUserDetail(credential: string, userId: string) {

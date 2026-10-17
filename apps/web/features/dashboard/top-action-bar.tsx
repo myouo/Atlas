@@ -254,6 +254,14 @@ function connectionStatusLabel(status: ProviderStatus) {
 }
 
 function providerStatusDetail(status: ProviderStatus) {
+  if (
+    status.syncStatus === "credential_invalid" ||
+    status.lastErrorCode === "provider-credential-invalid" ||
+    status.lastErrorCode === "provider-credential-error"
+  ) {
+    return "登录凭据已失效，请在设置中重新连接后同步。";
+  }
+  if (status.lastErrorMessage) return status.lastErrorMessage;
   if (status.lastErrorCode) return `错误：${status.lastErrorCode}`;
   if (status.lastSuccessAt) {
     const suffix = status.attemptCount > 0 ? `${status.attemptCount} 次尝试` : "Seed Projection";

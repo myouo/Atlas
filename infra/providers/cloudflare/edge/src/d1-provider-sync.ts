@@ -29,6 +29,7 @@ import {
   ProviderSchemaMismatchError,
   providerSupportsCollectionMode,
   RetryableProviderError,
+  SyncPipelineError,
   toProviderSourceRecord,
   toProviderSnapshotRecord,
   toProviderSyncRequest
@@ -319,8 +320,9 @@ export class D1ProviderSyncRuntime {
     const run = mapRun(claimedRow);
     const runtime: ProviderRuntimeModule = run.provider === "steam" ? this.steam : this.runtime;
 
+    const processStartedAt = performance.now();
+    let stage = "collection_context";
     try {
-      const processStartedAt = performance.now();
       const fetchStartedAt = performance.now();
       const cachedHistory =
         run.provider === "steam"
@@ -337,6 +339,7 @@ export class D1ProviderSyncRuntime {
       const previousNormalized = providerSupportsCollectionMode(runtime.manifest, "incremental")
         ? await this.previousNormalized(run, runtime)
         : null;
+      stage = "collection";
       const collection = await collectProviderData(runtime, run, {
         cachedRecords: cachedHistory,
         checkpoint: previousNormalized?.meta.checkpoint ?? null
@@ -351,6 +354,7 @@ export class D1ProviderSyncRuntime {
         cachedIdentities.has(providerRecordIdentity(item.meta.source, item.meta.partition))
       ).length;
       const providerFetchMs = performance.now() - fetchStartedAt;
+      stage = "raw_persistence";
       const rawPersistStartedAt = performance.now();
       const preparedSnapshots = await Promise.all(
         fetched.map(async (result) => {
@@ -429,10 +433,14 @@ export class D1ProviderSyncRuntime {
         },
         meta: providerProtocolMetadata("normalization.request", run.provider, run.id)
       } satisfies ProviderNormalizationInput;
+      stage = "normalization_input";
       assertProviderNormalizationInput(normalizationInput, runtime.manifest, run.id);
+      stage = "normalization";
       const normalizationResult = await runtime.normalizer.normalize(normalizationInput);
+      stage = "normalized_validation";
       const normalized = unwrapProviderResult(normalizationResult, runtime.manifest, run.id);
       assertNormalizedProviderData(normalized, runtime.manifest, normalizationInput, run.id);
+      stage = "projection_targets";
       const targets = await this.targets(
         run.ownerId,
         run.provider === "steam" ? "steam" : "netease"
@@ -441,8 +449,11 @@ export class D1ProviderSyncRuntime {
         data: { normalized, targets },
         meta: providerProtocolMetadata("projection.request", run.provider, run.id)
       } satisfies ProviderProjectionInput;
+      stage = "projection_input";
       assertProviderProjectionInput(projectionInput, runtime.manifest, run.id);
+      stage = "projection";
       const projectionResult = await runtime.projector.project(projectionInput);
+      stage = "projection_validation";
       const projectionBatch = unwrapProviderResult(projectionResult, runtime.manifest, run.id);
       assertProviderProjectionBatch(projectionBatch, runtime.manifest, run.id);
       const projections = projectionBatch.data;
@@ -451,6 +462,7 @@ export class D1ProviderSyncRuntime {
       const completedAt = new Date();
       const projectionVersionId = crypto.randomUUID();
       const normalizedSnapshotId = crypto.randomUUID();
+      stage = "commit_preparation";
       const normalizedStorage = await prepareNormalizedStorage(
         this.database,
         normalizedSnapshotId,
@@ -650,6 +662,7 @@ export class D1ProviderSyncRuntime {
       );
       const commitStartedAt = performance.now();
       statements.push(...normalizedStorage.chunks);
+      stage = "commit";
       await this.database.batch(statements);
       const commitMs = performance.now() - commitStartedAt;
       const completed: D1SyncRun = {
@@ -676,17 +689,29 @@ export class D1ProviderSyncRuntime {
       );
       return { disposition: "processed", run: completed };
     } catch (error) {
-      if (error instanceof RetryableProviderError && run.attemptCount < 3) {
-        await this.markRetry(run, safeErrorCode(error));
-        throw error;
-      }
       const credentialInvalid =
         error instanceof ProviderCredentialError || error instanceof ProviderAuthenticationError;
-      await this.markFailed(
-        run,
-        credentialInvalid ? "provider-credential-invalid" : safeErrorCode(error),
-        credentialInvalid
-      );
+      const code = credentialInvalid ? "provider-credential-invalid" : safeErrorCode(error);
+      const message = syncFailureMessage(code);
+      const retrying = error instanceof RetryableProviderError && run.attemptCount < 3;
+      const report = JSON.stringify({
+        attemptCount: run.attemptCount,
+        code,
+        event: `${run.provider}_sync_${retrying ? "retry_wait" : "failed"}`,
+        message,
+        provider: run.provider,
+        retrying,
+        stage,
+        syncRunId: run.id,
+        totalMs: Math.round(performance.now() - processStartedAt)
+      });
+      if (retrying) {
+        console.warn(report);
+        await this.markRetry(run, code);
+        throw error;
+      }
+      console.error(report);
+      await this.markFailed(run, code, credentialInvalid, message);
       return { disposition: "processed", run: await this.requireRun(run.id) };
     }
   }
@@ -832,23 +857,28 @@ export class D1ProviderSyncRuntime {
     ]);
   }
 
-  private async markFailed(run: SyncRun, code: string, credentialInvalid: boolean) {
+  private async markFailed(
+    run: SyncRun,
+    code: string,
+    credentialInvalid: boolean,
+    message: string
+  ) {
     const now = new Date().toISOString();
     const statements = [
       this.database
         .prepare(
           `UPDATE provider_sync_runs
               SET status = 'failed', finished_at = ?, last_error_code = ?,
-                  last_error_message = 'Provider synchronization failed.'
+                  last_error_message = ?
             WHERE id = ?`
         )
-        .bind(now, code, run.id),
+        .bind(now, code, message, run.id),
       this.database
         .prepare(
           `UPDATE provider_sync_states
               SET status = ?, attempt_count = ?, last_attempt_at = ?,
                   last_error_at = ?, last_error_code = ?,
-                  last_error_message = 'Provider synchronization failed.', updated_at = ?
+                  last_error_message = ?, updated_at = ?
             WHERE provider_connection_id = ?`
         )
         .bind(
@@ -857,6 +887,7 @@ export class D1ProviderSyncRuntime {
           now,
           now,
           code,
+          message,
           now,
           run.providerConnectionId
         )
@@ -940,10 +971,24 @@ function safeErrorCode(error: unknown) {
     const diagnostic = error.diagnosticCode.replaceAll(/[^a-z0-9-]/gi, "").slice(0, 60);
     return diagnostic ? `${error.code}.${diagnostic}` : error.code;
   }
-  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
-    return error.code.slice(0, 100);
-  }
+  if (error instanceof SyncPipelineError) return error.code;
   return "provider-sync-failed";
+}
+
+function syncFailureMessage(code: string) {
+  if (code === "provider-credential-invalid") {
+    return "The Provider credential is invalid or expired. Reconnect the Provider in Settings and sync again.";
+  }
+  if (code.startsWith("provider-schema-mismatch")) {
+    return "The Provider response schema changed and could not be processed safely.";
+  }
+  if (code === "provider-protocol-error") {
+    return "The Provider adapter returned data that violates the integration protocol.";
+  }
+  if (code.startsWith("retryable-provider-error")) {
+    return "The Provider request failed temporarily.";
+  }
+  return "Provider synchronization failed.";
 }
 
 function mapNeteaseStatus(

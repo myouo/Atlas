@@ -163,6 +163,9 @@ pnpm dev
 - **SMS OTP:** Phone and submitted code are stored only as short-lived AES-GCM envelopes. Public responses expose a masked number.
 - **Manual Cookie:** Paste only the value after `MUSIC_U=`. This remains the fallback when Provider login endpoints drift.
 
+For expired sessions previously shown as protocol errors, see the
+[NetEase credential-expiry incident report](docs/incidents/2026-10-17-netease-sync-credential-expiry.md).
+
 Only one active login attempt is permitted per Owner. A competing manual credential write returns `409` until the attempt is completed, expired, or explicitly cancelled. Terminal attempts erase their encrypted state. Password/MD5 login is intentionally unsupported.
 
 Disconnect is durable across refresh/restart: it cancels pending QR/SMS attempts, records a disable timestamp, and prevents any older in-flight attempt from re-enabling the connection. Last Known Good data is retained but becomes stale, and the old Provider account identity is hidden.

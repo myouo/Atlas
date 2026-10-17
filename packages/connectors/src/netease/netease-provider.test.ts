@@ -1116,6 +1116,32 @@ describe("NetEase Provider module", () => {
     await expect(unavailable.getAccount(secret)).rejects.toBeInstanceOf(RetryableProviderError);
   });
 
+  it("classifies a successful empty login response as an expired credential before collecting", async () => {
+    const fetcher = vi.fn(async () => Response.json({ code: 200, account: null, profile: null }));
+    const connector = new NeteaseConnector(new NeteaseClient({ timeoutMs: 2_000 }, fetcher), {
+      resolve: async () => secret
+    });
+
+    await expect(collect(connector)).rejects.toMatchObject({
+      code: "provider-credential-error",
+      credentialStatus: "expired"
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an unrecognized account identity as schema drift before collecting", async () => {
+    const fetcher = vi.fn(async () => Response.json({ code: 200, account: {}, profile: {} }));
+    const connector = new NeteaseConnector(new NeteaseClient({ timeoutMs: 2_000 }, fetcher), {
+      resolve: async () => secret
+    });
+
+    await expect(collect(connector)).rejects.toMatchObject({
+      code: "provider-schema-mismatch",
+      sourceKind: NETEASE_SOURCE.account
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps every committed fixture free of credential-like keys", () => {
     for (const fixture of [
       normalNeteaseFixture,
