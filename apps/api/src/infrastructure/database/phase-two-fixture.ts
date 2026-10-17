@@ -202,7 +202,8 @@ export const phaseTwoWidgets = phaseWidgetTemplates.map((widget) =>
           account: {
             availability: "available",
             displayName: "Sanitized Fixture",
-            providerUserId: "10001"
+            providerUserId: "10001",
+            webUrl: "https://music.163.com/user/home?id=10001"
           },
           listeningDuration: unavailable,
           provider: "netease",

@@ -55,7 +55,7 @@ describe("Phase 2 to Phase 5 migration", () => {
     const originalDraftId = phaseFourPointers.current_draft_revision_id;
     const originalPublishedId = phaseFourPointers.current_published_revision_id;
 
-    const upgraded = await migrator.migrateToLatest();
+    const upgraded = await migrator.migrateTo("007_netease_showcase_and_ranking_v2");
     if (upgraded.error) throw upgraded.error;
     const dashboards = new KyselyDashboardRepository(database);
     const projections = new KyselyProjectionRepository(database);

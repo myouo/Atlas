@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  DashboardService,
   ProviderConnectionService,
   ProviderReplayService,
   SyncWorkerService
@@ -26,6 +27,10 @@ import {
 import { createMigrator } from "../../api/src/infrastructure/database/migrator";
 import { seedPhaseFiveFixture } from "../../api/src/infrastructure/database/seed";
 import { PHASE_TWO_OWNER_ID } from "../../api/src/infrastructure/database/phase-two-fixture";
+import {
+  KyselyDashboardRepository,
+  KyselyDashboardUnitOfWork
+} from "../../api/src/infrastructure/repositories/kysely-dashboard-repository";
 import {
   createTemporaryMigrationDatabase,
   type TemporaryDatabase
@@ -65,15 +70,26 @@ describe("Steam PostgreSQL runtime", () => {
         return (await repository.createOrGetActiveRun(connection, new Date())).run;
       }
     );
-    await database
-      .updateTable("dashboard_revision_widgets")
-      .set({
-        provider: "steam",
-        schema_version: 2,
-        data_config: JSON.stringify({ shareRecentGames: true })
-      })
-      .where("widget_type", "=", "steam.profile")
-      .execute();
+    const dashboards = new DashboardService(
+      new KyselyDashboardRepository(database),
+      new KyselyDashboardUnitOfWork(database),
+      new SystemClock()
+    );
+    const owner = { actorId: PHASE_TWO_OWNER_ID };
+    const draft = await dashboards.getDraftDashboard(owner);
+    await dashboards.saveDraft(owner, draft.revisionId, {
+      layout: draft.layout,
+      widgets: draft.widgets.map((widget) =>
+        widget.type === "steam.profile"
+          ? {
+              ...widget,
+              provider: "steam",
+              schemaVersion: 2,
+              dataConfig: { shareRecentGames: true }
+            }
+          : widget
+      )
+    });
     const accepted = await connections.connectSteam(
       { actorId: PHASE_TWO_OWNER_ID },
       steamFixtureId,

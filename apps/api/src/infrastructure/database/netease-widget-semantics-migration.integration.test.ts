@@ -90,7 +90,7 @@ describe("NetEase showcase and ranking semantic migration", () => {
       .select(["current_draft_revision_id", "current_published_revision_id"])
       .where("id", "=", dashboard.id)
       .executeTakeFirstOrThrow();
-    const upgraded = await migrator.migrateToLatest();
+    const upgraded = await migrator.migrateTo("007_netease_showcase_and_ranking_v2");
     if (upgraded.error) throw upgraded.error;
     const after = await database
       .selectFrom("dashboards")
