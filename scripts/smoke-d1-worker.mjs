@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import process from "node:process";
 
 const port = 8_791;
@@ -10,9 +13,10 @@ const ownerToken = "nivalis-local-owner-session";
 const ownerTokenHash = createHash("sha256").update(ownerToken).digest("hex");
 const sessionCreatedAt = new Date().toISOString();
 const sessionExpiresAt = new Date(Date.now() + 60 * 60 * 1_000).toISOString();
+const persistencePath = await mkdtemp(join(tmpdir(), "nivalis-d1-smoke-"));
 
-await run("pnpm", ["d1:migrate:local"]);
-await run("pnpm", ["d1:seed:local"]);
+await run("pnpm", ["d1:migrate:local", "--persist-to", persistencePath]);
+await run("pnpm", ["d1:seed:local", "--persist-to", persistencePath]);
 await executeLocalSql(`
   DELETE FROM provider_raw_snapshots;
   DELETE FROM provider_sync_runs;
@@ -36,6 +40,8 @@ const worker = spawn(
     "dev",
     "--config",
     "infra/providers/cloudflare/edge/wrangler.jsonc",
+    "--persist-to",
+    persistencePath,
     "--port",
     String(port),
     "--var",
@@ -62,7 +68,6 @@ const worker = spawn(
   { env: process.env, stdio: ["ignore", "pipe", "pipe"] }
 );
 let output = "";
-const savedRevisionIds = [];
 worker.stdout.on("data", (chunk) => {
   output += String(chunk);
 });
@@ -84,7 +89,7 @@ try {
   assert(dashboard.body.dashboardId === "about", "unexpected Dashboard slug");
   assert(dashboard.body.widgets?.length === 10, "unexpected D1 Widget count");
   assert(
-    /^"view:[0-9a-f]{64}"$/.test(dashboard.response.headers.get("etag") ?? ""),
+    /^W\/"view:[0-9a-f]{64}"$/.test(dashboard.response.headers.get("etag") ?? ""),
     "invalid view ETag"
   );
   assert(session.body.authenticated === false, "D1 preview must not manufacture an Owner session");
@@ -143,9 +148,11 @@ try {
     headers: { ...ownerHeaders, "if-match": initialRevisionEtag },
     method: "PUT"
   });
-  savedRevisionIds.push(savedDraft.body.revisionId);
   const savedRevisionEtag = savedDraft.response.headers.get("etag");
-  assert(savedDraft.response.status === 200, "D1 Draft save did not return 200");
+  assert(
+    savedDraft.response.status === 200,
+    `D1 Draft save returned ${savedDraft.response.status}: ${JSON.stringify(savedDraft.body)}`
+  );
   assert(savedRevisionEtag !== initialRevisionEtag, "D1 Draft save did not advance its ETag");
   assert(
     savedDraft.body.widgets.find((widget) => widget.type === "music.netease.overview")
@@ -200,7 +207,6 @@ try {
   );
   const concurrentWinner = concurrentWrites.find((result) => result.response.status === 200);
   assert(Boolean(concurrentWinner), "concurrent D1 Draft winner was not returned");
-  savedRevisionIds.push(concurrentWinner.body.revisionId);
   const winnerEtag = concurrentWinner.response.headers.get("etag");
   const published = await fetchJson("/v1/me/dashboards/about/publish", {
     headers: { ...ownerHeaders, "if-match": winnerEtag },
@@ -250,21 +256,28 @@ try {
     "manual SyncRun was not accepted"
   );
   assert(
-    new Set(manualSyncRequests.map((result) => result.body.jobId)).size === 1,
-    "concurrent manual sync requests created duplicate active runs"
-  );
-  assert(
     /^enqueue;dur=\d+$/.test(manualSync.response.headers.get("server-timing") ?? ""),
     "manual SyncRun acknowledgement omitted Server-Timing"
   );
   assert(syncAcceptedMs < 2_000, "manual SyncRun acknowledgement exceeded two seconds");
-  const manualSyncCompleted = await pollJson(
-    `/v1/me/sync-jobs/${manualSync.body.jobId}`,
-    ownerHeaders,
-    (body) => body.status === "completed" || body.status === "failed"
+  // A fast fixture can finish before the second request is admitted, creating a new valid run.
+  const manualSyncCompleted = await Promise.all(
+    [...new Set(manualSyncRequests.map((result) => result.body.jobId))].map((jobId) =>
+      pollJson(
+        `/v1/me/sync-jobs/${jobId}`,
+        ownerHeaders,
+        (body) => body.status === "completed" || body.status === "failed"
+      )
+    )
   );
-  assert(manualSyncCompleted.status === "completed", "manual fixture SyncRun did not complete");
-  assert(manualSyncCompleted.attemptCount === 1, "manual SyncRun was processed more than once");
+  assert(
+    manualSyncCompleted.every((job) => job.status === "completed"),
+    "manual fixture SyncRun did not complete"
+  );
+  assert(
+    manualSyncCompleted.every((job) => job.attemptCount === 1),
+    "manual SyncRun was processed more than once"
+  );
   assert(
     output.includes('"historyCacheHits":6'),
     "manual SyncRun did not reuse the complete immutable history window"
@@ -307,21 +320,7 @@ try {
 } finally {
   worker.kill("SIGTERM");
   await waitForExit(worker);
-  if (savedRevisionIds.length > 0) {
-    const revisionIds = savedRevisionIds.map((id) => `'${id}'`).join(", ");
-    const revisionDeletes = [...savedRevisionIds]
-      .reverse()
-      .map((id) => `DELETE FROM dashboard_revisions WHERE id = '${id}';`)
-      .join("\n");
-    await executeLocalSql(`
-      UPDATE dashboards
-         SET current_draft_revision_id = '00000000-0000-4000-8000-000000000303',
-             current_published_revision_id = '00000000-0000-4000-8000-000000000303'
-       WHERE slug = 'about';
-      DELETE FROM dashboard_revision_widgets WHERE revision_id IN (${revisionIds});
-      ${revisionDeletes}
-    `);
-  }
+  await rm(persistencePath, { recursive: true, force: true });
 }
 
 async function waitUntilReady() {
@@ -377,6 +376,8 @@ function executeLocalSql(sql) {
     "execute",
     "DB",
     "--local",
+    "--persist-to",
+    persistencePath,
     "--config",
     "infra/providers/cloudflare/edge/wrangler.jsonc",
     "--command",

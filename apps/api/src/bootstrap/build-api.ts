@@ -205,7 +205,7 @@ export function buildApi(options: BuildApiOptions) {
   });
 
   app.register(cors, {
-    allowedHeaders: ["content-type", "authorization", "if-match"],
+    allowedHeaders: ["content-type", "authorization", "if-match", "if-none-match"],
     credentials: true,
     exposedHeaders: ["etag", "location"],
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
