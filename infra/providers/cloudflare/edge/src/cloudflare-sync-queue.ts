@@ -12,7 +12,15 @@ export interface CloudflareProviderAuthMessage {
   readonly queueJobId: string;
 }
 
-export type CloudflareQueueMessage = CloudflareProviderAuthMessage | CloudflareSyncMessage;
+export interface CloudflareNeteaseCalendarBackfillMessage {
+  readonly connectionId: string;
+  readonly kind: "netease_calendar_backfill";
+  readonly period: "week" | "month";
+  readonly queueJobId: string;
+}
+
+export type CloudflareQueueMessage =
+  CloudflareNeteaseCalendarBackfillMessage | CloudflareProviderAuthMessage | CloudflareSyncMessage;
 
 export class CloudflareSyncJobQueue implements SyncJobQueue {
   constructor(private readonly queue: Queue<CloudflareQueueMessage>) {}
@@ -40,6 +48,10 @@ export async function consumeQueueMessages(
   batch: MessageBatch<CloudflareQueueMessage>,
   database: D1Database,
   handlers: {
+    readonly calendarBackfill?: (
+      connectionId: string,
+      period: "week" | "month"
+    ) => Promise<"busy" | "processed">;
     readonly providerAuth: (attemptId: string) => Promise<void>;
     readonly sync: (syncRunId: string) => Promise<"busy" | "processed">;
   }
@@ -60,13 +72,26 @@ export async function consumeQueueMessages(
           message.body.queueJobId,
           message.body.kind === "provider_auth"
             ? `provider-auth:${message.body.attemptId}`
-            : message.body.syncRunId,
+            : message.body.kind === "netease_calendar_backfill"
+              ? `netease-history:${message.body.connectionId}:${message.body.period}`
+              : message.body.syncRunId,
           message.attempts,
           new Date().toISOString()
         )
         .run();
       if (message.body.kind === "provider_auth") {
         await handlers.providerAuth(message.body.attemptId);
+      } else if (message.body.kind === "netease_calendar_backfill") {
+        if (!handlers.calendarBackfill)
+          throw new Error("Calendar backfill handler is unavailable.");
+        const disposition = await handlers.calendarBackfill(
+          message.body.connectionId,
+          message.body.period
+        );
+        if (disposition === "busy") {
+          message.retry({ delaySeconds: 15 });
+          continue;
+        }
       } else {
         const disposition = await handlers.sync(message.body.syncRunId);
         if (disposition === "busy") {

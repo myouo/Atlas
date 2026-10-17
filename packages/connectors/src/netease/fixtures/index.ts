@@ -836,7 +836,7 @@ export function createNeteaseHttpFixtureFetcher(
     }
     if (url.pathname.endsWith("listen/data/report")) {
       historicalReportRequests += 1;
-      const period = historicalReportRequests <= 3 ? "week" : "month";
+      const period = (historicalReportRequests - 1) % 6 < 3 ? "week" : "month";
       const index = (historicalReportRequests - 1) % 3;
       const base =
         fixture[

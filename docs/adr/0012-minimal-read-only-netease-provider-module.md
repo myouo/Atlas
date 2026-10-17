@@ -64,6 +64,12 @@ response whose declared period does not match the requested source kind.
 
 The Connector fetches account identity before scheduling the remaining read capabilities. The Normalizer validates and maps both recognized report/recent shapes explicitly. Unknown shapes still fail with `ProviderSchemaMismatchError`; only explicitly optional Provider omissions become semantic `unavailable` values.
 
+Recent-play tracks may explicitly omit artist and album names using an ID of `0` and a `null`
+name. The recent-song schema recognizes that placeholder in both `data` and `resource` shapes;
+normalization emits an empty artist list and a null album identity/name. Track identity and title
+remain required, other track endpoints retain their existing schemas, and unknown metadata shapes
+still fail validation.
+
 ## Cloudflare latency update (2026-08-31)
 
 Cloudflare production evidence showed successful NetEase SyncRuns spending about 21 seconds in the

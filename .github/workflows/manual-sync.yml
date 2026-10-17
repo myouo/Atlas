@@ -1,8 +1,6 @@
-name: scheduled-sync
+name: manual-sync
 
 on:
-  schedule:
-    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:

@@ -86,7 +86,7 @@ jobs:
         run: pnpm build
 
       - name: Verify Cloudflare generated types
-        run: pnpm cf:typecheck && pnpm cf:typecheck:pages
+        run: pnpm cf:typecheck && pnpm cf:typecheck:pages && pnpm cf:typecheck:svg
 
       - name: Build Cloudflare Pages static preview
         env:
@@ -96,6 +96,9 @@ jobs:
 
       - name: Dry-run Cloudflare Edge Worker bundle
         run: pnpm build:edge
+
+      - name: Dry-run GitHub profile SVG Worker bundle
+        run: pnpm build:svg
 
       - name: Verify D1 Seed is deterministic
         run: |

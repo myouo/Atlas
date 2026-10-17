@@ -52,6 +52,18 @@ interface ProjectionRow {
   readonly widget_id: string;
 }
 
+interface CalendarHistoryRow {
+  readonly created_at: string;
+  readonly period: "week" | "month";
+  readonly range_json: string;
+  readonly start_time: number;
+}
+
+interface CalendarBackfillRow {
+  readonly complete: number;
+  readonly period: "week" | "month";
+}
+
 export class D1DashboardConfigurationReader implements DashboardConfigurationReader {
   constructor(private readonly database: D1Database) {}
 
@@ -157,6 +169,38 @@ export class D1WidgetProjectionHydrator implements WidgetProjectionHydrator {
       result.results.map((row) => [`${row.widget_id}:${row.projection_key}`, row])
     );
     const keys = await Promise.all(configurations.map(createPortableProjectionKey));
+    const calendarHistory = new Map<string, readonly CalendarHistoryRow[]>();
+    const calendarBackfill = new Map<string, readonly CalendarBackfillRow[]>();
+    for (const configuration of configurations) {
+      if (configuration.type !== "music.netease.calendar") continue;
+      const history = await this.database
+        .prepare(
+          `SELECT history.period, history.range_json, history.start_time, history.created_at
+             FROM netease_calendar_history AS history
+             JOIN provider_connections AS connection
+               ON connection.id = history.provider_connection_id
+             JOIN dashboards AS dashboard ON dashboard.owner_id = connection.owner_id
+             JOIN widgets AS widget ON widget.dashboard_id = dashboard.id
+            WHERE widget.id = ?
+            ORDER BY history.start_time DESC`
+        )
+        .bind(configuration.id)
+        .all<CalendarHistoryRow>();
+      calendarHistory.set(configuration.id, history.results);
+      const backfill = await this.database
+        .prepare(
+          `SELECT state.period, state.complete
+             FROM netease_calendar_backfill AS state
+             JOIN provider_connections AS connection
+               ON connection.id = state.provider_connection_id
+             JOIN dashboards AS dashboard ON dashboard.owner_id = connection.owner_id
+             JOIN widgets AS widget ON widget.dashboard_id = dashboard.id
+            WHERE widget.id = ?`
+        )
+        .bind(configuration.id)
+        .all<CalendarBackfillRow>();
+      calendarBackfill.set(configuration.id, backfill.results);
+    }
     let generatedAt = fallbackAt;
     const widgets: WidgetProjection[] = [];
     const versions = configurations.map((configuration, index) => {
@@ -164,21 +208,104 @@ export class D1WidgetProjectionHydrator implements WidgetProjectionHydrator {
       const projection = rows.get(`${configuration.id}:${projectionKey}`);
       const projectionAt = projection ? new Date(projection.generated_at) : fallbackAt;
       if (projectionAt > generatedAt) generatedAt = projectionAt;
+      const history = calendarHistory.get(configuration.id) ?? [];
+      const backfill = calendarBackfill.get(configuration.id) ?? [];
+      const historyAt = history[0]?.created_at ? new Date(history[0].created_at) : null;
+      if (historyAt && historyAt > generatedAt) generatedAt = historyAt;
+      const data = projection
+        ? parseJson(projection.data_json)
+        : fallbackData(configuration, profile);
       widgets.push({
         ...configuration,
-        data: projection ? parseJson(projection.data_json) : fallbackData(configuration, profile),
+        data:
+          configuration.type === "music.netease.calendar"
+            ? mergeCalendarHistory(
+                data,
+                history,
+                backfill,
+                calendarPublicRanges(configuration.dataConfig.publicRanges)
+              )
+            : data,
         stale: projection?.stale !== 0,
         updatedAt: projectionAt
       });
       return {
         projectionKey,
         projectionVersion: projection?.projection_version_id ?? null,
-        representationVersion: `${projection?.projection_version_id ?? "missing"}:${projection?.stale ?? 1}`,
+        representationVersion: `${projection?.projection_version_id ?? "missing"}:${projection?.stale ?? 1}:${history.length}:${backfill.map((row) => `${row.period}:${row.complete}`).join(",")}`,
         widgetId: configuration.id
       };
     });
     return { generatedAt, versions, widgets };
   }
+}
+
+export function mergeCalendarHistory(
+  data: JsonValue,
+  history: readonly CalendarHistoryRow[],
+  backfill: readonly CalendarBackfillRow[],
+  publicRanges: readonly ("week" | "month")[]
+): JsonValue {
+  if (!isObject(data)) return data;
+  let merged: JsonObject = {
+    ...data,
+    publicRanges,
+    historyBackfill: {
+      monthComplete: backfill.some((row) => row.period === "month" && row.complete === 1),
+      weekComplete: backfill.some((row) => row.period === "week" && row.complete === 1)
+    }
+  };
+  for (const period of ["week", "month"] as const) {
+    const field = period === "week" ? "weekHistory" : "monthHistory";
+    if (!publicRanges.includes(period)) {
+      merged = {
+        ...merged,
+        [field]: [],
+        [period]: { availability: "unavailable", reason: "not_public" },
+        [period === "week" ? "previousWeek" : "previousMonth"]: {
+          availability: "unavailable",
+          reason: "not_public"
+        }
+      };
+      continue;
+    }
+    const inline = Array.isArray(data[field]) ? data[field] : [];
+    const candidates = [
+      ...inline,
+      ...history.filter((row) => row.period === period).map((row) => parseJson(row.range_json))
+    ];
+    const unique = new Map<string, JsonValue>();
+    for (const candidate of candidates) {
+      if (!isObject(candidate) || !Array.isArray(candidate.points)) continue;
+      const date = isObject(candidate.points[0]) ? candidate.points[0].date : null;
+      if (typeof date !== "string") continue;
+      const anchor = period === "month" ? date.slice(0, 7) : date;
+      if (!unique.has(anchor)) unique.set(anchor, candidate);
+    }
+    const ordered = [...unique.values()].sort((left, right) => {
+      const leftDate =
+        isObject(left) && Array.isArray(left.points) && isObject(left.points[0])
+          ? left.points[0].date
+          : "";
+      const rightDate =
+        isObject(right) && Array.isArray(right.points) && isObject(right.points[0])
+          ? right.points[0].date
+          : "";
+      return String(rightDate).localeCompare(String(leftDate));
+    });
+    merged = { ...merged, [field]: ordered };
+  }
+  return merged;
+}
+
+function calendarPublicRanges(value: JsonValue | undefined): readonly ("week" | "month")[] {
+  if (!Array.isArray(value)) return ["week", "month"];
+  const ranges = [...new Set(value.filter((item) => item === "week" || item === "month"))];
+  return ranges.length ? (ranges as ("week" | "month")[]) : ["week", "month"];
+}
+
+function isObject(value: unknown): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function profileFromRow(row: DashboardRow): Profile {
@@ -262,7 +389,7 @@ function fallbackData(configuration: WidgetConfiguration, profile: Profile): Jso
     return {
       month: unavailable,
       provider: "netease",
-      publicRanges: ["week", "month"],
+      publicRanges: calendarPublicRanges(configuration.dataConfig.publicRanges),
       week: unavailable
     };
   }

@@ -31,9 +31,13 @@ import { dashboardSource } from "../../api/dashboard-source-factory";
 import {
   readAppearanceSettings,
   saveAppearanceSettings,
+  defaultCardStyle,
   type AppearanceAccent,
+  type AppearanceCardStyle,
+  type AppearanceFont,
   type AppearanceGlass
 } from "../../design-system/appearance";
+import { ModuleShell } from "../../design-system/module-shell";
 import { AppProviders } from "../providers";
 import { SteamSettings } from "../../features/settings/steam-settings";
 
@@ -48,7 +52,8 @@ export default function SettingsPage() {
 function SettingsContent() {
   const [accent, setAccent] = useState<AppearanceAccent>("blue");
   const [glass, setGlass] = useState<AppearanceGlass>("balanced");
-  const [rotation, setRotation] = useState(false);
+  const [font, setFont] = useState<AppearanceFont>("noto");
+  const [cardStyle, setCardStyle] = useState<AppearanceCardStyle>(defaultCardStyle);
   const [saved, setSaved] = useState(false);
   const [credential, setCredential] = useState("");
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
@@ -162,13 +167,14 @@ function SettingsContent() {
     const animationFrame = window.requestAnimationFrame(() => {
       setAccent(settings.accent);
       setGlass(settings.glass);
-      setRotation(settings.rotation);
+      setFont(settings.font);
+      setCardStyle(settings.cardStyle);
     });
     return () => window.cancelAnimationFrame(animationFrame);
   }, []);
 
   const save = () => {
-    saveAppearanceSettings({ accent, glass, rotation });
+    saveAppearanceSettings({ accent, glass, font, cardStyle, rotation: false });
     setSaved(true);
     if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
     savedTimer.current = window.setTimeout(() => {
@@ -177,8 +183,65 @@ function SettingsContent() {
     }, 2_000);
   };
 
+  if (dashboardSource.kind === "api" && !owner) {
+    return (
+      <main className="nivalis-page settings-page flex min-h-screen items-center justify-center p-6">
+        <section className="glass-surface-strong w-full max-w-md rounded-[24px] p-8 text-center">
+          <ShieldCheck aria-hidden className="mx-auto text-blue-600" size={36} weight="duotone" />
+          <h1 className="mt-4 text-xl font-extrabold text-ink">设置仅对 Owner 开放</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+            {sessionQuery.isPending
+              ? "正在确认登录状态…"
+              : "请使用 Owner 的 GitHub 账号登录后管理外观和 Provider。"}
+          </p>
+          {sessionQuery.isError ? (
+            <p className="mt-3 text-xs text-rose-700" role="alert">
+              暂时无法确认登录状态，请重试。
+            </p>
+          ) : null}
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link className="settings-topbar-link glass-surface text-ink" href="/">
+              <ArrowLeft aria-hidden size={16} weight="bold" />
+              返回 About Me
+            </Link>
+            {sessionQuery.isError ? (
+              <button
+                className="settings-session-button bg-blue-600 text-white"
+                onClick={() => void sessionQuery.refetch()}
+                type="button"
+              >
+                重试
+              </button>
+            ) : !sessionQuery.isPending && !authenticated ? (
+              <button
+                className="settings-session-button bg-blue-600 text-white disabled:opacity-50"
+                disabled={loginMutation.isPending}
+                onClick={() => loginMutation.mutate()}
+                type="button"
+              >
+                <GithubLogo aria-hidden size={16} weight="bold" />
+                使用 GitHub 登录
+              </button>
+            ) : null}
+          </div>
+          {loginMutation.isError ? (
+            <p className="mt-3 text-xs text-rose-700" role="alert">
+              暂时无法开始 GitHub 登录，请稍后重试。
+            </p>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main className="nivalis-page settings-page" data-accent={accent} data-glass={glass}>
+    <main
+      className="nivalis-page settings-page"
+      data-accent={accent}
+      data-card-style={cardStyle}
+      data-font={font}
+      data-glass={glass}
+    >
       <div className="nivalis-content settings-content">
         <header className="settings-topbar">
           <Link className="settings-topbar-link glass-surface-strong text-ink" href="/">
@@ -244,15 +307,10 @@ function SettingsContent() {
               <span>
                 <span className="block text-xs font-extrabold text-ink">Background rotation</span>
                 <span className="mt-0.5 block text-[10px] text-ink-muted">
-                  后续阶段将接入对象存储中的背景集合
+                  当前仅有一张背景，轮换将在新增背景后开放
                 </span>
               </span>
-              <input
-                checked={rotation}
-                className="settings-toggle-input"
-                onChange={(event) => setRotation(event.target.checked)}
-                type="checkbox"
-              />
+              <input checked={false} className="settings-toggle-input" disabled type="checkbox" />
               <span aria-hidden className="settings-toggle-track" />
             </label>
           </section>
@@ -287,9 +345,13 @@ function SettingsContent() {
               </div>
               <label className="mt-4 block text-[10px] font-bold text-ink-muted">
                 字体
-                <select className="settings-select mt-2 h-10 w-full rounded-xl px-3 text-xs font-semibold">
-                  <option>Noto Sans SC</option>
-                  <option>System Sans</option>
+                <select
+                  className="settings-select mt-2 h-10 w-full rounded-xl px-3 text-xs font-semibold"
+                  onChange={(event) => setFont(event.target.value as AppearanceFont)}
+                  value={font}
+                >
+                  <option value="noto">Noto Sans SC</option>
+                  <option value="system">System Sans</option>
                 </select>
               </label>
               <div className="mt-4 grid grid-cols-3 gap-2">
@@ -308,6 +370,68 @@ function SettingsContent() {
             </section>
           </div>
         </div>
+
+        <section className="settings-card settings-card-appearance glass-surface">
+          <div className="flex items-center gap-3">
+            <Palette aria-hidden className="text-blue-600" size={22} weight="duotone" />
+            <div>
+              <h2 className="settings-card-title text-ink">卡片风格</h2>
+              <p className="text-[11px] text-ink-muted">选择风格，预览后保存</p>
+            </div>
+          </div>
+          <div className="settings-card-style-layout">
+            <div aria-label="卡片风格" className="settings-card-style-options" role="group">
+              {(
+                [
+                  { value: "porcelain", label: "雪瓷", description: "柔白卡面 · 细腻层次" },
+                  { value: "glass", label: "晨光玻璃", description: "透明卡面 · 轻盈光感" }
+                ] as const
+              ).map((style) => (
+                <button
+                  aria-pressed={cardStyle === style.value}
+                  className="settings-card-style-choice settings-choice"
+                  key={style.value}
+                  onClick={() => setCardStyle(style.value)}
+                  type="button"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-extrabold">{style.label}</span>
+                    {cardStyle === style.value ? (
+                      <Check aria-hidden size={16} weight="bold" />
+                    ) : null}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-medium text-ink-muted">
+                    {style.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="settings-card-style-preview" data-testid="card-style-preview">
+              <ModuleShell
+                accent="coral"
+                editable={false}
+                icon={<MusicNotes aria-hidden size={19} weight="fill" />}
+                title="音乐与日常"
+                widgetType="music.netease.listening"
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="netease-stat rounded-2xl border border-white/80 bg-white/48 px-3 py-2.5">
+                    <p className="netease-stat-label text-[11px] text-ink-muted">喜欢的旋律</p>
+                    <p className="netease-stat-value mt-1 text-sm font-extrabold text-ink">
+                      留在唱片里
+                    </p>
+                  </div>
+                  <div className="netease-stat rounded-2xl border border-white/80 bg-white/48 px-3 py-2.5">
+                    <p className="netease-stat-label text-[11px] text-ink-muted">听歌的日子</p>
+                    <p className="netease-stat-value mt-1 text-sm font-extrabold text-ink">
+                      记录每一天
+                    </p>
+                  </div>
+                </div>
+              </ModuleShell>
+            </div>
+          </div>
+        </section>
 
         <div className="settings-secondary-grid">
           <ProviderSettings

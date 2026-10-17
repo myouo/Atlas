@@ -298,12 +298,14 @@ Provider IDs are scoped unique keys, not database primary keys. Recent-listen ro
 
 `music.netease.calendar@1` combines daily-duration ranges with optional Provider record walls at
 Projection time. Current week/month walls come from the official song-play-rank response and retain
-its `picUrls` order. The Worker follows each returned `startTime` to build independent, hard-bounded
-three-period week/month history windows. The expanded renderer mounts only the active date anchor
-and remembers separate week/month anchors across view switches; every historical period retains its
-own wall. The first previous week is also a compact fallback. Omitted or future dates are never
-invented as zero. Compact and expanded presentation choices do not alter normalized ordering,
-Dashboard Revisions, or `rev:` ETags. See ADR 0022.
+its `picUrls` order. Normal SyncRuns keep a three-period recent window for replay. On Cloudflare, a
+separate Queue backfill follows older `startTime` anchors in bounded batches, stores completed periods
+in D1, and resumes until the Provider reaches the account's earliest period. The public read model
+merges archived periods only for ranges the Owner has published. The expanded renderer mounts only
+the active date anchor and remembers separate week/month anchors across view switches. The first
+previous week is also a compact fallback. Omitted or future dates are never invented as zero.
+Compact and expanded presentation choices do not alter Dashboard Revisions or `rev:` ETags. See
+ADR 0022 for the original recent-window design.
 
 `music.netease.listening@1` contains cumulative count/duration only. Provider week/month report
 points are projected independently as `music.netease.calendar@1`, keeping day labels and minute

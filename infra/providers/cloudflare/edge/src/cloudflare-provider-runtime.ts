@@ -138,7 +138,7 @@ function boundedInteger(
   return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
 }
 
-function providerFetcher(environment: ProviderEnvironment) {
+export function providerFetcher(environment: ProviderEnvironment) {
   const scenario = environment.NETEASE_HTTP_FIXTURE_SCENARIO?.trim();
   if (!scenario)
     return (input: Parameters<typeof fetch>[0], init?: RequestInit) =>

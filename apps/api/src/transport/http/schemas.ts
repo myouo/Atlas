@@ -256,7 +256,11 @@ const DataUnavailableSchema = Type.Object(
 );
 
 const NeteaseArtistV2Schema = Type.Object(
-  { providerArtistId: Type.String(), name: Type.String() },
+  {
+    providerArtistId: Type.String(),
+    name: Type.String(),
+    webUrl: Type.Union([Type.String({ format: "uri" }), Type.Null()])
+  },
   { additionalProperties: false }
 );
 
@@ -267,7 +271,8 @@ const NeteaseTrackSummaryV2Schema = Type.Object(
     artists: Type.Array(NeteaseArtistV2Schema),
     albumName: Type.Union([Type.String(), Type.Null()]),
     coverUrl: Type.Union([Type.String({ format: "uri" }), Type.Null()]),
-    durationMs: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()])
+    durationMs: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+    webUrl: Type.Union([Type.String({ format: "uri" }), Type.Null()])
   },
   { additionalProperties: false }
 );
@@ -286,7 +291,8 @@ const NeteaseAccountAvailableV2Schema = Type.Object(
   {
     availability: Type.Literal("available"),
     providerUserId: Type.String(),
-    displayName: Type.Union([Type.String(), Type.Null()])
+    displayName: Type.Union([Type.String(), Type.Null()]),
+    webUrl: Type.Union([Type.String({ format: "uri" }), Type.Null()])
   },
   { additionalProperties: false }
 );
@@ -313,6 +319,7 @@ const NeteaseWeeklyAvailableV2Schema = Type.Object(
         {
           providerArtistId: Type.String(),
           name: Type.String(),
+          webUrl: Type.Union([Type.String({ format: "uri" }), Type.Null()]),
           rankedPlayCount: Type.Integer({ minimum: 0 })
         },
         { additionalProperties: false }

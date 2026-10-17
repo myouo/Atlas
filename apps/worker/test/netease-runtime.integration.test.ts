@@ -133,7 +133,10 @@ describe("NetEase encrypted Provider runtime", () => {
     });
 
     const second = await createRun();
-    await worker(runtime).process(second.id);
+    expect(await worker(runtime).process(second.id)).toMatchObject({
+      attemptCount: 1,
+      status: "completed"
+    });
     const normalizedCount = await database
       .selectFrom("provider_normalized_snapshots")
       .select(({ fn }) => fn.countAll().as("count"))
@@ -439,7 +442,7 @@ function fixtureFetcher(fixture: typeof normalNeteaseFixture): typeof fetch {
     }
     if (pathname.endsWith("listen/data/report")) {
       historicalReportRequests += 1;
-      const period = historicalReportRequests <= 3 ? "week" : "month";
+      const period = (historicalReportRequests - 1) % 6 < 3 ? "week" : "month";
       return Response.json(
         historicalListenReportFixture(period, (historicalReportRequests - 1) % 3)
       );

@@ -37,8 +37,21 @@ test("adds and removes a distinct Widget instance", async ({ page }) => {
   await page.getByRole("button", { name: /Steam.*游戏库/ }).click();
   await expect(steamShells).toHaveCount(initialCount + 1);
 
-  await page.getByRole("button", { name: /^移除 Steam$/ }).click();
+  await steamShells
+    .last()
+    .getByRole("button", { name: /^移除 Steam$/ })
+    .click();
   await expect(steamShells).toHaveCount(initialCount);
+});
+
+test("opens an expandable module from its display view corner button", async ({ page }) => {
+  await page.getByRole("button", { name: "编辑视图" }).click();
+  await page.getByRole("button", { name: "添加模块" }).first().click();
+  await page.getByRole("button", { name: /网易云 · 听歌双榜/ }).click();
+  await page.getByRole("button", { name: "发布布局" }).click();
+
+  await page.getByRole("button", { name: "放大 网易云 · 听歌双榜" }).click();
+  await expect(page.getByRole("dialog", { name: "网易云 · 听歌双榜" })).toBeVisible();
 });
 
 test("resizes a module and persists the draft layout locally", async ({ page, isMobile }) => {
@@ -133,6 +146,22 @@ test("background management is isolated to Settings", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Background" })).toHaveCount(0);
   await page.getByRole("link", { name: "打开设置" }).click();
   await expect(page.getByRole("heading", { name: "Background" })).toBeVisible();
+  await page.getByRole("button", { name: /晨光玻璃/ }).click();
   await page.getByRole("button", { name: "保存外观设置" }).click();
   await expect(page.getByRole("button", { name: "已保存到浏览器" })).toBeVisible();
+  await page.getByRole("link", { name: "返回 About Me" }).click();
+  await expect(page.getByRole("heading", { name: "About Me" })).toBeVisible();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-card-style", "glass");
+  await page.getByRole("link", { name: "打开设置" }).click();
+  await expect(page.getByRole("button", { name: /晨光玻璃/ })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await page.getByRole("button", { name: /雪瓷/ }).click();
+  await page.getByRole("button", { name: "保存外观设置" }).click();
+  await page.getByRole("link", { name: "返回 About Me" }).click();
+  await expect(page.getByRole("heading", { name: "About Me" })).toBeVisible();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-card-style", "porcelain");
 });

@@ -35,9 +35,13 @@ import {
 import { NeteaseClient } from "./netease-client";
 import { NeteaseAuthClient } from "./netease-auth-client";
 import { NeteaseConnector, sanitizeNeteasePayload } from "./netease-connector";
-import { NeteaseNormalizer } from "./netease-normalizer";
+import { NeteaseNormalizer, normalizeNeteaseHistoricalReport } from "./netease-normalizer";
 import { probeNeteaseMusicCards } from "./netease-music-cards-probe";
-import { NeteaseProjector, buildNeteaseOwnerDataCatalog } from "./netease-projector";
+import {
+  NeteaseProjector,
+  buildNeteaseOwnerDataCatalog,
+  projectNeteaseHistoricalCalendarRange
+} from "./netease-projector";
 import { NETEASE_PROVIDER_MANIFEST } from "./netease-provider-runtime";
 import {
   NETEASE_SOURCE,
@@ -50,6 +54,72 @@ const connectionId = "00000000-0000-4000-8000-000000000501";
 const secret = "private-cookie-value-for-tests";
 
 describe("NetEase Provider module", () => {
+  it.each(["data", "resource"])(
+    "normalizes explicit missing recent-track metadata in the %s response shape",
+    async (field) => {
+      const fixture = {
+        ...normalNeteaseFixture,
+        [NETEASE_SOURCE.recentSongs]: {
+          code: 200,
+          data: {
+            list: [
+              {
+                [field]: {
+                  al: { id: 0, name: null, picUrl: "" },
+                  ar: [{ id: 0, name: null }],
+                  id: 20003,
+                  name: "Unattributed Track"
+                },
+                playTime: 1_777_000_000_000,
+                resourceId: "20003"
+              }
+            ],
+            total: 1
+          }
+        }
+      };
+      const normalized = await normalize(snapshots(fixture));
+      expect((normalized.data as NeteaseNormalizedPayload).recentListens).toMatchObject([
+        {
+          track: { albumName: null, albumProviderId: null, artists: [], name: "Unattributed Track" }
+        }
+      ]);
+    }
+  );
+
+  it("rejects unrecognized recent-track metadata instead of guessing artist names", async () => {
+    const fixture = {
+      ...normalNeteaseFixture,
+      [NETEASE_SOURCE.recentSongs]: {
+        code: 200,
+        data: {
+          list: [
+            {
+              data: { ar: [{ id: 30001, name: null }], id: 20003, name: "Unknown Shape" },
+              playTime: 1_777_000_000_000
+            }
+          ]
+        }
+      }
+    };
+    await expect(normalize(snapshots(fixture))).rejects.toMatchObject({
+      sourceKind: NETEASE_SOURCE.recentSongs
+    });
+  });
+
+  it("normalizes and projects a historical period beyond the old three-period window", () => {
+    const report = normalizeNeteaseHistoricalReport(
+      historicalListenReportFixture("week", 8),
+      "week"
+    );
+    const range = projectNeteaseHistoricalCalendarRange("week", report);
+    expect(range).toMatchObject({
+      availability: "available",
+      period: "week",
+      points: expect.arrayContaining([{ date: "2026-02-16", minutes: expect.any(Number) }])
+    });
+  });
+
   it("probes the real music-card path without API, Worker, Queue, or database infrastructure", async () => {
     const result = await probeNeteaseMusicCards(
       new NeteaseClient({ timeoutMs: 2_000 }, createNeteaseHttpFixtureFetcher("normal")),
@@ -1044,6 +1114,32 @@ describe("NetEase Provider module", () => {
       async () => new Response("unavailable", { status: 503 })
     );
     await expect(unavailable.getAccount(secret)).rejects.toBeInstanceOf(RetryableProviderError);
+  });
+
+  it("classifies a successful empty login response as an expired credential before collecting", async () => {
+    const fetcher = vi.fn(async () => Response.json({ code: 200, account: null, profile: null }));
+    const connector = new NeteaseConnector(new NeteaseClient({ timeoutMs: 2_000 }, fetcher), {
+      resolve: async () => secret
+    });
+
+    await expect(collect(connector)).rejects.toMatchObject({
+      code: "provider-credential-error",
+      credentialStatus: "expired"
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an unrecognized account identity as schema drift before collecting", async () => {
+    const fetcher = vi.fn(async () => Response.json({ code: 200, account: {}, profile: {} }));
+    const connector = new NeteaseConnector(new NeteaseClient({ timeoutMs: 2_000 }, fetcher), {
+      resolve: async () => secret
+    });
+
+    await expect(collect(connector)).rejects.toMatchObject({
+      code: "provider-schema-mismatch",
+      sourceKind: NETEASE_SOURCE.account
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it("keeps every committed fixture free of credential-like keys", () => {

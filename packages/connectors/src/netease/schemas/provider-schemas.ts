@@ -381,6 +381,31 @@ export const NeteaseSocialStatusResponseSchema = Type.Object(
   { additionalProperties: true }
 );
 
+// Recent-play history also contains tracks whose artist/album metadata was omitted.
+// NetEase represents these explicitly as id 0 with a null name.
+const RecentTrackSchema = Type.Object(
+  {
+    ...NeteaseTrackSchema.properties,
+    ar: Type.Array(
+      Type.Union([
+        ArtistSchema,
+        Type.Object({ id: Type.Literal(0), name: Type.Null() }, { additionalProperties: true })
+      ]),
+      { minItems: 1 }
+    ),
+    al: Type.Optional(
+      Type.Union([
+        AlbumSchema,
+        Type.Object(
+          { id: Type.Literal(0), name: Type.Null(), picUrl: Type.Optional(Type.String()) },
+          { additionalProperties: true }
+        )
+      ])
+    )
+  },
+  { additionalProperties: true }
+);
+
 export const NeteaseRecentSongsResponseSchema = Type.Object(
   {
     code: Type.Literal(200),
@@ -390,7 +415,7 @@ export const NeteaseRecentSongsResponseSchema = Type.Object(
           Type.Union([
             Type.Object(
               {
-                data: NeteaseTrackSchema,
+                data: RecentTrackSchema,
                 playTime: Type.Integer({ minimum: 1 }),
                 resourceId: Type.Optional(ProviderIdSchema)
               },
@@ -399,7 +424,7 @@ export const NeteaseRecentSongsResponseSchema = Type.Object(
             Type.Object(
               {
                 playTime: Type.Integer({ minimum: 1 }),
-                resource: NeteaseTrackSchema,
+                resource: RecentTrackSchema,
                 resourceId: Type.Optional(ProviderIdSchema)
               },
               { additionalProperties: true }

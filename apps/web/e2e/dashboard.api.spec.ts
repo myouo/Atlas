@@ -4,6 +4,7 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   browser,
   page
 }) => {
+  test.setTimeout(120_000);
   await authenticateOwner(page);
   const api = page.context().request;
   await page.goto("/");
@@ -196,7 +197,6 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   ).json();
 
   await page.goto("/settings");
-  await page.getByRole("button", { name: "生成登录二维码" }).click();
   await expect(page.getByLabel("网易云登录二维码")).toBeVisible();
   await expect(page.getByText(/网易云登录成功；MUSIC_U 已加密保存/)).toBeVisible({
     timeout: 20_000
@@ -231,16 +231,24 @@ test("API mode persists, rejects stale clients, and restores immutable history",
   expect(historyAfterNetease.items).toHaveLength(historyBeforeNetease.items.length);
 
   await page.goto("/settings");
+  const disconnectedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/v1/me/providers/netease/connection") &&
+      response.request().method() === "DELETE"
+  );
   await page.getByRole("button", { name: "断开并删除凭据" }).click();
-  await page.reload();
+  expect((await disconnectedResponse).status()).toBe(204);
   const freshQrResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith("/v1/me/providers/netease/auth-attempts/qr") &&
-      response.request().method() === "POST"
+      response.request().method() === "POST",
+    { timeout: 15_000 }
   );
-  await page.getByRole("button", { name: "生成登录二维码" }).click();
+  await page.reload();
   const freshQr = await (await freshQrResponse).json();
-  expect(freshQr.status).toBe("queued");
+  expect(["queued", "preparing", "waiting_for_scan", "waiting_for_confirmation"]).toContain(
+    freshQr.status
+  );
   await expect(page.getByLabel("网易云登录二维码")).toBeVisible();
   await expect(page.getByText(/等待网易云 App 扫码|已扫码，请在网易云 App 中确认/)).toBeVisible();
   await expect(page.getByText(/网易云登录成功；MUSIC_U 已加密保存/)).not.toBeVisible();

@@ -120,4 +120,41 @@ describe("CloudflareSyncJobQueue", () => {
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();
   });
+
+  it("routes a calendar backfill message without exposing Provider credentials", async () => {
+    const ack = vi.fn();
+    const retry = vi.fn();
+    const message = {
+      ack,
+      attempts: 1,
+      body: {
+        connectionId: "00000000-0000-4000-8000-000000000711",
+        kind: "netease_calendar_backfill",
+        period: "week",
+        queueJobId: "00000000-0000-4000-8000-000000000712"
+      },
+      id: "calendar-message",
+      retry
+    };
+    const run = vi.fn().mockResolvedValue({ success: true });
+    const database = {
+      prepare: vi.fn(() => ({ bind: vi.fn(() => ({ run })) }))
+    } as unknown as D1Database;
+    const calendarBackfill = vi.fn(async () => "processed" as const);
+
+    await consumeQueueMessages(
+      { messages: [message] } as unknown as MessageBatch<never>,
+      database,
+      {
+        calendarBackfill,
+        providerAuth: async () => undefined,
+        sync: async () => "processed"
+      }
+    );
+
+    expect(calendarBackfill).toHaveBeenCalledWith(message.body.connectionId, "week");
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    expect(JSON.stringify(message.body)).not.toMatch(/music_u|cookie|credential/i);
+  });
 });

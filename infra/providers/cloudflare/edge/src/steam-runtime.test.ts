@@ -18,14 +18,17 @@ import {
 import { WebCryptoSecretProtector } from "./web-crypto-auth";
 import type { CloudflareQueueMessage } from "./cloudflare-sync-queue";
 import { readStoredNormalizedJson } from "./normalized-payload-storage";
-import { createNeteaseHttpFixtureFetcher } from "../../../../../packages/connectors/src/netease/fixtures";
+import {
+  createNeteaseHttpFixtureFetcher,
+  historicalListenReportFixture
+} from "../../../../../packages/connectors/src/netease/fixtures";
 
 const directory = "infra/providers/cloudflare/edge/migrations";
 const owner = "00000000-0000-4000-8000-000000000001";
 const apiKey = "a".repeat(32);
 const now = new Date("2026-09-06T00:00:00.000Z");
 
-function database(through = 10) {
+function database(through = 11) {
   const sqlite = new DatabaseSync(":memory:");
   for (const file of readdirSync(directory)
     .filter((name) => name.endsWith(".sql") && Number(name.slice(0, 4)) <= through)
@@ -140,6 +143,193 @@ class Statement implements D1PreparedStatement {
 }
 
 describe("Steam D1 integration", () => {
+  it.each(["logged_out", "schema_drift", "retryable", "storage_error"])(
+    "reports NetEase %s failures without losing the last successful data or exposing credentials",
+    async (scenario) => {
+      const sqlite = database();
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      const warnings = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const db = new SqliteD1(sqlite);
+        const protector = new WebCryptoSecretProtector(new Uint8Array(32).fill(7), "test");
+        const metrics = { backlogCount: 0, backlogBytes: 0 };
+        const queue: Queue<CloudflareQueueMessage> = {
+          send: async () => ({ metadata: { metrics } }),
+          sendBatch: async () => ({ metadata: { metrics } }),
+          metrics: async () => metrics
+        };
+        const secret = "netease-test-credential";
+        const fetcher = vi.fn(createNeteaseHttpFixtureFetcher("normal"));
+        const runtime = new D1ProviderSyncRuntime(db, queue, protector, 2000, 3, fetcher);
+        const connections = new ProviderConnectionService(
+          new D1ProviderCredentialRepository(db),
+          new D1ProviderConnectionUnitOfWork(db),
+          protector,
+          { now: () => new Date() },
+          (context, provider) => runtime.enqueue(context.actorId, provider)
+        );
+        sqlite.exec("UPDATE dashboard_revision_widgets SET enabled=0 WHERE provider='netease'");
+        const accepted = await connections.connectNetease({ actorId: owner }, "music_u", secret);
+        expect((await runtime.process(accepted.validationJob.id)).run.status).toBe("completed");
+        const previous = (await runtime.listProviderStatuses(owner)).find(
+          (status) => status.provider === "netease"
+        )!;
+        const catalog = await runtime.getOwnerDataCatalog(owner);
+        const snapshots = sqlite.prepare("SELECT id FROM provider_raw_snapshots").all();
+        if (scenario === "storage_error") {
+          vi.spyOn(db, "batch").mockRejectedValueOnce(
+            Object.assign(new Error(`MUSIC_U=${secret}`), { code: secret })
+          );
+        } else {
+          fetcher.mockImplementation(async () =>
+            scenario === "retryable"
+              ? new Response("unavailable", { status: 503 })
+              : Response.json({
+                  code: 200,
+                  account: scenario === "logged_out" ? null : {},
+                  profile: scenario === "logged_out" ? null : {},
+                  message: `MUSIC_U=${secret}`
+                })
+          );
+        }
+        const next = await runtime.enqueue(owner, "netease");
+        const code =
+          scenario === "logged_out"
+            ? "provider-credential-invalid"
+            : scenario === "schema_drift"
+              ? "provider-schema-mismatch.netease.account"
+              : scenario === "retryable"
+                ? "retryable-provider-error.upstream-5xx"
+                : "provider-sync-failed";
+        if (scenario === "retryable") {
+          await expect(runtime.process(next.id)).rejects.toMatchObject({
+            code: "retryable-provider-error"
+          });
+        } else {
+          expect((await runtime.process(next.id)).run.status).toBe("failed");
+        }
+        const status = (await runtime.listProviderStatuses(owner)).find(
+          (item) => item.provider === "netease"
+        )!;
+        const job = await runtime.getForOwner(owner, next.id);
+        expect(job).toMatchObject({
+          status: scenario === "retryable" ? "retry_wait" : "failed",
+          lastErrorCode: code,
+          lastErrorMessage: status.lastErrorMessage
+        });
+        expect(status).toMatchObject({
+          connection: scenario === "logged_out" ? "requires_attention" : "connected",
+          credentialStatus: scenario === "logged_out" ? "invalid" : "valid",
+          syncStatus:
+            scenario === "logged_out"
+              ? "credential_invalid"
+              : scenario === "retryable"
+                ? "retrying"
+                : "failed",
+          lastErrorCode: code,
+          lastSuccessAt: previous.lastSuccessAt
+        });
+        if (scenario === "logged_out") {
+          expect(status.lastErrorMessage).toContain("Reconnect the Provider in Settings");
+        }
+        expect(await runtime.getOwnerDataCatalog(owner)).toEqual(catalog);
+        expect(sqlite.prepare("SELECT id FROM provider_raw_snapshots").all()).toEqual(snapshots);
+        const log = scenario === "retryable" ? warnings : errors;
+        expect(log).toHaveBeenCalledOnce();
+        const report = JSON.parse(String(log.mock.calls[0]?.[0]));
+        expect(report).toMatchObject({
+          attemptCount: 1,
+          code,
+          event: scenario === "retryable" ? "netease_sync_retry_wait" : "netease_sync_failed",
+          message: status.lastErrorMessage,
+          provider: "netease",
+          retrying: scenario === "retryable",
+          stage: scenario === "storage_error" ? "raw_persistence" : "collection",
+          syncRunId: next.id,
+          totalMs: expect.any(Number)
+        });
+        expect(JSON.stringify({ report, status, job })).not.toContain(secret);
+        expect(JSON.stringify(report)).not.toContain("MUSIC_U");
+      } finally {
+        errors.mockRestore();
+        warnings.mockRestore();
+        sqlite.close();
+      }
+    }
+  );
+
+  it("archives newly completed NetEase periods without replacing older history", async () => {
+    const sqlite = database();
+    try {
+      const db = new SqliteD1(sqlite);
+      const protector = new WebCryptoSecretProtector(new Uint8Array(32).fill(7), "test");
+      const metrics = { backlogCount: 0, backlogBytes: 0 };
+      const queue: Queue<CloudflareQueueMessage> = {
+        send: async () => ({ metadata: { metrics } }),
+        sendBatch: async () => ({ metadata: { metrics } }),
+        metrics: async () => metrics
+      };
+      const fetcher = vi.fn(createNeteaseHttpFixtureFetcher("normal"));
+      const runtime = new D1ProviderSyncRuntime(db, queue, protector, 2000, 3, fetcher);
+      const connections = new ProviderConnectionService(
+        new D1ProviderCredentialRepository(db),
+        new D1ProviderConnectionUnitOfWork(db),
+        protector,
+        { now: () => new Date() },
+        (context, provider) => runtime.enqueue(context.actorId, provider)
+      );
+      sqlite.exec("UPDATE dashboard_revision_widgets SET enabled=0 WHERE provider='netease'");
+      const accepted = await connections.connectNetease(
+        { actorId: owner },
+        "music_u",
+        "netease-test-credential"
+      );
+      expect((await runtime.process(accepted.validationJob.id)).run.status).toBe("completed");
+      const archived = sqlite
+        .prepare("SELECT * FROM netease_calendar_history ORDER BY period, start_time")
+        .all();
+      expect(archived).toHaveLength(6);
+
+      // Move both calendars forward by one period; the oldest inline period now falls out.
+      const original = createNeteaseHttpFixtureFetcher("normal");
+      fetcher.mockImplementation(async (input, init) => {
+        const url = String(input instanceof Request ? input.url : input);
+        const response = await original(input, init);
+        if (!url.includes("realtime/report") && !url.endsWith("listen/data/report")) {
+          return response;
+        }
+        const payload = (await response.json()) as {
+          data: { type: "week" | "month"; startTime: number };
+        };
+        const period = payload.data.type;
+        const index = url.includes("realtime/report")
+          ? -1
+          : [0, 1, 2].find(
+              (candidate) =>
+                historicalListenReportFixture(period, candidate).data.startTime ===
+                payload.data.startTime
+            );
+        if (index === undefined) throw new Error("Unrecognized historical fixture period");
+        return Response.json(historicalListenReportFixture(period, index - 1));
+      });
+      const next = await runtime.enqueue(owner, "netease");
+      expect((await runtime.process(next.id)).run.status).toBe("completed");
+      const advanced = sqlite
+        .prepare("SELECT * FROM netease_calendar_history ORDER BY period, start_time")
+        .all();
+      expect(advanced).toHaveLength(8);
+      expect(advanced).toEqual(expect.arrayContaining(archived));
+
+      const repeated = await runtime.enqueue(owner, "netease");
+      expect((await runtime.process(repeated.id)).run.status).toBe("completed");
+      expect(
+        sqlite.prepare("SELECT * FROM netease_calendar_history ORDER BY period, start_time").all()
+      ).toEqual(advanced);
+    } finally {
+      sqlite.close();
+    }
+  });
+
   it("refetches incompatible NetEase history caches instead of failing the new protocol", async () => {
     const sqlite = database();
     try {

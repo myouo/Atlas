@@ -6,6 +6,7 @@ import {
 } from "@nivalis/domain";
 import type {
   JsonObject,
+  JsonValue,
   NormalizedProviderData,
   ProviderNormalizationInput,
   ProviderNormalizer,
@@ -287,6 +288,23 @@ export class NeteaseNormalizer implements ProviderNormalizer {
       }
     };
   }
+}
+
+export function normalizeNeteaseHistoricalReport(payload: JsonValue, period: "week" | "month") {
+  if (!Value.Check(NeteaseListenReportResponseSchema, payload)) {
+    throw new ProviderSchemaMismatchError(
+      period === "week"
+        ? NETEASE_SOURCE.listenReportPreviousWeek
+        : NETEASE_SOURCE.listenReportPreviousMonth
+    );
+  }
+  return normalizedReport(
+    payload,
+    period,
+    period === "week"
+      ? NETEASE_SOURCE.listenReportPreviousWeek
+      : NETEASE_SOURCE.listenReportPreviousMonth
+  );
 }
 
 function normalizedReport(
@@ -912,19 +930,25 @@ function checked<T extends TSchema>(schema: T, snapshot: ProviderSnapshotRecord)
 }
 
 function normalizeTrack(track: {
-  readonly al?: { readonly id?: number | string; readonly name?: string; readonly picUrl?: string };
-  readonly ar: readonly { readonly id: number | string; readonly name: string }[];
+  readonly al?: {
+    readonly id?: number | string;
+    readonly name?: string | null;
+    readonly picUrl?: string;
+  };
+  readonly ar: readonly { readonly id: number | string; readonly name: string | null }[];
   readonly dt?: number;
   readonly id: number | string;
   readonly name: string;
 }): NeteaseNormalizedTrack {
   return {
     albumName: track.al?.name ?? null,
-    albumProviderId: track.al?.id === undefined ? null : String(track.al.id),
-    artists: track.ar.map((artist): NeteaseNormalizedArtist => ({
-      name: artist.name,
-      providerArtistId: String(artist.id)
-    })),
+    albumProviderId:
+      track.al?.id === undefined || (track.al.id === 0 && track.al.name === null)
+        ? null
+        : String(track.al.id),
+    artists: track.ar.flatMap((artist): NeteaseNormalizedArtist[] =>
+      artist.name === null ? [] : [{ name: artist.name, providerArtistId: String(artist.id) }]
+    ),
     coverUrl: safeArtworkUrl(track.al?.picUrl),
     durationMs: track.dt ?? null,
     name: track.name,

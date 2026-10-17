@@ -9,7 +9,11 @@ import type {
 } from "@nivalis/domain";
 
 import { isNeteaseNormalizedPayload } from "./netease-normalizer";
-import { NETEASE_SOURCE, type NeteaseNormalizedPayload } from "./netease-types";
+import {
+  NETEASE_SOURCE,
+  type NeteaseNormalizedPayload,
+  type NeteaseNormalizedReport
+} from "./netease-types";
 
 export class NeteaseProjector implements ProviderProjector {
   async project(input: ProviderProjectionInput): Promise<ProviderProjectionBatch> {
@@ -280,6 +284,19 @@ function listeningCalendar(payload: NeteaseNormalizedPayload, dataConfig: JsonOb
         )
       : { availability: "unavailable", reason: "not_public" }
   };
+}
+
+export function projectNeteaseHistoricalCalendarRange(
+  period: "week" | "month",
+  report: NeteaseNormalizedReport
+) {
+  return calendarRange(
+    period,
+    report.totalMinutes,
+    report.listenDays,
+    report.points,
+    report.recordWall
+  );
 }
 
 function calendarRange(
